@@ -2,13 +2,10 @@
 {
     public enum InstructionType
     {
-        Accelerate,
-        Decelerate,
-        Left,
-        Right,
-        Forward,
-        DriftLeft,
-        DriftRight,
-        UseItem
+        Move,        // Parameter = 步数
+        ChangeLane,   // Parameter = -1 or +1
+        Repair,      // Discard two junk carda
+        Discard,    // Discard some cards
+        NoAction,    
     }
 }

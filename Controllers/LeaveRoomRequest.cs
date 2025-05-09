@@ -1,17 +1,12 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Toko.Models
+namespace Toko.Controllers
 {
-    public class SubmitInstructionsRequest
+    public class LeaveRoomRequest
     {
         [Required]
         public string RoomId { get; set; }
-
         [Required]
         public string PlayerId { get; set; }
-
-        [Required]
-        [MinLength(1)]
-        public List<InstructionType> Instructions { get; set; } = new();
     }
 }
