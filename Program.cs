@@ -1,5 +1,8 @@
+using MediatR;
+using Microsoft.AspNetCore.Hosting;
 using Toko.Filters;
 using Toko.Hubs;
+using Toko.Models;
 using Toko.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,6 +13,18 @@ builder.Services.AddControllers();
 builder.Services.AddSingleton<RoomManager>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 builder.Services.AddHostedService<QueuedHostedService>();
+
+builder.Services
+    .AddControllers(options =>
+    {
+        options.Filters.Add<HttpResponseExceptionFilter>();
+    });
+
+
+// register MediatR
+builder.Services.AddMediatR(cfg =>
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+
 
 //builder.Services.AddScoped<EnsureRoomStatusFilter>();
 
@@ -60,3 +75,5 @@ app.MapControllers();
 app.MapHub<RaceHub>("/raceHub");
 
 app.Run();
+
+public partial class Program { }

@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
+using System.Collections.Generic;
 using Toko.Filters;
 using Toko.Hubs;
 using Toko.Models;
+using Toko.Models.Requests;
 using Toko.Services;
+using static Toko.Services.RoomManager;
 
 namespace Toko.Controllers
 {
@@ -29,8 +32,7 @@ namespace Toko.Controllers
         public IActionResult CreateRoom([FromBody] CreateRoomRequest req)
         {
             var (roomId, hostRacer) = _roomManager.CreateRoom(
-                req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName
-            );
+                req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.TotalRounds, req.StepsPerRound);
 
             return Ok(new
             {
@@ -44,19 +46,28 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public IActionResult JoinRoom([FromBody] JoinRoomRequest request)
         {
-            var room = _roomManager.GetRoom(request.RoomId);
-            if (room == null)
-            {
-                return NotFound("Room not found.");
-            }
+            var result = _roomManager.JoinRoom(request.RoomId, request.PlayerName);
+            return result.Match<IActionResult>(
+                success => Ok(new { message = "Joined room", playerId = success.Racer.Id }),
+                error => error switch
+                {
+                    JoinRoomError.RoomNotFound => NotFound("Room not found."),
+                    JoinRoomError.RoomFull => BadRequest("Room is full."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+            //var room = _roomManager.GetRoom(request.RoomId);
+            //if (room == null)
+            //{
+            //    return NotFound("Room not found.");
+            //}
 
-            var (success, racer) = _roomManager.JoinRoom(request.RoomId, request.PlayerName);
-            if (success)
-            {
-                return Ok(new { message = "Joined room successfully.", playerId = racer.Id });
-            }
+            //var (success, racer) = _roomManager.JoinRoom(request.RoomId, request.PlayerName);
+            //if (success)
+            //{
+            //    return Ok(new { message = "Joined room successfully.", playerId = racer.Id });
+            //}
 
-            return BadRequest("Failed to join room.");
+            //return BadRequest("Failed to join room.");
         }
 
         [HttpGet("{roomId}")]
@@ -80,7 +91,7 @@ namespace Toko.Controllers
                         r.PlayerName
                     }).ToList(),
                     Map = room.Map?.ToString(),
-                    room.CurrentTurn
+                    room.CurrentRound
                 }
                 );
         }
@@ -98,7 +109,15 @@ namespace Toko.Controllers
         {
             var cards = _roomManager.DrawCards(
                 req.RoomId, req.PlayerId, req.Count);
-            return Ok(cards);
+            return cards.Match<IActionResult>(
+                success => Ok(new { cards = success }),
+                error => error switch
+                {
+                    DrawCardsError.RoomNotFound => NotFound("Room not found."),
+                    DrawCardsError.PlayerNotFound => NotFound("Player not found."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+            //return Ok(cards);
         }
 
         //[HttpPost("submit-cards")]
@@ -143,60 +162,105 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public IActionResult Start(string roomId)
         {
-            var ok = _roomManager.StartRoom(roomId);
-            if (!ok) return BadRequest("房间不存在或已开始。");
-            return Ok(new { message = "游戏已开始" });
+            //var ok = _roomManager.StartRoom(roomId);
+            //if (!ok) return BadRequest("房间不存在或已开始。");
+            //return Ok(new { message = "游戏已开始" });
+            var result = _roomManager.StartRoom(roomId);
+            return result.Match<IActionResult>(success =>
+            {
+                _hubContext.Clients.Group(roomId)
+                    .SendAsync("GameStarted", success.RoomId);
+                return Ok(new { message = "Game started", success.RoomId });
+            },
+                error => error switch
+                {
+                    StartRoomError.RoomNotFound => NotFound("Room not found."),
+                    StartRoomError.AlreadyStarted => BadRequest("Room already started."),
+                    StartRoomError.AlreadyFinished => BadRequest("Room already Finished"),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
         }
 
         [HttpPost("submit-step-card")]
+        [EnsureRoomStatus(RoomStatus.Playing)]
         public IActionResult SubmitStepCard([FromBody] SubmitStepCardRequest req)
         {
-            var list = _roomManager.SubmitStepCard(req.RoomId, req.PlayerId, req.Step, req.CardId);
-            // 广播让房间里所有人看见最新卡片提交情况
-            _hubContext.Clients.Group(req.RoomId)
-                .SendAsync("ReceiveStepCardSubmissions", req.Step, list);
-            return Ok(list);
+            var result = _roomManager.SubmitStepCard(req.RoomId, req.PlayerId, req.Step, req.CardId);
+            return result.Match<IActionResult>(
+                success =>
+                {
+                    _hubContext.Clients.Group(req.RoomId)
+                        .SendAsync("ReceiveStepCardSubmissions", req.Step, success.CardId);
+                    return Ok(new { message = "Step card submitted successfully", success.CardId });
+                },
+                error => error switch
+                {
+                    SubmitStepCardError.RoomNotFound => NotFound("Room not found."),
+                    SubmitStepCardError.PlayerNotFound => NotFound("Player not found."),
+                    SubmitStepCardError.InvalidStep => BadRequest("Not your step."),
+                    SubmitStepCardError.CardNotFound => BadRequest("Invalid card ID."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
         }
 
         // 3.2 在执行阶段，提交参数并立刻执行
         [HttpPost("submit-exec-param")]
+        [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> SubmitExecParam([FromBody] SubmitExecParamRequest req)
         {
-            var ins = _roomManager.SubmitExecutionParam(
+            var result = _roomManager.SubmitExecutionParam(
                 req.RoomId, req.PlayerId, req.Step, req.ExecParameter);
 
-            // 获取玩家最新位置等状态
-            var room = _roomManager.GetRoom(req.RoomId)!;
-            var racer = room.Racers.First(r => r.Id == req.PlayerId);
-
-            // 广播这条执行结果
-            await _hubContext.Clients.Group(req.RoomId)
-                .SendAsync("ReceiveExecutionResult", req.Step, req.PlayerId, new
+            return await Task.FromResult(result.Match<IActionResult>(
+                success =>
                 {
-                    ins.Type,
-                    ins.ExecParameter,
-                    racer.SegmentIndex,
-                    racer.LaneIndex
-                });
+                    // Broadcast the execution result to all clients in the room
+                    _hubContext.Clients.Group(req.RoomId)
+                        .SendAsync("ReceiveExecutionResult", req.Step, req.PlayerId, new
+                        {
+                            success.Instruction.Type,
+                            success.Instruction.ExecParameter,
+                            success.SegmentIndex,
+                            success.LaneIndex,
+                        });
 
-            return Ok(ins);
+                    return Ok(new { message = "Execution submitted", success });
+                },
+                error => error switch
+                {
+                    SubmitExecutionParamError.RoomNotFound => NotFound("Room not found."),
+                    SubmitExecutionParamError.PlayerNotFound => NotFound("Player not found."),
+                    SubmitExecutionParamError.StepNotFound => NotFound("Step not found"),
+                    SubmitExecutionParamError.CardNotFound => NotFound("Card not found"),
+                    SubmitExecutionParamError.InvalidExecParameter => BadRequest("Invalid execution parameter"),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                }));
         }
 
         [HttpPost("leave")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public IActionResult LeaveRoom([FromBody] LeaveRoomRequest req)
         {
-            var room = _roomManager.GetRoom(req.RoomId);
-            if (room == null)
-            {
-                return NotFound("Room not found.");
-            }
-            var success = _roomManager.LeaveRoom(req.RoomId, req.PlayerId);
-            if (success)
-            {
-                return Ok(new { message = "Left room successfully." });
-            }
-            return BadRequest("Failed to leave room.");
+            return _roomManager.LeaveRoom(req.RoomId, req.PlayerId)
+                .Match<IActionResult>(
+                    success => Ok(new { message = "Left room successfully.", success.PlayerId }),
+                    error => error switch
+                    {
+                        LeaveRoomError.RoomNotFound => NotFound("Room not found."),
+                        LeaveRoomError.PlayerNotFound => NotFound("Player not found."),
+                        _ => StatusCode(StatusCodes.Status500InternalServerError)
+                    });
+            //var room = _roomManager.GetRoom(req.RoomId);
+            //if (room == null)
+            //{
+            //    return NotFound("Room not found.");
+            //}
+            //var success = _roomManager.LeaveRoom(req.RoomId, req.PlayerId);
+            //if (success)
+            //{
+            //    return Ok(new { message = "Left room successfully." });
+            //}
+            //return BadRequest("Failed to leave room.");
         }
 
 
@@ -204,9 +268,18 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Playing)]
         public IActionResult Discard([FromBody] DiscardRequest req)
         {
-            var cards = _roomManager.DiscardCards(
+            var result = _roomManager.DiscardCards(
                 req.RoomId, req.PlayerId, req.Step, req.CardIds);
-            return Ok(cards);
+            return result.Match<IActionResult>(
+                success => Ok(new { message = "Discarded cards", success }),
+                error => error switch
+                {
+                    DiscardCardsError.RoomNotFound => NotFound("Room not found."),
+                    DiscardCardsError.PlayerNotFound => NotFound("Player not found."),
+                    DiscardCardsError.StepNotFound => NotFound("Step not found."),
+                    DiscardCardsError.CardNotFound => BadRequest("Invalid card IDs."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
         }
     }
 }

@@ -1,15 +1,15 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Toko.Controllers
+namespace Toko.Models.Requests
 {
-    public class SubmitCardsRequest
+    public class DrawRequest
     {
         [Required]
         public string RoomId { get; set; }
         [Required]
         public string PlayerId { get; set; }
         [Required]
-        public List<string> CardIds { get; set; } = new();
+        public int Count { get; set; } = 3;  // 默认每回合抽牌上限
     }
 }
 

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Toko.Models
+namespace Toko.Models.Requests
 {
     public class DiscardRequest
     {

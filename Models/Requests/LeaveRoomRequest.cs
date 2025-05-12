@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Toko.Controllers
+namespace Toko.Models.Requests
 {
     public class LeaveRoomRequest
     {
