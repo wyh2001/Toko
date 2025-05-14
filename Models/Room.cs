@@ -1,161 +1,226 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using MediatR;
+using OneOf;
 using Stateless;
 using Toko.Models.Events;
 using Toko.Services;
+using static Toko.Services.RoomManager;
 
 namespace Toko.Models
 {
+    /// <summary>
+    /// 领域对象 Room – 封装所有业务规则：
+    ///   • 超过 20 秒才允许其他玩家发起踢票；<br/>
+    ///   • 不自动跳过；若无人踢，该玩家可继续操作；<br/>
+    ///   • 每次成功提交获得 BANK_INCREMENT 时间奖励；<br/>
+    ///   • 返回类型、错误枚举与 RoomManager 保持一致。
+    /// </summary>
     public class Room
     {
-        public string Id { get; set; } = Guid.NewGuid().ToString();
+        #region ▶ 公共属性
+        public string Id { get; } = Guid.NewGuid().ToString();
         public string? Name { get; set; }
         public int MaxPlayers { get; set; } = 8;
-        public bool IsPrivate { get; set; } = false;
-        public List<Racer> Racers { get; set; } = new();
-        public RaceMap? Map { get; set; }
-        public int CurrentRound { get; set; } = 0;
-        public RoomStatus Status { get; set; } = RoomStatus.Waiting;
-        /// <summary>当前正在收集第几步（从 0 开始）</summary>
-        public int CurrentStep { get; set; } = 0;
-        public DateTime PlayerDeadlineUtc { get; set; }
+        public bool IsPrivate { get; set; }
+        public RaceMap Map { get; set; } = RaceMapFactory.CreateDefaultMap();
+        public List<Racer> Racers { get; } = new();
 
-        /// <summary>
-        /// 第 step 步各玩家交的卡片 ID; playerId → 卡片 ID 列表
-        /// </summary>
-        public ConcurrentDictionary<int, ConcurrentDictionary<string, string>>
-            StepCardSubmissions
-        { get; set; }
-          = new ConcurrentDictionary<int, ConcurrentDictionary<string, string>>();
+        public int CurrentRound { get; private set; }
+        public int CurrentStep { get; private set; }
+        public RoomStatus Status => _gameSM.State;
+        #endregion
 
-        /// <summary>
-        /// 第 step 步已执行的指令（执行阶段才用到）
-        /// </summary>
-        public ConcurrentDictionary<int, ConcurrentDictionary<string, ConcreteInstruction>>
-            StepExecSubmissions
-        { get; set; }
-          = new ConcurrentDictionary<int, ConcurrentDictionary<string, ConcreteInstruction>>();
+        #region ▶ FSM
+        private enum Phase { CollectingCards, CollectingParams }
+        public enum RoomStatus { Waiting, Playing, Finished }
+        private enum GameTrigger { Start, GameOver }
+        private enum PhaseTrigger { CardsReady, StepDone, Timeout }
 
+        private readonly StateMachine<RoomStatus, GameTrigger> _gameSM;
+        private readonly StateMachine<Phase, PhaseTrigger> _phaseSM;
+        #endregion
 
-        /// <summary>总共多少轮</summary>
-        public int TotalRounds { get; set; } = 5;
-
-        /// <summary>每一轮的步数，可以不一样。长度应该 = TotalRounds</summary>
-        public List<int> StepsPerRound { get; set; } = new();
-
-        public int CurrentRacerIndex { get; set; } = 0;
-        public List<string> PlayerOrder { get; private set; } = new();
-
-        public StateMachine<RoomStatus, Trigger> MainSM { get; private set; }
-        public StateMachine<PlayingPhase, Trigger> SubSM { get; private set; }
-        public StateMachine<string, CollectTrigger> CollectSM { get; private set; }
+        #region ▶ 常量 & 字段
+        private readonly List<int> _steps;
+        private readonly List<string> _order = new();
+        private int _idx;                                 // 当前顺序索引
 
         private readonly IMediator _mediator;
+        private CancellationTokenSource? _cts;             // 单房计时器
 
-        public Room(IMediator mediator)
+        private readonly Dictionary<string, DateTime> _thinkStart = new();
+        private readonly Dictionary<string, TimeSpan> _bank = new();
+        private readonly HashSet<string> _banned = new();
+        private readonly Dictionary<string, HashSet<string>> _kickVotes = new();
+        private readonly Dictionary<string, string> _cardNow = new();
+
+        private static readonly TimeSpan INIT_BANK = TimeSpan.FromSeconds(30);
+        private static readonly TimeSpan BANK_INCREMENT = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan TIMEOUT_PROMPT = TimeSpan.FromSeconds(30); // UI 参考
+        private static readonly TimeSpan KICK_ELIGIBLE = TimeSpan.FromSeconds(20);
+        #endregion
+
+        public Room(IMediator mediator, IEnumerable<int> stepsPerRound)
         {
-            MainSM = new StateMachine<RoomStatus, Trigger>(RoomStatus.Waiting);
-            SubSM = new StateMachine<PlayingPhase, Trigger>(PlayingPhase.Collecting);
-            CollectSM = new StateMachine<string, CollectTrigger>("Idle");
-
-            ConfigureMain();
-            ConfigureSub();
-            this._mediator = mediator;
+            _mediator = mediator;
+            _steps = stepsPerRound.Any() ? stepsPerRound.ToList() : new() { 5 };
+            _gameSM = new(RoomStatus.Waiting);
+            _phaseSM = new(Phase.CollectingCards);
+            ConfigureFSM();
         }
 
-        void ConfigureMain()
+        #region ▶ 游戏控制
+        public OneOf<StartRoomSuccess, StartRoomError> StartGame()
         {
-            MainSM.Configure(RoomStatus.Waiting)
-                  .Permit(Trigger.Start, RoomStatus.Playing);
+            if (Status == RoomStatus.Playing) return StartRoomError.AlreadyStarted;
+            if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
+            if (!Racers.Any()) return StartRoomError.NoPlayers;
 
-            MainSM.Configure(RoomStatus.Playing)
-                  .OnEntry(() => SubSM.Fire(Trigger.Timeout)) // enter collecting
-                  .Permit(Trigger.Finish, RoomStatus.Finished);
-
-            MainSM.Configure(RoomStatus.Finished);
+            _order.Clear();
+            _order.AddRange(Racers.Select(r => r.Id));
+            foreach (var pid in _order) _bank[pid] = INIT_BANK;
+            CurrentRound = 0; CurrentStep = 0;
+            _gameSM.Fire(GameTrigger.Start);
+            return new StartRoomSuccess(Id);
         }
 
-        void ConfigureSub()
+        public void EndGame() => _gameSM.Fire(GameTrigger.GameOver);
+        #endregion
+
+        #region ▶ 卡片提交
+        public OneOf<SubmitStepCardSuccess, SubmitStepCardError> SubmitStepCard(string pid, string cardId)
         {
-            SubSM.Configure(PlayingPhase.Collecting)
-                 .OnEntry(SetupCollectSM)
-                 .Permit(Trigger.AllPlayersDone, PlayingPhase.Executing);
+            // 1. 基础校验
+            if (_banned.Contains(pid)) return SubmitStepCardError.PlayerBanned;
+            if (_phaseSM.State != Phase.CollectingCards) return SubmitStepCardError.WrongPhase;
+            if (pid != _order[_idx]) return SubmitStepCardError.NotYourTurn;
 
-            SubSM.Configure(PlayingPhase.Executing)
-                 .OnEntry(OnEnterExecuting)
-                 .Permit(Trigger.ExecutionDone, PlayingPhase.Collecting);
+            var racer = Racers.FirstOrDefault(r => r.Id == pid);
+            if (racer is null) return SubmitStepCardError.PlayerNotFound;
+            var cardObj = racer.Hand.FirstOrDefault(c => c.Id == cardId);
+            if (cardObj is null) return SubmitStepCardError.CardNotFound;
 
-            SubSM.OnTransitioned(t =>
+            // 2. 更新时间银行
+            UpdateBank(pid);
+
+            // 3. 把卡牌从手牌移入弃牌堆，避免后续再次提交同一张
+            racer.Hand.Remove(cardObj);
+            racer.DiscardPile.Add(cardObj);
+
+            // 4. 记录提交并推进顺序
+            _cardNow[pid] = cardId;
+            MoveNextPlayer();
+            return new SubmitStepCardSuccess(cardId);
+        }
+        #endregion
+
+        #region ▶ 参数提交
+        public OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError> SubmitExecutionParam(string pid, ExecParameter p)
+        {
+            if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
+            if (_phaseSM.State != Phase.CollectingParams) return SubmitExecutionParamError.WrongPhase;
+            if (pid != _order[_idx]) return SubmitExecutionParamError.NotYourTurn;
+            var racer = Racers.FirstOrDefault(r => r.Id == pid) ??
+                        throw new InvalidOperationException();
+            if (!_cardNow.TryGetValue(pid, out var cardId)) return SubmitExecutionParamError.CardNotFound;
+            var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
+            if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
+
+            UpdateBank(pid);
+
+            var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
+            new TurnExecutor(Map).ApplyInstruction(racer, ins, this);
+            _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep, new()));
+
+            MoveNextPlayer();
+            return new SubmitExecutionParamSuccess(ins);
+        }
+        #endregion
+
+        #region ▶ 投票踢人（单票生效）
+        public enum KickVoteError { WrongPhase, TooEarly, TargetNotFound, AlreadyKicked }
+        public record KickVoteSuccess(string TargetId);
+
+        public OneOf<KickVoteSuccess, KickVoteError> VoteKick(string voterId, string targetId)
+        {
+            if (Status != RoomStatus.Playing) return KickVoteError.WrongPhase;
+            if (!_order.Contains(targetId)) return KickVoteError.TargetNotFound;
+            if (_banned.Contains(targetId)) return KickVoteError.AlreadyKicked;
+            if (!IsKickEligible(targetId)) return KickVoteError.TooEarly;
+
+            _banned.Add(targetId);
+            _mediator.Publish(new PlayerKicked(Id, targetId));
+            return new KickVoteSuccess(targetId);
+        }
+        #endregion
+
+        #region ▶ 内部帮助
+        void ConfigureFSM()
+        {
+            _gameSM.Configure(RoomStatus.Waiting)
+                   .Permit(GameTrigger.Start, RoomStatus.Playing);
+            _gameSM.Configure(RoomStatus.Playing)
+                   .OnEntry(() => _phaseSM.Activate())
+                   .Permit(GameTrigger.GameOver, RoomStatus.Finished);
+            _gameSM.Configure(RoomStatus.Finished)
+                   .OnEntry(() => _cts?.Cancel());
+
+            _phaseSM.Configure(Phase.CollectingCards)
+                    .OnEntry(() => { _cardNow.Clear(); _idx = 0; PromptCard(_order[0]); })
+                    .Permit(PhaseTrigger.CardsReady, Phase.CollectingParams)
+                    .Permit(PhaseTrigger.Timeout, Phase.CollectingParams);
+            _phaseSM.Configure(Phase.CollectingParams)
+                    .OnEntry(() => { _idx = 0; PromptParam(_order[0]); })
+                    .Permit(PhaseTrigger.StepDone, Phase.CollectingCards)
+                    .Permit(PhaseTrigger.Timeout, Phase.CollectingCards);
+            _phaseSM.OnTransitioned(t => { if (t.Trigger == PhaseTrigger.StepDone) NextStep(); });
+        }
+
+        void PromptCard(string pid) { _thinkStart[pid] = DateTime.UtcNow; RescheduleTimer(); _mediator.Publish(new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid)); }
+        void PromptParam(string pid) { _thinkStart[pid] = DateTime.UtcNow; RescheduleTimer(); _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid)); }
+
+        void RescheduleTimer()
+        {
+            _cts?.Cancel();
+            _cts = new CancellationTokenSource();
+            _ = Task.Delay(TIMEOUT_PROMPT, _cts.Token).ContinueWith(_ =>
             {
-                if (t.Trigger == Trigger.ExecutionDone)
-                    AdvancePointer();
-            });
+                if (_cts.IsCancellationRequested || Status != RoomStatus.Playing) return;
+                var pid = _order[_idx];
+                if (IsKickEligible(pid))
+                    _mediator.Publish(new PlayerTimeoutElapsed(Id, pid)); // 提醒 UI 可踢
+            }, TaskScheduler.Default);
         }
 
-        // Build per‑player collect machine each step/round
-        void SetupCollectSM()
+        bool Validate(CardType t, ExecParameter p) => t switch
         {
-            CollectSM = new StateMachine<string, CollectTrigger>("Idle");
+            CardType.Move => p.Effect is >= 0 and <= 2,
+            CardType.ChangeLane => p.Effect is 1 or -1,
+            CardType.Repair => p.DiscardedCardIds?.Any() == true,
+            _ => false
+        };
 
-            // Build PlayerOrder from Racers list if mismatch
-            if (PlayerOrder.Count != Racers.Count)
-                PlayerOrder = Racers.Select(r => r.Id).ToList();
-
-            CollectSM.Configure("Idle")
-                     .Permit(CollectTrigger.Reset, StateOfPlayer(PlayerOrder[0]));
-
-            for (int i = 0; i < PlayerOrder.Count; i++)
-            {
-                var pid = PlayerOrder[i];
-                var curr = StateOfPlayer(pid);
-                var next = (i == PlayerOrder.Count - 1) ? "Finished" : StateOfPlayer(PlayerOrder[i + 1]);
-
-                CollectSM.Configure(curr)
-                         .OnEntry(() => AskPlayerSubmit(pid))
-                         .Permit(CollectTrigger.Submit, next)
-                         .Permit(CollectTrigger.PlayerTimeout, next);
-            }
-
-            CollectSM.Configure("Finished")
-                     .OnEntry(() => SubSM.Fire(Trigger.AllPlayersDone));
-
-            CollectSM.Fire(CollectTrigger.Reset);
-        }
-
-        static string StateOfPlayer(string pid) => $"P:{pid}";
-
-        void AskPlayerSubmit(string pid)
+        void UpdateBank(string pid)
         {
-            Console.WriteLine($"[Room {Id}] Ask {pid} R{CurrentRound}-S{CurrentStep}");
-            // TODO: notify player to submit
-            _mediator.Publish(new PlayerSubmissionStepStarted(Id, CurrentRound, CurrentStep, pid));
-            PlayerDeadlineUtc = DateTime.UtcNow + TurnScheduler.TIMEOUT;
+            var elapsed = DateTime.UtcNow - _thinkStart[pid];
+            _bank[pid] -= elapsed; _bank[pid] += BANK_INCREMENT;
+            if (_bank[pid] < TimeSpan.Zero) _bank[pid] = TimeSpan.Zero;
         }
 
-        void OnEnterExecuting()
+        bool IsKickEligible(string pid) => DateTime.UtcNow - _thinkStart[pid] >= KICK_ELIGIBLE;
+
+        void MoveNextPlayer()
         {
-            Console.WriteLine($"[Room {Id}] Executing R{CurrentRound}-S{CurrentStep}");
-            // TODO: execute instructions
-
-            CollectSM.Fire(CollectTrigger.Reset); // prep next step
-            SubSM.Fire(Trigger.ExecutionDone);
+            do { _idx++; } while (_idx < _order.Count && _banned.Contains(_order[_idx]));
+            if (_idx == _order.Count) _phaseSM.Fire(PhaseTrigger.CardsReady); // or StepDone depending phase
+            else if (_phaseSM.State == Phase.CollectingCards) PromptCard(_order[_idx]);
+            else PromptParam(_order[_idx]);
         }
 
-        void AdvancePointer()
-        {
-            if (++CurrentStep >= StepsPerRound[CurrentRound - 1])
-            {
-                CurrentStep = 0;
-                if (++CurrentRound > TotalRounds)
-                    MainSM.Fire(Trigger.Finish);
-            }
-        }
-
-        public void ReceivePlayerSubmit(string playerId, string cardId)
-        {
-            if (CollectSM.State != StateOfPlayer(playerId)) return;
-            StepCardSubmissions.GetOrAdd(CurrentStep, _ => new())[playerId] = cardId;
-            CollectSM.Fire(CollectTrigger.Submit);
-        }
+        void NextStep() { if (++CurrentStep >= _steps[CurrentRound]) { CurrentStep = 0; if (++CurrentRound >= _steps.Count) _gameSM.Fire(GameTrigger.GameOver); } }
+        #endregion
     }
 }

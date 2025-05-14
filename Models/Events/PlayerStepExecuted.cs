@@ -1,20 +1,20 @@
-﻿using MediatR;
+using MediatR;
 
 namespace Toko.Models.Events
 {
-    public class PlayerSubmissionStepStarted : INotification
+    public class PlayerStepExecuted : INotification
     {
         public string RoomId { get; }
         public int Round { get; }
         public int Step { get; }
-        public string PlayerId { get; }
+        public List<TurnLog> Logs { get; }
 
-        public PlayerSubmissionStepStarted(string roomId, int round, int step, string playerId)
+        public PlayerStepExecuted(string roomId, int round, int step, List<TurnLog> logs)
         {
             RoomId = roomId;
             Round = round;
             Step = step;
-            PlayerId = playerId;
+            Logs = logs;
         }
     }
 }

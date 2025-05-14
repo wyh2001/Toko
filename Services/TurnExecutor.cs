@@ -15,115 +15,6 @@ namespace Toko.Services
             _map = map ?? throw new ArgumentNullException(nameof(map));
         }
 
-        ///// <summary>
-        ///// 依次对每位赛车手执行本回合提交的指令
-        ///// </summary>
-        //public void ExecuteTurn(Room room)
-        //{
-        //    if (room == null)
-        //        throw new ArgumentNullException(nameof(room));
-
-        //    Logs.Clear();
-
-        //    foreach (var racer in room.Racers)
-        //    {
-        //        // 跳过未提交或空提交的玩家
-        //        if (!room.SubmittedInstructions.TryGetValue(racer.Id, out var instrs))
-        //            continue;
-
-        //        foreach (var ins in instrs)
-        //        {
-        //            ApplyInstruction(racer, ins, room);
-        //        }
-
-        //        // 清空本回合指令，为下一回合做准备
-        //        room.SubmittedInstructions[racer.Id] = new List<CardType>();
-        //    }
-        //    room.CurrentTurn++;
-        //}
-
-        //public void ExecuteTurn(Room room)
-        //{
-        //    // room.Racers 保持了玩家加入/房主+加入顺序，作为“先后手”顺序
-        //    var racers = room.Racers;
-        //    // FinalInstructions[race.Id] 是他提交的 ConcreteInstruction 列表
-        //    // 先计算最多有几张牌需要执行
-        //    int maxSteps = racers
-        //        .Select(r => room.FinalInstructions.GetValueOrDefault(r.Id)?.Count ?? 0)
-        //        .DefaultIfEmpty(0)
-        //        .Max();
-
-        //    // 分层执行：第 1 张指令 → 第 2 张指令 → …
-        //    for (int step = 0; step < maxSteps; step++)
-        //    {
-        //        foreach (var racer in racers)
-        //        {
-        //            if (room.FinalInstructions.TryGetValue(racer.Id, out var list)
-        //                && step < list.Count)
-        //            {
-        //                var ins = list[step];
-        //                // 依据 ins.Type 和 ins.Parameter 调用 MoveForward/ChangeLane
-        //                if (ins.Type == InstructionType.Move)
-        //                    MoveForward(racer, ins.Parameter, room);
-        //                else if (ins.Type == InstructionType.ChangeLane)
-        //                    ChangeLane(racer, ins.Parameter, room);
-        //            }
-        //        }
-        //    }
-
-        //    // 清空指令，为下一回合做准备
-        //    foreach (var racer in racers)
-        //        room.FinalInstructions[racer.Id] = new List<ConcreteInstruction>();
-        //}
-
-        //private void ApplyInstruction(Racer racer, CardType ins, Room room)
-        //{
-        //    // 先执行动作
-        //    switch (ins)
-        //    {
-        //        case CardType.Forward1:
-        //            MoveForward(racer, 1, room);
-        //            break;
-        //        case CardType.Forward2:
-        //            MoveForward(racer, 2, room);
-        //            break;
-        //        case CardType.ChangeLeft:
-        //            ChangeLane(racer, -1, room);
-        //            break;
-        //        case CardType.ChangeRight:
-        //            ChangeLane(racer, +1, room);
-        //            break;
-        //        case CardType.ChangeLeft_Forward1:
-        //            ChangeLane(racer, -1, room);
-        //            MoveForward(racer, 1, room);
-        //            break;
-        //        case CardType.ChangeRight_Forward1:
-        //            ChangeLane(racer, +1, room);
-        //            MoveForward(racer, 1, room);
-        //            break;
-        //        case CardType.Forward1_ChangeLeft:
-        //            MoveForward(racer, 1, room);
-        //            ChangeLane(racer, -1, room);
-        //            break;
-        //        case CardType.Forward1_ChangeRight:
-        //            MoveForward(racer, 1, room);
-        //            ChangeLane(racer, +1, room);
-        //            break;
-        //        default:
-        //            // Repair / Junk 不会在此提交
-        //            break;
-        //    }
-
-        //    // 记录日志：每条指令结束后
-        //    Logs.Add(new TurnLog
-        //    {
-        //        PlayerId = racer.Id,
-        //        Instruction = ins,
-        //        SegmentIndex = racer.SegmentIndex,
-        //        LaneIndex = racer.LaneIndex
-        //    });
-        //}
-
         public void ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
         {
             // 先执行动作
@@ -255,20 +146,12 @@ namespace Toko.Services
         }
 
         // dicard cards
-        private void InternalDiscard(Racer racer, List<string> discardedCardId, Room room)
+        private static void InternalDiscard(Racer racer, List<string> discardedCardId, Room room)
         {
             // see if the size is legit
             if (discardedCardId.Count == 0)
                 return;
-            //// check if the cards are in the hand
-            //foreach (var cardId in discardedCardId)
-            //{
-            //    var card = racer.Hand
-            //        .FirstOrDefault(c => c.Id == cardId);
-            //    if (card == null)
-            //        return; // not in hand
-            //}
-            // discard the cards the user chose
+
             foreach (var cardId in discardedCardId)
             {
                 var card = racer.Hand

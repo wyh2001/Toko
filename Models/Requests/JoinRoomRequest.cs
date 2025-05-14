@@ -5,8 +5,8 @@ namespace Toko.Models.Requests
     public class JoinRoomRequest
     {
         [Required]
-        public string RoomId { get; set; }
+        public required string RoomId { get; set; }
         [Required]
-        public string PlayerName { get; set; }
+        public required string PlayerName { get; set; }
     }
 }

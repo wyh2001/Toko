@@ -5,7 +5,7 @@ namespace Toko.Models
     public class Racer
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
-        public string PlayerName { get; set; }
+        public required string PlayerName { get; set; }
         public Queue<Card> Deck { get; set; } = new Queue<Card>();
         public List<Card> Hand { get; set; } = new List<Card>();
         public List<Card> DiscardPile { get; set; } = new List<Card>();

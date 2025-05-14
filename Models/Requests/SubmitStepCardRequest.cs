@@ -1,10 +1,15 @@
-﻿namespace Toko.Models.Requests
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Toko.Models.Requests
 {
     public class SubmitStepCardRequest
     {
-        public string RoomId { get; set; }
-        public string PlayerId { get; set; }
-        public int Step { get; set; }
-        public string CardId { get; set; }
+        [Required]
+        public required string RoomId { get; set; }
+        [Required]
+        public required string PlayerId { get; set; }
+        //public int Step { get; set; }
+        [Required]
+        public required string CardId { get; set; }
     }
 }

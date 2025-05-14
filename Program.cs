@@ -14,11 +14,11 @@ builder.Services.AddSingleton<RoomManager>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 builder.Services.AddHostedService<QueuedHostedService>();
 
-builder.Services
-    .AddControllers(options =>
-    {
-        options.Filters.Add<HttpResponseExceptionFilter>();
-    });
+//builder.Services
+//    .AddControllers(options =>
+//    {
+//        options.Filters.Add<HttpResponseExceptionFilter>();
+//    });
 
 
 // register MediatR

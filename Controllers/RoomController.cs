@@ -7,6 +7,7 @@ using Toko.Hubs;
 using Toko.Models;
 using Toko.Models.Requests;
 using Toko.Services;
+using static Toko.Models.Room;
 using static Toko.Services.RoomManager;
 
 namespace Toko.Controllers
@@ -185,19 +186,19 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Playing)]
         public IActionResult SubmitStepCard([FromBody] SubmitStepCardRequest req)
         {
-            var result = _roomManager.SubmitStepCard(req.RoomId, req.PlayerId, req.Step, req.CardId);
+            var result = _roomManager.SubmitStepCard(req.RoomId, req.PlayerId, req.CardId);
             return result.Match<IActionResult>(
                 success =>
                 {
                     _hubContext.Clients.Group(req.RoomId)
-                        .SendAsync("ReceiveStepCardSubmissions", req.Step, success.CardId);
+                        .SendAsync("ReceiveStepCardSubmissions", success.CardId);
                     return Ok(new { message = "Step card submitted successfully", success.CardId });
                 },
                 error => error switch
                 {
                     SubmitStepCardError.RoomNotFound => NotFound("Room not found."),
                     SubmitStepCardError.PlayerNotFound => NotFound("Player not found."),
-                    SubmitStepCardError.InvalidStep => BadRequest("Not your step."),
+                    SubmitStepCardError.NotYourTurn => BadRequest("Not your step."),
                     SubmitStepCardError.CardNotFound => BadRequest("Invalid card ID."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
@@ -209,19 +210,19 @@ namespace Toko.Controllers
         public async Task<IActionResult> SubmitExecParam([FromBody] SubmitExecParamRequest req)
         {
             var result = _roomManager.SubmitExecutionParam(
-                req.RoomId, req.PlayerId, req.Step, req.ExecParameter);
+                req.RoomId, req.PlayerId, req.ExecParameter);
 
             return await Task.FromResult(result.Match<IActionResult>(
                 success =>
                 {
                     // Broadcast the execution result to all clients in the room
                     _hubContext.Clients.Group(req.RoomId)
-                        .SendAsync("ReceiveExecutionResult", req.Step, req.PlayerId, new
+                        .SendAsync("ReceiveExecutionResult", req.PlayerId, new
                         {
                             success.Instruction.Type,
                             success.Instruction.ExecParameter,
-                            success.SegmentIndex,
-                            success.LaneIndex,
+                            //success.SegmentIndex,
+                            //success.LaneIndex,
                         });
 
                     return Ok(new { message = "Execution submitted", success });
@@ -230,7 +231,7 @@ namespace Toko.Controllers
                 {
                     SubmitExecutionParamError.RoomNotFound => NotFound("Room not found."),
                     SubmitExecutionParamError.PlayerNotFound => NotFound("Player not found."),
-                    SubmitExecutionParamError.StepNotFound => NotFound("Step not found"),
+                    SubmitExecutionParamError.NotYourTurn => NotFound("Step not found"),
                     SubmitExecutionParamError.CardNotFound => NotFound("Card not found"),
                     SubmitExecutionParamError.InvalidExecParameter => BadRequest("Invalid execution parameter"),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
