@@ -200,6 +200,8 @@ namespace Toko.Controllers
                     SubmitStepCardError.PlayerNotFound => NotFound("Player not found."),
                     SubmitStepCardError.NotYourTurn => BadRequest("Not your step."),
                     SubmitStepCardError.CardNotFound => BadRequest("Invalid card ID."),
+                    SubmitStepCardError.WrongPhase => BadRequest("Wrong phase."),
+                    SubmitStepCardError.PlayerBanned => BadRequest("Player is banned."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }
@@ -234,6 +236,8 @@ namespace Toko.Controllers
                     SubmitExecutionParamError.NotYourTurn => NotFound("Step not found"),
                     SubmitExecutionParamError.CardNotFound => NotFound("Card not found"),
                     SubmitExecutionParamError.InvalidExecParameter => BadRequest("Invalid execution parameter"),
+                    SubmitExecutionParamError.PlayerBanned => BadRequest("Player is banned."),
+                    SubmitExecutionParamError.WrongPhase => BadRequest("Wrong phase."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 }));
         }
