@@ -3,7 +3,7 @@ namespace Toko.Models.Events
     /// <summary>  
     /// Event triggered when a player starts the discard phase.  
     /// </summary>  
-    public class PlayerDiscardStarted
+    public class PlayerDiscardStarted : IRoomEvent
     {
         public string RoomId { get; }
         public int Round { get; }

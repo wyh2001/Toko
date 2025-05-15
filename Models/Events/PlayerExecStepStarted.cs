@@ -2,7 +2,7 @@
 
 namespace Toko.Models.Events
 {
-    public class PlayerExecStepStarted : INotification
+    public class PlayerExecStepStarted : IRoomEvent
     {
         public string RoomId { get; }
         public int Round { get; }

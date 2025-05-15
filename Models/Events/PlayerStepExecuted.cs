@@ -2,7 +2,7 @@ using MediatR;
 
 namespace Toko.Models.Events
 {
-    public class PlayerStepExecuted : INotification
+    public class PlayerStepExecuted : IRoomEvent
     {
         public string RoomId { get; }
         public int Round { get; }

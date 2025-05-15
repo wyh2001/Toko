@@ -1,6 +1,6 @@
 namespace Toko.Models.Events
 {
-    public class PlayerDiscardExecuted
+    public class PlayerDiscardExecuted : IRoomEvent
     {
         public string RoomId { get; }
         public int CurrentRound { get; }

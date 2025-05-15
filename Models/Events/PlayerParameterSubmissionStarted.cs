@@ -2,7 +2,7 @@
 
 namespace Toko.Models.Events
 {
-    public class PlayerParameterSubmissionStarted : INotification
+    public class PlayerParameterSubmissionStarted : IRoomEvent
     {
         public string RoomId { get; }
         public int Round { get; }

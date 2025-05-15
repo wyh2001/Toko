@@ -3,7 +3,7 @@ namespace Toko.Models.Events
     /// <summary>  
     /// Event triggered when a player's timeout has elapsed.  
     /// </summary>  
-    public class PlayerTimeoutElapsed
+    public class PlayerTimeoutElapsed : IRoomEvent
     {
         public string RoomId { get; }
         public string PlayerId { get; }

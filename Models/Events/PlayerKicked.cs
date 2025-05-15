@@ -3,7 +3,7 @@ namespace Toko.Models.Events
     /// <summary>  
     /// Event triggered when a player is kicked from the room.  
     /// </summary>  
-    public class PlayerKicked
+    public class PlayerKicked : IRoomEvent
     {
         public string RoomId { get; }
         public string PlayerId { get; }
