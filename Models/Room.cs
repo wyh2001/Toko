@@ -11,13 +11,6 @@ using static Toko.Services.RoomManager;
 
 namespace Toko.Models
 {
-    /// <summary>
-    /// 领域对象 Room – 封装所有业务规则：
-    ///   • 超过 20 秒才允许其他玩家发起踢票；<br/>
-    ///   • 不自动跳过；若无人踢，该玩家可继续操作；<br/>
-    ///   • 每次成功提交获得 BANK_INCREMENT 时间奖励；<br/>
-    ///   • 返回类型、错误枚举与 RoomManager 保持一致。
-    /// </summary>
     public class Room
     {
         #region ▶ 公共属性
@@ -27,40 +20,42 @@ namespace Toko.Models
         public bool IsPrivate { get; set; }
         public RaceMap Map { get; set; } = RaceMapFactory.CreateDefaultMap();
         public List<Racer> Racers { get; } = new();
-
         public int CurrentRound { get; private set; }
         public int CurrentStep { get; private set; }
         public RoomStatus Status => _gameSM.State;
         #endregion
 
         #region ▶ FSM
-        private enum Phase { CollectingCards, CollectingParams }
+        private enum Phase { CollectingCards, CollectingParams, Discarding }
         public enum RoomStatus { Waiting, Playing, Finished }
         private enum GameTrigger { Start, GameOver }
-        private enum PhaseTrigger { CardsReady, StepDone, Timeout }
+        private enum PhaseTrigger { CardsReady, ParamsDone, DiscardDone }
 
         private readonly StateMachine<RoomStatus, GameTrigger> _gameSM;
         private readonly StateMachine<Phase, PhaseTrigger> _phaseSM;
         #endregion
 
-        #region ▶ 常量 & 字段
+        #region ▶ 字段 & 常量
         private readonly List<int> _steps;
         private readonly List<string> _order = new();
-        private int _idx;                                 // 当前顺序索引
+        private int _idx;
 
         private readonly IMediator _mediator;
-        private CancellationTokenSource? _cts;             // 单房计时器
+        private CancellationTokenSource? _cts;
 
         private readonly Dictionary<string, DateTime> _thinkStart = new();
         private readonly Dictionary<string, TimeSpan> _bank = new();
         private readonly HashSet<string> _banned = new();
-        private readonly Dictionary<string, HashSet<string>> _kickVotes = new();
         private readonly Dictionary<string, string> _cardNow = new();
+        private HashSet<string> _discardPending = new();
 
         private static readonly TimeSpan INIT_BANK = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan BANK_INCREMENT = TimeSpan.FromSeconds(10);
-        private static readonly TimeSpan TIMEOUT_PROMPT = TimeSpan.FromSeconds(30); // UI 参考
+        private static readonly TimeSpan TIMEOUT_PROMPT = TimeSpan.FromSeconds(5);   // 轮询频率
         private static readonly TimeSpan KICK_ELIGIBLE = TimeSpan.FromSeconds(20);
+        private static readonly TimeSpan DISCARD_AUTO_SKIP = TimeSpan.FromSeconds(15);
+
+        private const int AUTO_DRAW = 2;   // 每回合自动抽 2 张
         #endregion
 
         public Room(IMediator mediator, IEnumerable<int> stepsPerRound)
@@ -81,7 +76,8 @@ namespace Toko.Models
 
             _order.Clear();
             _order.AddRange(Racers.Select(r => r.Id));
-            foreach (var pid in _order) _bank[pid] = INIT_BANK;
+            foreach (var id in _order) _bank[id] = INIT_BANK;
+
             CurrentRound = 0; CurrentStep = 0;
             _gameSM.Fire(GameTrigger.Start);
             return new StartRoomSuccess(Id);
@@ -90,42 +86,43 @@ namespace Toko.Models
         public void EndGame() => _gameSM.Fire(GameTrigger.GameOver);
         #endregion
 
-        #region ▶ 卡片提交
-        public OneOf<SubmitStepCardSuccess, SubmitStepCardError> SubmitStepCard(string pid, string cardId)
+        #region ▶ 收卡
+        public OneOf<SubmitStepCardSuccess, SubmitStepCardError>
+            SubmitStepCard(string pid, string cardId)
         {
-            // 1. 基础校验
             if (_banned.Contains(pid)) return SubmitStepCardError.PlayerBanned;
-            if (_phaseSM.State != Phase.CollectingCards) return SubmitStepCardError.WrongPhase;
+            if (_phaseSM.State != Phase.CollectingCards)
+                return SubmitStepCardError.WrongPhase;
             if (pid != _order[_idx]) return SubmitStepCardError.NotYourTurn;
 
-            var racer = Racers.FirstOrDefault(r => r.Id == pid);
-            if (racer is null) return SubmitStepCardError.PlayerNotFound;
+            var racer = Racers.FirstOrDefault(r => r.Id == pid)
+                       ?? throw new InvalidOperationException();
             var cardObj = racer.Hand.FirstOrDefault(c => c.Id == cardId);
             if (cardObj is null) return SubmitStepCardError.CardNotFound;
 
-            // 2. 更新时间银行
             UpdateBank(pid);
-
-            // 3. 把卡牌从手牌移入弃牌堆，避免后续再次提交同一张
             racer.Hand.Remove(cardObj);
             racer.DiscardPile.Add(cardObj);
 
-            // 4. 记录提交并推进顺序
             _cardNow[pid] = cardId;
             MoveNextPlayer();
             return new SubmitStepCardSuccess(cardId);
         }
         #endregion
 
-        #region ▶ 参数提交
-        public OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError> SubmitExecutionParam(string pid, ExecParameter p)
+        #region ▶ 收参
+        public OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>
+            SubmitExecutionParam(string pid, ExecParameter p)
         {
             if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
-            if (_phaseSM.State != Phase.CollectingParams) return SubmitExecutionParamError.WrongPhase;
+            if (_phaseSM.State != Phase.CollectingParams)
+                return SubmitExecutionParamError.WrongPhase;
             if (pid != _order[_idx]) return SubmitExecutionParamError.NotYourTurn;
-            var racer = Racers.FirstOrDefault(r => r.Id == pid) ??
-                        throw new InvalidOperationException();
-            if (!_cardNow.TryGetValue(pid, out var cardId)) return SubmitExecutionParamError.CardNotFound;
+
+            var racer = Racers.First(r => r.Id == pid);
+            if (!_cardNow.TryGetValue(pid, out var cardId))
+                return SubmitExecutionParamError.CardNotFound;
+
             var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
             if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
 
@@ -140,7 +137,36 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 投票踢人（单票生效）
+        #region ▶ 并发弃牌
+        public OneOf<DiscardCardsSuccess, DiscardCardsError>
+            SubmitDiscard(string pid, List<string> cardIds)
+        {
+            if (_banned.Contains(pid)) return DiscardCardsError.PlayerBanned;
+            if (_phaseSM.State != Phase.Discarding)
+                return DiscardCardsError.WrongPhase;
+            if (!_discardPending.Contains(pid)) return DiscardCardsError.NotYourTurn;
+
+            var racer = Racers.First(r => r.Id == pid);
+            if (cardIds.Any(cid =>
+                 racer.Hand.All(c => c.Id != cid) ||
+                 racer.Hand.First(c => c.Id == cid).Type == CardType.Junk))
+                return DiscardCardsError.CardNotFound;
+
+            new TurnExecutor(Map).DiscardCards(racer, cardIds, this);
+            _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
+
+            _discardPending.Remove(pid);
+            UpdateBank(pid);
+            RescheduleTimer();
+
+            if (_discardPending.Count == 0)
+                _phaseSM.Fire(PhaseTrigger.DiscardDone);
+
+            return new DiscardCardsSuccess(cardIds);
+        }
+        #endregion
+
+        #region ▶ 投票踢人
         public enum KickVoteError { WrongPhase, TooEarly, TargetNotFound, AlreadyKicked }
         public record KickVoteSuccess(string TargetId);
 
@@ -157,30 +183,83 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 内部帮助
+        #region ▶ FSM 配置
         void ConfigureFSM()
         {
             _gameSM.Configure(RoomStatus.Waiting)
                    .Permit(GameTrigger.Start, RoomStatus.Playing);
+
             _gameSM.Configure(RoomStatus.Playing)
                    .OnEntry(() => _phaseSM.Activate())
                    .Permit(GameTrigger.GameOver, RoomStatus.Finished);
+
             _gameSM.Configure(RoomStatus.Finished)
                    .OnEntry(() => _cts?.Cancel());
 
             _phaseSM.Configure(Phase.CollectingCards)
-                    .OnEntry(() => { _cardNow.Clear(); _idx = 0; PromptCard(_order[0]); })
-                    .Permit(PhaseTrigger.CardsReady, Phase.CollectingParams)
-                    .Permit(PhaseTrigger.Timeout, Phase.CollectingParams);
+                    .OnEntry(StartCardCollection)
+                    .Permit(PhaseTrigger.CardsReady, Phase.CollectingParams);
+
             _phaseSM.Configure(Phase.CollectingParams)
-                    .OnEntry(() => { _idx = 0; PromptParam(_order[0]); })
-                    .Permit(PhaseTrigger.StepDone, Phase.CollectingCards)
-                    .Permit(PhaseTrigger.Timeout, Phase.CollectingCards);
-            _phaseSM.OnTransitioned(t => { if (t.Trigger == PhaseTrigger.StepDone) NextStep(); });
+                    .OnEntry(StartParamCollection)
+                    .Permit(PhaseTrigger.ParamsDone, Phase.Discarding);
+
+            _phaseSM.Configure(Phase.Discarding)
+                    .OnEntry(StartDiscardPhase)
+                    .Permit(PhaseTrigger.DiscardDone, Phase.CollectingCards);
+
+            _phaseSM.OnTransitioned(t =>
+            {
+                if (t.Trigger == PhaseTrigger.DiscardDone)
+                    NextStep();
+            });
+        }
+        #endregion
+
+        #region ▶ 各阶段启动
+        void StartCardCollection()
+        {
+            foreach (var r in Racers) AutoDraw(r, AUTO_DRAW);
+            _cardNow.Clear();
+            _idx = 0;
+            PromptCard(_order[0]);
         }
 
-        void PromptCard(string pid) { _thinkStart[pid] = DateTime.UtcNow; RescheduleTimer(); _mediator.Publish(new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid)); }
-        void PromptParam(string pid) { _thinkStart[pid] = DateTime.UtcNow; RescheduleTimer(); _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid)); }
+        void StartParamCollection()
+        {
+            _idx = 0;
+            PromptParam(_order[0]);
+        }
+
+        void StartDiscardPhase()
+        {
+            _idx = 0;
+            _discardPending = _order.Where(id => !_banned.Contains(id))
+                                     .ToHashSet();
+
+            foreach (var pid in _discardPending)
+            {
+                _thinkStart[pid] = DateTime.UtcNow;
+                _mediator.Publish(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
+            }
+            RescheduleTimer();
+        }
+        #endregion
+
+        #region ▶ Prompt & 计时器
+        void PromptCard(string pid)
+        {
+            _thinkStart[pid] = DateTime.UtcNow;
+            RescheduleTimer();
+            _mediator.Publish(new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
+        }
+
+        void PromptParam(string pid)
+        {
+            _thinkStart[pid] = DateTime.UtcNow;
+            RescheduleTimer();
+            _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
+        }
 
         void RescheduleTimer()
         {
@@ -189,15 +268,62 @@ namespace Toko.Models
             _ = Task.Delay(TIMEOUT_PROMPT, _cts.Token).ContinueWith(_ =>
             {
                 if (_cts.IsCancellationRequested || Status != RoomStatus.Playing) return;
-                var pid = _order[_idx];
-                if (IsKickEligible(pid))
-                    _mediator.Publish(new PlayerTimeoutElapsed(Id, pid)); // 提醒 UI 可踢
+
+                if (_phaseSM.State == Phase.Discarding)
+                {
+                    foreach (var pid in _discardPending.ToList())
+                    {
+                        var elapsed = DateTime.UtcNow - _thinkStart[pid];
+                        if (elapsed >= DISCARD_AUTO_SKIP)
+                        {
+                            // 自动空弃
+                            _discardPending.Remove(pid);
+                            _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, new List<string>()));
+                        }
+                        else if (elapsed >= KICK_ELIGIBLE)
+                        {
+                            _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
+                        }
+                    }
+                    if (_discardPending.Count == 0)
+                    {
+                        _phaseSM.Fire(PhaseTrigger.DiscardDone);
+                        return;
+                    }
+                }
+                else
+                {
+                    var pid = _order[_idx];
+                    if (IsKickEligible(pid))
+                        _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
+                }
+
+                RescheduleTimer();   // 继续下一个 5 s tick
             }, TaskScheduler.Default);
         }
+        #endregion
 
-        bool Validate(CardType t, ExecParameter p) => t switch
+        #region ▶ 工具
+        void AutoDraw(Racer racer, int requested)
         {
-            CardType.Move => p.Effect is >= 0 and <= 2,
+            int space = racer.HandCapacity - racer.Hand.Count;
+            int toDraw = Math.Min(requested, Math.Max(0, space));
+
+            for (int i = 0; i < toDraw; i++)
+            {
+                if (!racer.Deck.Any())
+                {
+                    foreach (var c in racer.DiscardPile) racer.Deck.Enqueue(c);
+                    racer.DiscardPile.Clear();
+                }
+                if (!racer.Deck.Any()) break;
+                racer.Hand.Add(racer.Deck.Dequeue());
+            }
+        }
+
+        static bool Validate(CardType t, ExecParameter p) => t switch
+        {
+            CardType.Move => p.Effect is 1 or 2,
             CardType.ChangeLane => p.Effect is 1 or -1,
             CardType.Repair => p.DiscardedCardIds?.Any() == true,
             _ => false
@@ -206,7 +332,8 @@ namespace Toko.Models
         void UpdateBank(string pid)
         {
             var elapsed = DateTime.UtcNow - _thinkStart[pid];
-            _bank[pid] -= elapsed; _bank[pid] += BANK_INCREMENT;
+            _bank[pid] -= elapsed;
+            _bank[pid] += BANK_INCREMENT;
             if (_bank[pid] < TimeSpan.Zero) _bank[pid] = TimeSpan.Zero;
         }
 
@@ -215,12 +342,29 @@ namespace Toko.Models
         void MoveNextPlayer()
         {
             do { _idx++; } while (_idx < _order.Count && _banned.Contains(_order[_idx]));
-            if (_idx == _order.Count) _phaseSM.Fire(PhaseTrigger.CardsReady); // or StepDone depending phase
-            else if (_phaseSM.State == Phase.CollectingCards) PromptCard(_order[_idx]);
-            else PromptParam(_order[_idx]);
+
+            if (_idx == _order.Count)
+            {
+                var next = _phaseSM.State == Phase.CollectingCards
+                           ? PhaseTrigger.CardsReady
+                           : PhaseTrigger.ParamsDone;
+                _phaseSM.Fire(next);
+                return;
+            }
+
+            if (_phaseSM.State == Phase.CollectingCards) PromptCard(_order[_idx]);
+            else if (_phaseSM.State == Phase.CollectingParams) PromptParam(_order[_idx]);
         }
 
-        void NextStep() { if (++CurrentStep >= _steps[CurrentRound]) { CurrentStep = 0; if (++CurrentRound >= _steps.Count) _gameSM.Fire(GameTrigger.GameOver); } }
+        void NextStep()
+        {
+            if (++CurrentStep >= _steps[CurrentRound])
+            {
+                CurrentStep = 0;
+                if (++CurrentRound >= _steps.Count)
+                    _gameSM.Fire(GameTrigger.GameOver);
+            }
+        }
         #endregion
     }
 }

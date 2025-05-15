@@ -166,9 +166,8 @@ namespace Toko.Services
 
         public bool DiscardCards(Racer racer, List<string> discardedCardId, Room room)
         {
-            // see if the size is legit
             if (discardedCardId.Count == 0)
-                return false;
+                return true;
             // check if the cards are in the hand
             foreach (var cardId in discardedCardId)
             {

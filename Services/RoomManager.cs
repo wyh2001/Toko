@@ -281,7 +281,7 @@ namespace Toko.Services
 
 
         public record DiscardCardsSuccess(List<string> cardIds);
-        public enum DiscardCardsError { RoomNotFound, PlayerNotFound, StepNotFound, CardNotFound, InternalError }
+        public enum DiscardCardsError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, PlayerBanned, WrongPhase, InternalError }
         public OneOf<DiscardCardsSuccess, DiscardCardsError> DiscardCards(
             string roomId, string playerId, int step, List<string> cardIds)
         {
@@ -289,14 +289,15 @@ namespace Toko.Services
             if (room is null) return DiscardCardsError.RoomNotFound;
             var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
             if (racer is null) return DiscardCardsError.PlayerNotFound;
-            if (room.CurrentStep != step) return DiscardCardsError.StepNotFound;
+            //if (room.CurrentStep != step) return DiscardCardsError.NotYourTurn;
             // 1) 验证卡牌在手牌里
-            if (!racer.Hand.Any(c => cardIds.Contains(c.Id)))
-                return DiscardCardsError.CardNotFound;
-            var executor = new TurnExecutor(room.Map);
-            if (!executor.DiscardCards(racer, cardIds, room))
-                return DiscardCardsError.InternalError;
-            return new DiscardCardsSuccess(cardIds);
+            //if (!racer.Hand.Any(c => cardIds.Contains(c.Id)))
+            //    return DiscardCardsError.CardNotFound;
+            //var executor = new TurnExecutor(room.Map);
+            //if (!executor.DiscardCards(racer, cardIds, room))
+            //    return DiscardCardsError.InternalError;
+            //return new DiscardCardsSuccess(cardIds);
+            return room.SubmitDiscard(playerId, cardIds);
         }
 
 

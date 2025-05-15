@@ -281,8 +281,10 @@ namespace Toko.Controllers
                 {
                     DiscardCardsError.RoomNotFound => NotFound("Room not found."),
                     DiscardCardsError.PlayerNotFound => NotFound("Player not found."),
-                    DiscardCardsError.StepNotFound => NotFound("Step not found."),
+                    DiscardCardsError.NotYourTurn => NotFound("Step not found."),
                     DiscardCardsError.CardNotFound => BadRequest("Invalid card IDs."),
+                    DiscardCardsError.WrongPhase => BadRequest("Wrong phase."),
+                    DiscardCardsError.PlayerBanned => BadRequest("Player is banned."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }
