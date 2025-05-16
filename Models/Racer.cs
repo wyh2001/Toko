@@ -1,4 +1,4 @@
-﻿public enum Direction { Up, Right, Down, Left }
+﻿//public enum Direction { Up, Right, Down, Left }
 
 namespace Toko.Models
 {
@@ -12,5 +12,7 @@ namespace Toko.Models
         public int HandCapacity { get; set; } = 5;
         public int SegmentIndex { get; set; }   // 当前段索引
         public int LaneIndex { get; set; }      // 当前车道 0..LaneCount-1
+        public int CellIndex { get; set; }      // 段内格子上的位置：0 到 LaneCells[LaneIndex].Count-1
+        public int Score { get; set; } = 0;
     }
 }

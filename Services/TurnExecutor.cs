@@ -55,24 +55,31 @@ namespace Toko.Services
         {
             for (int i = 0; i < steps; i++)
             {
-                int nextSeg = (racer.SegmentIndex + 1) % _map.Segments.Count;
-                var seg = _map.Segments[nextSeg];
-
-                // 如果当前 laneIndex 超出下段车道数，则撞墙
-                if (racer.LaneIndex >= seg.LaneCount)
+                // 先检查是否进入下一段
+                var seg = _map.Segments[racer.SegmentIndex];
+                if (racer.CellIndex + 1 >= seg.LaneCells.Count)
                 {
-                    // 撞墙：两人皆得 Junk
-                    AddJunk(racer, 1);
-                    return; // 停止本条 Forward
+                    // 如果是最后一段，则结束比赛
+                    if (racer.SegmentIndex + 1 >= _map.Segments.Count)
+                    {
+                        return;
+                    }
+                    // 下一段
+                    racer.LaneIndex = racer.LaneIndex / (seg.LaneCount / _map.Segments[racer.SegmentIndex + 1].LaneCount);
+                    racer.SegmentIndex++;
+                    racer.CellIndex = 0;
+                    //racer.CellIndex++;
                 }
-
-                // 向前迈入下一段
-                racer.SegmentIndex = nextSeg;
-
+                else
+                {
+                    // 否则继续在当前段前进
+                    racer.CellIndex++;
+                }
                 // 碰撞检查：同段同道即撞人
                 var collided = room.Racers
                     .Where(r => r.Id != racer.Id
                              && r.SegmentIndex == racer.SegmentIndex
+                             && r.CellIndex == racer.CellIndex
                              && r.LaneIndex == racer.LaneIndex)
                     .ToList();
 
@@ -83,10 +90,8 @@ namespace Toko.Services
                     foreach (var other in collided)
                     {
                         AddJunk(other, 1);
-                        // 被撞者后退一段
-                        other.SegmentIndex =
-                            (other.SegmentIndex - 1 + _map.Segments.Count)
-                            % _map.Segments.Count;
+                        // 被撞者前进一格
+                        MoveForward(other, 1, room);
                     }
                 }
             }
@@ -110,13 +115,18 @@ namespace Toko.Services
             var collided = room.Racers
                 .Where(r => r.Id != racer.Id
                          && r.SegmentIndex == racer.SegmentIndex
+                         && r.CellIndex == racer.CellIndex
                          && r.LaneIndex == racer.LaneIndex)
                 .ToList();
             if (collided.Any())
             {
                 AddJunk(racer, 1);
                 foreach (var other in collided)
+                {
                     AddJunk(other, 1);
+                    ChangeLane(other, delta, room);
+                }
+                    
             }
         }
 
