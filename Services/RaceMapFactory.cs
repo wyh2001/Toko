@@ -79,8 +79,12 @@ namespace Toko.Services
             {
                 Type = type,
                 LaneCount = laneCount,
-                LaneCells = new List<List<Point>>()
+                LaneCells = new List<List<Point>>(laneCount)
             };
+
+            for (int lane = 0; lane < laneCount; lane++)
+                seg.LaneCells.Add(new List<Point>(cellCount));
+
             for (int x = 0; x < cellCount; x++)
                 for (int lane = 0; lane < laneCount; lane++)
                     seg.LaneCells[lane].Add(new Point(x, lane));
