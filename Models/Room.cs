@@ -11,7 +11,7 @@ using static Toko.Services.RoomManager;
 
 namespace Toko.Models
 {
-    public class Room
+    public class Room : IDisposable
     {
         #region ▶ 公共属性
         public string Id { get; } = Guid.NewGuid().ToString();
@@ -41,7 +41,14 @@ namespace Toko.Models
         private int _idx;
 
         private readonly IMediator _mediator;
-        private CancellationTokenSource? _cts;
+        //private CancellationTokenSource? _cts;
+
+        // 线程安全：房间级串行锁
+        private readonly SemaphoreSlim _gate = new(1, 1);
+
+        // 计时器：替代 CTS+Task.Delay
+        private readonly object _timerLock = new();
+        private Timer? _promptTimer;
 
         private readonly Dictionary<string, DateTime> _thinkStart = new();
         private readonly Dictionary<string, TimeSpan> _bank = new();
@@ -56,6 +63,8 @@ namespace Toko.Models
         private static readonly TimeSpan DISCARD_AUTO_SKIP = TimeSpan.FromSeconds(15);
 
         private const int AUTO_DRAW = 2;   // 每回合自动抽 2 张
+
+        private bool _disposed;
         #endregion
 
         public Room(IMediator mediator, IEnumerable<int> stepsPerRound)
@@ -68,26 +77,74 @@ namespace Toko.Models
         }
 
         #region ▶ 游戏控制
-        public OneOf<StartRoomSuccess, StartRoomError> StartGame()
+        public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartGameAsync()
         {
-            if (Status == RoomStatus.Playing) return StartRoomError.AlreadyStarted;
-            if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
-            if (!Racers.Any()) return StartRoomError.NoPlayers;
+            await _gate.WaitAsync();
+            try
+            {
+                if (Status == RoomStatus.Playing) return StartRoomError.AlreadyStarted;
+                if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
+                if (!Racers.Any()) return StartRoomError.NoPlayers;
 
-            _order.Clear();
-            _order.AddRange(Racers.Select(r => r.Id));
-            foreach (var id in _order) _bank[id] = INIT_BANK;
+                _order.Clear();
+                _order.AddRange(Racers.Select(r => r.Id));
+                foreach (var id in _order) _bank[id] = INIT_BANK;
 
-            CurrentRound = 0; CurrentStep = 0;
-            _gameSM.Fire(GameTrigger.Start);
-            return new StartRoomSuccess(Id);
+                CurrentRound = 0; CurrentStep = 0;
+                _gameSM.Fire(GameTrigger.Start);
+                return new StartRoomSuccess(Id);
+            }
+            finally { _gate.Release(); }
         }
 
-        public void EndGame() => _gameSM.Fire(GameTrigger.GameOver);
+        public async Task EndGameAsync()
+        {
+            await _gate.WaitAsync();
+            try { _gameSM.Fire(GameTrigger.GameOver); }
+            finally { _gate.Release(); }
+        }
+
+        //public record JoinRoomSuccess(Racer Racer);
+        //public enum JoinRoomError { RoomFull }
+        public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerName)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
+                var racer = new Racer { Id = Guid.NewGuid().ToString(), PlayerName = playerName };
+                InitializeDeck(racer); DrawCardsInternal(racer, 3);
+                Racers.Add(racer);
+                return new JoinRoomSuccess(racer);
+            }
+            finally { _gate.Release(); }
+        }
+
+        //public record LeaveRoomSuccess(string PlayerId);
+        //public enum LeaveRoomError { PlayerNotFound }
+        public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoomAsync(string pid)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                var racer = Racers.FirstOrDefault(r => r.Id == pid);
+                if (racer is null) return LeaveRoomError.PlayerNotFound;
+                Racers.Remove(racer);
+                return new LeaveRoomSuccess(pid);
+            }
+            finally { _gate.Release(); }
+        }
         #endregion
 
         #region ▶ 收卡
-        public OneOf<SubmitStepCardSuccess, SubmitStepCardError>
+        public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCardAsync(string pid, string cardId)
+        {
+            await _gate.WaitAsync();
+            try { return SubmitStepCard(pid, cardId); }
+            finally { _gate.Release(); }
+        }
+
+        private OneOf<SubmitStepCardSuccess, SubmitStepCardError>
             SubmitStepCard(string pid, string cardId)
         {
             if (_banned.Contains(pid)) return SubmitStepCardError.PlayerBanned;
@@ -111,7 +168,14 @@ namespace Toko.Models
         #endregion
 
         #region ▶ 收参
-        public OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>
+        public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParamAsync(string pid, ExecParameter p)
+        {
+            await _gate.WaitAsync();
+            try { return SubmitExecutionParam(pid, p); }
+            finally { _gate.Release(); }
+        }
+
+        private OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>
             SubmitExecutionParam(string pid, ExecParameter p)
         {
             if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
@@ -138,7 +202,14 @@ namespace Toko.Models
         #endregion
 
         #region ▶ 并发弃牌
-        public OneOf<DiscardCardsSuccess, DiscardCardsError>
+        public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> SubmitDiscardAsync(string pid, List<string> cardIds)
+        {
+            await _gate.WaitAsync();
+            try { return SubmitDiscard(pid, cardIds); }
+            finally { _gate.Release(); }
+        }
+
+        private OneOf<DiscardCardsSuccess, DiscardCardsError>
             SubmitDiscard(string pid, List<string> cardIds)
         {
             if (_banned.Contains(pid)) return DiscardCardsError.PlayerBanned;
@@ -167,10 +238,17 @@ namespace Toko.Models
         #endregion
 
         #region ▶ 投票踢人
+        public async Task<OneOf<KickVoteSuccess, KickVoteError>> VoteKickAsync(string voterId, string targetId)
+        {
+            await _gate.WaitAsync();
+            try { return VoteKick(voterId, targetId); }
+            finally { _gate.Release(); }
+        }
+
         public enum KickVoteError { WrongPhase, TooEarly, TargetNotFound, AlreadyKicked }
         public record KickVoteSuccess(string TargetId);
 
-        public OneOf<KickVoteSuccess, KickVoteError> VoteKick(string voterId, string targetId)
+        private OneOf<KickVoteSuccess, KickVoteError> VoteKick(string voterId, string targetId)
         {
             if (Status != RoomStatus.Playing) return KickVoteError.WrongPhase;
             if (!_order.Contains(targetId)) return KickVoteError.TargetNotFound;
@@ -193,8 +271,8 @@ namespace Toko.Models
                    .OnEntry(() => _phaseSM.Activate())
                    .Permit(GameTrigger.GameOver, RoomStatus.Finished);
 
-            _gameSM.Configure(RoomStatus.Finished)
-                   .OnEntry(() => _cts?.Cancel());
+            _gameSM.Configure(RoomStatus.Finished);
+                   //.OnEntry(() => _cts?.Cancel());
 
             _phaseSM.Configure(Phase.CollectingCards)
                     .OnEntry(StartCardCollection)
@@ -261,13 +339,29 @@ namespace Toko.Models
             _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
         }
 
-        void RescheduleTimer()
+        private void RescheduleTimer()
         {
-            _cts?.Cancel();
-            _cts = new CancellationTokenSource();
-            _ = Task.Delay(TIMEOUT_PROMPT, _cts.Token).ContinueWith(_ =>
+            lock (_timerLock)
             {
-                if (_cts.IsCancellationRequested || Status != RoomStatus.Playing) return;
+                if (_promptTimer is null)
+                {
+                    _promptTimer = new Timer(_ => OnPromptTimer(), null, TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
+                }
+                else
+                {
+                    _promptTimer.Change(TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
+                }
+            }
+        }
+
+        private async void OnPromptTimer()
+        {
+            // 单房间串行：拿锁后执行，确保与其他 API 不并发
+            await _gate.WaitAsync();
+            try
+            {
+                if (Status != RoomStatus.Playing)
+                    return;   // 游戏已结束或未开始
 
                 if (_phaseSM.State == Phase.Discarding)
                 {
@@ -276,30 +370,40 @@ namespace Toko.Models
                         var elapsed = DateTime.UtcNow - _thinkStart[pid];
                         if (elapsed >= DISCARD_AUTO_SKIP)
                         {
-                            // 自动空弃
                             _discardPending.Remove(pid);
-                            _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, new List<string>()));
+                            await _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, new List<string>()));
                         }
                         else if (elapsed >= KICK_ELIGIBLE)
                         {
-                            _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
+                            await _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
                         }
                     }
+
                     if (_discardPending.Count == 0)
                     {
                         _phaseSM.Fire(PhaseTrigger.DiscardDone);
-                        return;
+                        return; // 由状态机中的逻辑决定是否再次调度
                     }
                 }
                 else
                 {
                     var pid = _order[_idx];
                     if (IsKickEligible(pid))
-                        _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
+                        await _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
                 }
-
-                RescheduleTimer();   // 继续下一个 5 s tick
-            }, TaskScheduler.Default);
+            }
+            catch (Exception ex)
+            {
+                // 处理异常
+                Console.WriteLine($"Error in OnPromptTimer: {ex.Message}");
+                // TODO: 记录日志或其他处理
+            }
+            finally
+            {
+                _gate.Release();
+                // 无论如何都重新定时
+                RescheduleTimer();
+            }
         }
         #endregion
 
@@ -364,6 +468,72 @@ namespace Toko.Models
                 if (++CurrentRound >= _steps.Count)
                     _gameSM.Fire(GameTrigger.GameOver);
             }
+        }
+
+        /// <summary>
+        /// 初始化一副标准牌堆：根据需要填充不同类型卡
+        /// </summary>
+        private void InitializeDeck(Racer racer)
+        {
+            // 清空旧牌
+            racer.Deck.Clear();
+            racer.Hand.Clear();
+            racer.DiscardPile.Clear();
+
+
+            void Add(CardType type, int qty)
+            {
+                for (int i = 0; i < qty; i++)
+                    racer.Deck.Enqueue(new Card { Type = type });
+            }
+
+            Add(CardType.Move, 9);
+            Add(CardType.ChangeLane, 9);
+            Add(CardType.Repair, 4);
+
+            // 最后随机洗牌
+            // Fisher–Yates shuffle
+            var rnd = new Random();
+            var all = racer.Deck.ToList();
+            ShuffleUtils.Shuffle(all);
+            racer.Deck.Clear();
+            foreach (var card in all)
+                racer.Deck.Enqueue(card);
+        }
+
+        /// <summary>
+        /// Internal: 实际从 Deck 抽卡，不作空槽检查，返回抽到的卡
+        /// </summary>
+        private List<Card> DrawCardsInternal(Racer racer, int count)
+        {
+            var drawn = new List<Card>();
+            for (int i = 0; i < count; i++)
+            {
+                // 如果牌堆空了，就洗弃牌堆回去
+                if (!racer.Deck.Any())
+                {
+                    foreach (var c in racer.DiscardPile) racer.Deck.Enqueue(c);
+                    racer.DiscardPile.Clear();
+                }
+                if (!racer.Deck.Any()) break;
+
+                var card = racer.Deck.Dequeue();
+                racer.Hand.Add(card);
+                drawn.Add(card);
+            }
+            return drawn;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            lock (_timerLock)
+            {
+                _promptTimer?.Dispose();
+                _promptTimer = null;
+            }
+            _gate.Dispose();
+            _disposed = true;
         }
         #endregion
     }

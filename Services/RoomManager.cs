@@ -1,9 +1,15 @@
 ﻿using MediatR;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.IdentityModel.Tokens;
 using OneOf;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
 using Toko.Models;
 using static Toko.Models.Room;
 
@@ -13,13 +19,19 @@ namespace Toko.Services
     {
         // 并发安全的房间字典
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
+        //private readonly ConcurrentDictionary<string, byte> _activeRooms = new();
 
 
         private readonly IMediator _mediator;
 
+        //private readonly IMemoryCache _cache;
+        private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(1);
+
+        //public RoomManager(IMediator mediator, IMemoryCache cache)
         public RoomManager(IMediator mediator)
         {
             _mediator = mediator;
+            //_cache = cache;
         }
 
         /// <summary>
@@ -55,6 +67,28 @@ namespace Toko.Services
 
             room.Racers.Add(host);
             _rooms.TryAdd(roomId, room);
+
+            // Here use MemoryCache to cache the room object
+            //_cache.Set(room.Id, room, new MemoryCacheEntryOptions
+            //{
+            //    SlidingExpiration = ROOM_TTL,
+            //    PostEvictionCallbacks =
+            //    {
+            //        new PostEvictionCallbackRegistration
+            //        {
+            //            EvictionCallback = (_, value, reason, _) =>
+            //            {
+            //                // reason == TokenExpired / Removed / Replaced / Expired …
+            //                (value as Room)?.Dispose();
+            //                _activeRooms.TryRemove(room.Id, out _);
+            //                //_logger.LogInformation(
+            //                //    "Room {RoomId} evicted from cache: {Reason}", room.Id, reason);
+            //                Console.WriteLine($"Room {room.Id} evicted from cache: {reason}");
+            //            }
+            //        }
+            //    }
+            //});
+            //_activeRooms[room.Id] = 0;
             return (roomId, host);
         }
 
@@ -68,18 +102,19 @@ namespace Toko.Services
         public record JoinRoomSuccess(Racer Racer);
         public enum JoinRoomError { RoomFull, RoomNotFound }
 
-        public OneOf<JoinRoomSuccess, JoinRoomError> JoinRoom(
+        public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoom(
            string roomId, string playerName)
         {
             var room = GetRoom(roomId);
             if (room is null) return JoinRoomError.RoomNotFound;
-            if (room.Racers.Count >= room.MaxPlayers) return JoinRoomError.RoomFull;
+            //if (room.Racers.Count >= room.MaxPlayers) return JoinRoomError.RoomFull;
 
-            var racer = new Racer { Id = Guid.NewGuid().ToString(), PlayerName = playerName };
-            InitializeDeck(racer);
-            DrawCardsInternal(racer, 3);
-            room.Racers.Add(racer);
-            return new JoinRoomSuccess(racer);
+            //var racer = new Racer { Id = Guid.NewGuid().ToString(), PlayerName = playerName };
+            //InitializeDeck(racer);
+            //DrawCardsInternal(racer, 3);
+            //room.Racers.Add(racer);
+            //return new JoinRoomSuccess(racer);
+            return await room.JoinRoomAsync(playerName);
         }
 
         public record DrawCardsSuccess(List<Card> Cards);
@@ -131,22 +166,13 @@ namespace Toko.Services
         public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase,
             PlayerBanned
         }
-        public OneOf<SubmitStepCardSuccess, SubmitStepCardError> SubmitStepCard(
+        public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCard(
             string roomId, string playerId, string cardId)
         {
             var room = GetRoom(roomId);
             if (room is null) return SubmitStepCardError.RoomNotFound;
-            //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            //if (racer is null) return SubmitStepCardError.PlayerNotFound;
-            //if (room.CurrentStep != step) return SubmitStepCardError.NotYourTurn;
-            return room.SubmitStepCard(playerId, cardId);
-            //// 1) 验证卡牌在手牌里
-            //if (!racer.Hand.Any(c => c.Id == cardId))
-            //    return SubmitStepCardError.CardNotFound;
-            //var dict = room.StepCardSubmissions
-            //               .GetOrAdd(step, _ => new ConcurrentDictionary<string, string>());
-            //dict[playerId] = cardId;
-            //return new SubmitStepCardSuccess(cardId);
+
+            return await room.SubmitStepCardAsync(playerId, cardId);
         }
 
         /// <summary>
@@ -194,29 +220,21 @@ namespace Toko.Services
         /// </summary>
         public record StartRoomSuccess(string RoomId);
         public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers }
-        public OneOf<StartRoomSuccess, StartRoomError> StartRoom(string roomId)
+        public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartRoom(string roomId)
         {
             if (!_rooms.TryGetValue(roomId, out var room))
                 return StartRoomError.RoomNotFound;
-            //if (room.Status == RoomStatus.Playing)
-            //    return StartRoomError.AlreadyStarted;
-            //if (room.Status == RoomStatus.Finished)
-            //    return StartRoomError.AlreadyFinished;
-            //room.Status = RoomStatus.Playing;
-            //room.CurrentRound = 1;
-            //room.CurrentStep = 0;
-            //room.StartGame();
-            //return new StartRoomSuccess(roomId);
-            return room.StartGame();
+
+            return await room.StartGameAsync();
         }
 
-        public bool EndRoom(string roomId)
+        public async Task<bool> EndRoom(string roomId)
         {
             if (!_rooms.TryGetValue(roomId, out var room))
                 return false;
-            //room.IsGameFinished = true;
-            //room.Status = RoomStatus.Finished;
-            room.EndGame();
+
+            // Await the asynchronous call to ensure proper execution order
+            await room.EndGameAsync();
             return true;
         }
 
@@ -225,110 +243,79 @@ namespace Toko.Services
             PlayerBanned
         }
 
-        public OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError> SubmitExecutionParam(
+        public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParam(
             string roomId, string playerId, ExecParameter execParameter)
         {
             var room = GetRoom(roomId);
             if (room is null) return SubmitExecutionParamError.RoomNotFound;
-            //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            //if (racer is null) return SubmitExecutionParamError.PlayerNotFound;
-            //if (!room.StepCardSubmissions.TryGetValue(step, out var cardDict)) return SubmitExecutionParamError.NotYourTurn;
-            //if (!cardDict.TryGetValue(playerId, out var cardId)) return SubmitExecutionParamError.CardNotFound;
-            // 1) 根据 cardId 找到原 CardType
-            //    假设你在卡片提交时已经把 CardType 一起存进字典，或者
-            //    这里你可以去 racer.Hand/DiscardPile 里找这张卡
-            //var allCards = racer.Hand.Concat(racer.DiscardPile);
-            //var card = allCards.First(c => c.Id == cardId);
-            //if (card == null) return SubmitExecutionParamError.CardNotFound;
 
-            //switch (card.Type)
-            //{
-            //    case CardType.Move:
-            //        if (execParameter.Effect >= 0 && execParameter.Effect <= 2)
-            //            break;
-            //        else
-            //            return SubmitExecutionParamError.InvalidExecParameter;
-            //    case CardType.ChangeLane:
-            //        if (execParameter.Effect == 1 || execParameter.Effect == -1)
-            //            break;
-            //        else
-            //            return SubmitExecutionParamError.InvalidExecParameter;
-            //    case CardType.Repair:
-            //        if (execParameter.DiscardedCardIds == null || !execParameter.DiscardedCardIds.Any())
-            //            return SubmitExecutionParamError.InvalidExecParameter;
-            //        break;
-            //    default:
-            //        return SubmitExecutionParamError.InvalidExecParameter;
-            //}
-
-            //// 2) 构造 ConcreteInstruction
-            //var ins = new ConcreteInstruction
-            //{
-            //    Type = card.Type,
-            //    ExecParameter = execParameter
-            //};
-            //// 3) 立即执行此条指令
-            //var executor = new TurnExecutor(room.Map!);
-            //executor.ApplyInstruction(racer, ins, room);
-            //// 4) 记录执行过的指令
-            //var execDict = room.StepExecSubmissions
-            //                   .GetOrAdd(step, _ => new ConcurrentDictionary<string, ConcreteInstruction>());
-            //execDict[playerId] = ins;
-            //return new SubmitExecutionParamSuccess(ins, racer.SegmentIndex, racer.LaneIndex);
-
-            return room.SubmitExecutionParam(playerId, execParameter);
+            return await room.SubmitExecutionParamAsync(playerId, execParameter);
         }
 
 
         public record DiscardCardsSuccess(List<string> cardIds);
         public enum DiscardCardsError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, PlayerBanned, WrongPhase, InternalError }
-        public OneOf<DiscardCardsSuccess, DiscardCardsError> DiscardCards(
-            string roomId, string playerId, int step, List<string> cardIds)
+        public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> DiscardCards(
+            string roomId, string playerId, List<string> cardIds)
         {
             var room = GetRoom(roomId);
             if (room is null) return DiscardCardsError.RoomNotFound;
-            var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            if (racer is null) return DiscardCardsError.PlayerNotFound;
-            //if (room.CurrentStep != step) return DiscardCardsError.NotYourTurn;
-            // 1) 验证卡牌在手牌里
-            //if (!racer.Hand.Any(c => cardIds.Contains(c.Id)))
-            //    return DiscardCardsError.CardNotFound;
-            //var executor = new TurnExecutor(room.Map);
-            //if (!executor.DiscardCards(racer, cardIds, room))
-            //    return DiscardCardsError.InternalError;
-            //return new DiscardCardsSuccess(cardIds);
-            return room.SubmitDiscard(playerId, cardIds);
+            //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
+            //if (racer is null) return DiscardCardsError.PlayerNotFound;
+
+            return await room.SubmitDiscardAsync(playerId, cardIds);
         }
 
 
         public record LeaveRoomSuccess(string PlayerId);
         public enum LeaveRoomError { RoomNotFound, PlayerNotFound, InternalError }
         //internal bool LeaveRoom(string roomId, string playerId)
-        public OneOf<LeaveRoomSuccess, LeaveRoomError> LeaveRoom(string roomId, string playerId)
+        public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoom(string roomId, string playerId)
         {
             if (!_rooms.TryGetValue(roomId, out var room))
                 return LeaveRoomError.RoomNotFound;
-            var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            if (racer is null)
-                return LeaveRoomError.PlayerNotFound;
-            if (room.Racers.Remove(racer))
-                return new LeaveRoomSuccess(playerId);
-            else
-                return LeaveRoomError.InternalError;
+            //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
+            //if (racer is null)
+            //    return LeaveRoomError.PlayerNotFound;
+            //if (room.Racers.Remove(racer))
+            //    return new LeaveRoomSuccess(playerId);
+            //else
+            //    return LeaveRoomError.InternalError;
+
+            return await room.LeaveRoomAsync(playerId);
         }
 
         public static class ShuffleUtils
         {
-            private static readonly Random _random = new Random(); // 避免每次创建新 Random 实例
+            //private static readonly Random _random = new Random(); // 避免每次创建新 Random 实例
 
             public static void Shuffle<T>(IList<T> list)
             {
                 for (int i = list.Count - 1; i > 0; i--)
                 {
-                    int j = _random.Next(i + 1); // 0 ≤ j ≤ i
+                    int j = Random.Shared.Next(i + 1); // 0 ≤ j ≤ i
                     (list[i], list[j]) = (list[j], list[i]);
                 }
             }
         }
+
+        //private string IssueToken(string playerId, string roomId)
+        //{
+        //    var creds = new SigningCredentials(
+        //        new SymmetricSecurityKey(
+        //            Encoding.UTF8.GetBytes(_config["Jwt:Key"])),
+        //        SecurityAlgorithms.HmacSha256);
+
+        //    var token = new JwtSecurityToken(
+        //        claims: new[]
+        //        {
+        //    new Claim(JwtRegisteredClaimNames.Sub, playerId),
+        //    new Claim("room", roomId)          // 可选：锁定房间
+        //        },
+        //        expires: DateTime.UtcNow.AddDays(30),  // ← 30 天记住你
+        //        signingCredentials: creds);
+
+        //    return new JwtSecurityTokenHandler().WriteToken(token);
+        //}
     }
 }
