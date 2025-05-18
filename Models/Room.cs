@@ -77,7 +77,7 @@ namespace Toko.Models
         }
 
         #region ▶ 游戏控制
-        public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartGameAsync()
+        public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartGameAsync(string playerId)
         {
             await _gate.WaitAsync();
             try
@@ -85,6 +85,8 @@ namespace Toko.Models
                 if (Status == RoomStatus.Playing) return StartRoomError.AlreadyStarted;
                 if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
                 if (!Racers.Any()) return StartRoomError.NoPlayers;
+                var host = Racers.FirstOrDefault(r => r.Id == playerId);
+                if (host?.IsHost != true) return StartRoomError.NotHost;
 
                 _order.Clear();
                 _order.AddRange(Racers.Select(r => r.Id));
@@ -106,13 +108,13 @@ namespace Toko.Models
 
         //public record JoinRoomSuccess(Racer Racer);
         //public enum JoinRoomError { RoomFull }
-        public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerName)
+        public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerId, string playerName)
         {
             await _gate.WaitAsync();
             try
             {
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
-                var racer = new Racer { Id = Guid.NewGuid().ToString(), PlayerName = playerName };
+                var racer = new Racer { Id = playerId, PlayerName = playerName };
                 InitializeDeck(racer); DrawCardsInternal(racer, 3);
                 Racers.Add(racer);
                 return new JoinRoomSuccess(racer);

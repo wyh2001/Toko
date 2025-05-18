@@ -38,6 +38,7 @@ namespace Toko.Services
         /// 创建房间，并为房主生成一辆赛车
         /// </summary>
         public (string roomId, Racer hostRacer) CreateRoom(
+            string playerId,
             string? roomName,
             int maxPlayers,
             bool isPrivate,
@@ -59,8 +60,9 @@ namespace Toko.Services
             // 为房主生成 Racer，并抽初始手牌
             var host = new Racer
             {
-                //Id = Guid.NewGuid().ToString(),
-                PlayerName = playerName
+                Id = playerId,
+                PlayerName = playerName,
+                IsHost = true,
             };
             InitializeDeck(host);           // 洗牌、填充初始牌堆
             DrawCardsInternal(host, 3);     // 假设开局抽 3 张卡
@@ -103,7 +105,7 @@ namespace Toko.Services
         public enum JoinRoomError { RoomFull, RoomNotFound }
 
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoom(
-           string roomId, string playerName)
+           string roomId, string playerId, string playerName)
         {
             var room = GetRoom(roomId);
             if (room is null) return JoinRoomError.RoomNotFound;
@@ -114,7 +116,7 @@ namespace Toko.Services
             //DrawCardsInternal(racer, 3);
             //room.Racers.Add(racer);
             //return new JoinRoomSuccess(racer);
-            return await room.JoinRoomAsync(playerName);
+            return await room.JoinRoomAsync(playerId, playerName);
         }
 
         public record DrawCardsSuccess(List<Card> Cards);
@@ -219,13 +221,13 @@ namespace Toko.Services
         /// 标记房间为已开始
         /// </summary>
         public record StartRoomSuccess(string RoomId);
-        public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers }
-        public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartRoom(string roomId)
+        public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost }
+        public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartRoom(string roomId, string playerId)
         {
             if (!_rooms.TryGetValue(roomId, out var room))
                 return StartRoomError.RoomNotFound;
 
-            return await room.StartGameAsync();
+            return await room.StartGameAsync(playerId);
         }
 
         public async Task<bool> EndRoom(string roomId)

@@ -7,9 +7,6 @@ namespace Toko.Models.Requests
         [Required]
         public required string RoomId { get; set; }
         [Required]
-        public required string PlayerId { get; set; }
-        //public int Step { get; set; }
-        [Required]
         public required string CardId { get; set; }
     }
 }

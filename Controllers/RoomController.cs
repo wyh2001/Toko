@@ -34,14 +34,15 @@ namespace Toko.Controllers
         [HttpPost("create")]
         public IActionResult CreateRoom([FromBody] CreateRoomRequest req)
         {
+            var playerId = GetPlayerId();
             var (roomId, hostRacer) = _roomManager.CreateRoom(
-                req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.TotalRounds, req.StepsPerRound);
+                playerId, req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.TotalRounds, req.StepsPerRound);
 
             return Ok(new
             {
                 roomId,
                 playerId = hostRacer.Id,
-                displayName = hostRacer.PlayerName
+                displayName = hostRacer.PlayerName,
             });
         }
 
@@ -49,7 +50,8 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public async Task<IActionResult> JoinRoom([FromBody] JoinRoomRequest request)
         {
-            var result = await _roomManager.JoinRoom(request.RoomId, request.PlayerName);
+            var playerId = GetPlayerId();
+            var result = await _roomManager.JoinRoom(request.RoomId, playerId, request.PlayerName);
             return result.Match<IActionResult>(
                 success => Ok(new { message = "Joined room", playerId = success.Racer.Id }),
                 error => error switch
@@ -91,7 +93,20 @@ namespace Toko.Controllers
         public IActionResult ListRooms()
         {
             var rooms = _roomManager.GetAllRooms();
-            return Ok(rooms);
+            return Ok(rooms.Select(r => new
+            {
+                r.Id,
+                r.Name,
+                r.MaxPlayers,
+                r.IsPrivate,
+                Racers = r.Racers.Select(r => new
+                {
+                    r.Id,
+                    r.PlayerName
+                }).ToList(),
+                //Map = r.Map?.ToString(),
+                r.CurrentRound
+            }));
         }
 
         //[HttpPost("draw")]
@@ -118,11 +133,12 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public async Task<IActionResult> Start(string roomId)
         {
-            var result = await _roomManager.StartRoom(roomId);
+            var playerId = GetPlayerId();
+            var result = await _roomManager.StartRoom(roomId, playerId);
             return result.Match<IActionResult>(success =>
             {
-                _hubContext.Clients.Group(roomId)
-                    .SendAsync("GameStarted", success.RoomId);
+                //_hubContext.Clients.Group(roomId)
+                //    .SendAsync("GameStarted", success.RoomId);
                 return Ok(new { message = "Game started", success.RoomId });
             },
                 error => error switch
@@ -130,6 +146,7 @@ namespace Toko.Controllers
                     StartRoomError.RoomNotFound => NotFound("Room not found."),
                     StartRoomError.AlreadyStarted => BadRequest("Room already started."),
                     StartRoomError.AlreadyFinished => BadRequest("Room already Finished"),
+                    StartRoomError.NotHost => BadRequest("You are not the host."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }
@@ -138,12 +155,13 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> SubmitStepCard([FromBody] SubmitStepCardRequest req)
         {
-            var result = await _roomManager.SubmitStepCard(req.RoomId, req.PlayerId, req.CardId);
+            var playerId = GetPlayerId();
+            var result = await _roomManager.SubmitStepCard(req.RoomId, playerId, req.CardId);
             return result.Match<IActionResult>(
                 success =>
                 {
-                    _hubContext.Clients.Group(req.RoomId)
-                        .SendAsync("ReceiveStepCardSubmissions", success.CardId);
+                    //_hubContext.Clients.Group(req.RoomId)
+                    //    .SendAsync("ReceiveStepCardSubmissions", success.CardId);
                     return Ok(new { message = "Step card submitted successfully", success.CardId });
                 },
                 error => error switch
@@ -163,36 +181,8 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> SubmitExecParam([FromBody] SubmitExecParamRequest req)
         {
-            //var result = _roomManager.SubmitExecutionParam(
-            //    req.RoomId, req.PlayerId, req.ExecParameter);
-
-            //return await Task.FromResult(result.Match<IActionResult>(
-            //    success =>
-            //    {
-            //        // Broadcast the execution result to all clients in the room
-            //        _hubContext.Clients.Group(req.RoomId)
-            //            .SendAsync("ReceiveExecutionResult", req.PlayerId, new
-            //            {
-            //                success.Instruction.Type,
-            //                success.Instruction.ExecParameter,
-            //                //success.SegmentIndex,
-            //                //success.LaneIndex,
-            //            });
-
-            //        return Ok(new { message = "Execution submitted", success });
-            //    },
-            //    error => error switch
-            //    {
-            //        SubmitExecutionParamError.RoomNotFound => NotFound("Room not found."),
-            //        SubmitExecutionParamError.PlayerNotFound => NotFound("Player not found."),
-            //        SubmitExecutionParamError.NotYourTurn => NotFound("Step not found"),
-            //        SubmitExecutionParamError.CardNotFound => NotFound("Card not found"),
-            //        SubmitExecutionParamError.InvalidExecParameter => BadRequest("Invalid execution parameter"),
-            //        SubmitExecutionParamError.PlayerBanned => BadRequest("Player is banned."),
-            //        SubmitExecutionParamError.WrongPhase => BadRequest("Wrong phase."),
-            //        _ => StatusCode(StatusCodes.Status500InternalServerError)
-            //    }));
-            var result = await _roomManager.SubmitExecutionParam(req.RoomId, req.PlayerId, req.ExecParameter);
+            var playerId = GetPlayerId();
+            var result = await _roomManager.SubmitExecutionParam(req.RoomId, playerId, req.ExecParameter);
             return result.Match<IActionResult>(
                 success =>
                 {
@@ -215,7 +205,8 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public async Task<IActionResult> LeaveRoom([FromBody] LeaveRoomRequest req)
         {
-            var result = await _roomManager.LeaveRoom(req.RoomId, req.PlayerId);
+            var playerId = GetPlayerId();
+            var result = await _roomManager.LeaveRoom(req.RoomId, playerId);
 
             return result.Match<IActionResult>(
                 success => Ok(new { message = "Left room successfully.", success.PlayerId }),
@@ -232,8 +223,9 @@ namespace Toko.Controllers
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> Discard([FromBody] DiscardRequest req)
         {
+            var playerId = GetPlayerId();
             var result = await _roomManager.DiscardCards(
-                req.RoomId, req.PlayerId, req.CardIds);
+                req.RoomId, playerId, req.CardIds);
             return result.Match<IActionResult>(
                 success => Ok(new { message = "Discarded cards", success }),
                 error => error switch
@@ -246,6 +238,16 @@ namespace Toko.Controllers
                     DiscardCardsError.PlayerBanned => BadRequest("Player is banned."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
+        }
+
+        private string GetPlayerId()
+        {
+            var playerId = User.FindFirst("PlayerId")?.Value;
+            if (string.IsNullOrEmpty(playerId))
+            {
+                throw new InvalidOperationException("PlayerId not found in JWT token.");
+            }
+            return playerId;
         }
     }
 }
