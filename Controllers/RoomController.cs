@@ -32,6 +32,7 @@ namespace Toko.Controllers
         }
 
         [HttpPost("create")]
+        [Idempotent]
         public IActionResult CreateRoom([FromBody] CreateRoomRequest req)
         {
             var playerId = GetPlayerId();
@@ -48,6 +49,7 @@ namespace Toko.Controllers
 
         [HttpPost("join")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
+        [Idempotent]
         public async Task<IActionResult> JoinRoom([FromBody] JoinRoomRequest request)
         {
             var playerId = GetPlayerId();
@@ -131,6 +133,7 @@ namespace Toko.Controllers
         /// </summary>
         [HttpPost("{roomId}/start")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
+        [Idempotent]
         public async Task<IActionResult> Start(string roomId)
         {
             var playerId = GetPlayerId();
@@ -153,6 +156,7 @@ namespace Toko.Controllers
 
         [HttpPost("submit-step-card")]
         [EnsureRoomStatus(RoomStatus.Playing)]
+        [Idempotent]
         public async Task<IActionResult> SubmitStepCard([FromBody] SubmitStepCardRequest req)
         {
             var playerId = GetPlayerId();
@@ -179,6 +183,7 @@ namespace Toko.Controllers
         // 3.2 在执行阶段，提交参数并立刻执行
         [HttpPost("submit-exec-param")]
         [EnsureRoomStatus(RoomStatus.Playing)]
+        [Idempotent]
         public async Task<IActionResult> SubmitExecParam([FromBody] SubmitExecParamRequest req)
         {
             var playerId = GetPlayerId();
@@ -202,6 +207,7 @@ namespace Toko.Controllers
         }
 
         [HttpPost("leave")]
+        [Idempotent]
         [EnsureRoomStatus(RoomStatus.Waiting)]
         public async Task<IActionResult> LeaveRoom([FromBody] LeaveRoomRequest req)
         {
@@ -220,6 +226,7 @@ namespace Toko.Controllers
 
 
         [HttpPost("discard-cards")]
+        [Idempotent]
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> Discard([FromBody] DiscardRequest req)
         {

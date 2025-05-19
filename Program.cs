@@ -64,7 +64,8 @@ builder.Services.AddSignalR();
 
 //builder.Services.AddRazorPages();             
 //builder.Services.AddServerSideBlazor();
-//builder.Services.AddMemoryCache();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IdempotencyFilter>();
 
 string? jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrEmpty(jwtKey))
