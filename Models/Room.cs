@@ -1,10 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using MediatR;
+﻿using MediatR;
 using OneOf;
 using Stateless;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Threading;
 using Toko.Models.Events;
 using Toko.Services;
 using static Toko.Services.RoomManager;
@@ -21,7 +22,7 @@ namespace Toko.Models
         public RaceMap Map { get; set; } = RaceMapFactory.CreateDefaultMap();
         public List<Racer> Racers { get; } = new();
         public int CurrentRound { get; private set; }
-        public int CurrentStep { get; private set; }
+        public int CurrentStep => _stepInRound;
         public RoomStatus Status => _gameSM.State;
         #endregion
 
@@ -39,21 +40,17 @@ namespace Toko.Models
         private readonly List<int> _steps;
         private readonly List<string> _order = new();
         private int _idx;
+        private int _stepInRound;
 
         private readonly IMediator _mediator;
-        //private CancellationTokenSource? _cts;
-
-        // 线程安全：房间级串行锁
         private readonly SemaphoreSlim _gate = new(1, 1);
-
-        // 计时器：替代 CTS+Task.Delay
         private readonly object _timerLock = new();
         private Timer? _promptTimer;
 
         private readonly Dictionary<string, DateTime> _thinkStart = new();
         private readonly Dictionary<string, TimeSpan> _bank = new();
         private readonly HashSet<string> _banned = new();
-        private readonly Dictionary<string, string> _cardNow = new();
+        private readonly Dictionary<(string, int, int), string> _cardNow = new(); // (pid, round, step) -> cardId
         private HashSet<string> _discardPending = new();
 
         private static readonly TimeSpan INIT_BANK = TimeSpan.FromSeconds(30);
@@ -62,7 +59,9 @@ namespace Toko.Models
         private static readonly TimeSpan KICK_ELIGIBLE = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan DISCARD_AUTO_SKIP = TimeSpan.FromSeconds(15);
 
-        private const int AUTO_DRAW = 2;   // 每回合自动抽 2 张
+        private const int AUTO_DRAW = 5;   // 每回合自动抽 5 张
+        private const int DRAW_ON_SKIP = 1;
+        private const string SKIP = "SKIP"; // 代表跳过抽卡
 
         private bool _disposed;
         #endregion
@@ -87,12 +86,13 @@ namespace Toko.Models
                 if (!Racers.Any()) return StartRoomError.NoPlayers;
                 var host = Racers.FirstOrDefault(r => r.Id == playerId);
                 if (host?.IsHost != true) return StartRoomError.NotHost;
+                if (this.Racers.Any(r => !r.IsReady)) return StartRoomError.NotAllReady;
 
                 _order.Clear();
                 _order.AddRange(Racers.Select(r => r.Id));
                 foreach (var id in _order) _bank[id] = INIT_BANK;
 
-                CurrentRound = 0; CurrentStep = 0;
+                CurrentRound = 0; _stepInRound = 0;
                 _gameSM.Fire(GameTrigger.Start);
                 return new StartRoomSuccess(Id);
             }
@@ -115,7 +115,7 @@ namespace Toko.Models
             {
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
-                InitializeDeck(racer); DrawCardsInternal(racer, 3);
+                InitializeDeck(racer); DrawCardsInternal(racer, 5);
                 Racers.Add(racer);
                 return new JoinRoomSuccess(racer);
             }
@@ -133,6 +133,19 @@ namespace Toko.Models
                 if (racer is null) return LeaveRoomError.PlayerNotFound;
                 Racers.Remove(racer);
                 return new LeaveRoomSuccess(pid);
+            }
+            finally { _gate.Release(); }
+        }
+
+        public async Task<OneOf<ReadyUpSuccess, ReadyUpError>> ReadyUpAsync(string pid, bool ready)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                var racer = Racers.FirstOrDefault(r => r.Id == pid);
+                if (racer is null) return ReadyUpError.PlayerNotFound;
+                racer.IsReady = ready;
+                return new ReadyUpSuccess(pid, ready);
             }
             finally { _gate.Release(); }
         }
@@ -163,7 +176,8 @@ namespace Toko.Models
             racer.Hand.Remove(cardObj);
             racer.DiscardPile.Add(cardObj);
 
-            _cardNow[pid] = cardId;
+            //_cardNow[pid] = cardId;
+            _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
             MoveNextPlayer();
             return new SubmitStepCardSuccess(cardId);
         }
@@ -186,7 +200,7 @@ namespace Toko.Models
             if (pid != _order[_idx]) return SubmitExecutionParamError.NotYourTurn;
 
             var racer = Racers.First(r => r.Id == pid);
-            if (!_cardNow.TryGetValue(pid, out var cardId))
+            if (!_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId))
                 return SubmitExecutionParamError.CardNotFound;
 
             var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
@@ -299,15 +313,17 @@ namespace Toko.Models
         #region ▶ 各阶段启动
         void StartCardCollection()
         {
-            foreach (var r in Racers) AutoDraw(r, AUTO_DRAW);
+            foreach (var r in Racers) DrawCards(r, AUTO_DRAW);
             _cardNow.Clear();
             _idx = 0;
+            _stepInRound = 0;
             PromptCard(_order[0]);
         }
 
         void StartParamCollection()
         {
             _idx = 0;
+            _stepInRound = 0;
             PromptParam(_order[0]);
         }
 
@@ -336,6 +352,13 @@ namespace Toko.Models
 
         void PromptParam(string pid)
         {
+            //check if draw to skip
+            if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId) && cardId == SKIP)
+            {
+                _mediator.Publish(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
+                MoveNextPlayer();
+                return;
+            }
             _thinkStart[pid] = DateTime.UtcNow;
             RescheduleTimer();
             _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
@@ -410,23 +433,6 @@ namespace Toko.Models
         #endregion
 
         #region ▶ 工具
-        void AutoDraw(Racer racer, int requested)
-        {
-            int space = racer.HandCapacity - racer.Hand.Count;
-            int toDraw = Math.Min(requested, Math.Max(0, space));
-
-            for (int i = 0; i < toDraw; i++)
-            {
-                if (!racer.Deck.Any())
-                {
-                    foreach (var c in racer.DiscardPile) racer.Deck.Enqueue(c);
-                    racer.DiscardPile.Clear();
-                }
-                if (!racer.Deck.Any()) break;
-                racer.Hand.Add(racer.Deck.Dequeue());
-            }
-        }
-
         static bool Validate(CardType t, ExecParameter p) => t switch
         {
             CardType.Move => p.Effect is 1 or 2,
@@ -451,25 +457,27 @@ namespace Toko.Models
 
             if (_idx == _order.Count)
             {
-                var next = _phaseSM.State == Phase.CollectingCards
-                           ? PhaseTrigger.CardsReady
-                           : PhaseTrigger.ParamsDone;
-                _phaseSM.Fire(next);
-                return;
+                _idx = 0;
+                if (++_stepInRound >= _steps[CurrentRound])
+                {
+                    var trigger = _phaseSM.State == Phase.CollectingCards ? PhaseTrigger.CardsReady : PhaseTrigger.ParamsDone;
+                    _phaseSM.Fire(trigger);
+                    return;
+                }
             }
+
 
             if (_phaseSM.State == Phase.CollectingCards) PromptCard(_order[_idx]);
             else if (_phaseSM.State == Phase.CollectingParams) PromptParam(_order[_idx]);
+            
         }
 
         void NextStep()
         {
-            if (++CurrentStep >= _steps[CurrentRound])
-            {
-                CurrentStep = 0;
-                if (++CurrentRound >= _steps.Count)
-                    _gameSM.Fire(GameTrigger.GameOver);
-            }
+            _stepInRound = 0;
+            if (++CurrentRound >= _steps.Count)
+                _gameSM.Fire(GameTrigger.GameOver);
+
         }
 
         /// <summary>
@@ -495,7 +503,7 @@ namespace Toko.Models
 
             // 最后随机洗牌
             // Fisher–Yates shuffle
-            var rnd = new Random();
+            //var rnd = new Random();
             var all = racer.Deck.ToList();
             ShuffleUtils.Shuffle(all);
             racer.Deck.Clear();
@@ -523,6 +531,38 @@ namespace Toko.Models
                 racer.Hand.Add(card);
                 drawn.Add(card);
             }
+            return drawn;
+        }
+
+        public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkipAsync(string pid)
+        {
+            await _gate.WaitAsync();
+            try { return DrawSkip(pid); }
+            finally { _gate.Release(); }
+        }
+
+        private OneOf<DrawSkipSuccess, DrawSkipError> DrawSkip(string pid)
+        {
+            if (_banned.Contains(pid)) return DrawSkipError.PlayerBanned;
+            if (_phaseSM.State != Phase.CollectingCards)
+                return DrawSkipError.WrongPhase;
+            if (pid != _order[_idx]) return DrawSkipError.NotYourTurn;
+
+            var racer = Racers.FirstOrDefault(r => r.Id == pid)
+                       ?? throw new InvalidOperationException();
+            UpdateBank(pid);
+            var result = DrawCards(racer, DRAW_ON_SKIP);
+            _mediator.Publish(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
+            _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
+            MoveNextPlayer();
+            return new DrawSkipSuccess(result);
+        }
+
+        public List<Card> DrawCards(Racer racer, int requestedCount)
+        {
+            int space = racer.HandCapacity - racer.Hand.Count;
+            int toDraw = Math.Min(requestedCount, Math.Max(0, space));
+            var drawn = DrawCardsInternal(racer, toDraw);
             return drawn;
         }
 

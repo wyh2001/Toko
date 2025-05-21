@@ -111,33 +111,46 @@ namespace Toko.Controllers
             }));
         }
 
-        //[HttpPost("draw")]
-        //[EnsureRoomStatus(RoomStatus.Playing)]
-        //public IActionResult Draw([FromBody] DrawRequest req)
-        //{
-        //    var cards = _roomManager.DrawCards(
-        //        req.RoomId, req.PlayerId, req.Count);
-        //    return cards.Match<IActionResult>(
-        //        success => Ok(new { cards = success }),
-        //        error => error switch
-        //        {
-        //            DrawCardsError.RoomNotFound => NotFound("Room not found."),
-        //            DrawCardsError.PlayerNotFound => NotFound("Player not found."),
-        //            _ => StatusCode(StatusCodes.Status500InternalServerError)
-        //        });
-        //    //return Ok(cards);
-        //}
+        [HttpPost("drawSkip")]
+        [EnsureRoomStatus(RoomStatus.Playing)]
+        public async Task<IActionResult> DrawSkipAsync([FromBody] DrawSkipRequest req)
+        {
+            var playerId = GetPlayerId();
+            var result = await _roomManager.DrawSkip(req.RoomId, playerId);
+            return result.Match<IActionResult>(
+                success => Ok(new { message = "Draw skip", success }),
+                error => error switch
+                {
+                    DrawSkipError.RoomNotFound => NotFound("Room not found."),
+                    DrawSkipError.PlayerNotFound => NotFound("Player not found."),
+                    DrawSkipError.NotYourTurn => BadRequest("Not your turn."),
+                    DrawSkipError.WrongPhase => BadRequest("Wrong phase."),
+                    DrawSkipError.PlayerBanned => BadRequest("Player is banned."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+            //var cards = _roomManager.DrawCards(
+            //    req.RoomId, req.PlayerId, req.Count);
+            //return cards.Match<IActionResult>(
+            //    success => Ok(new { cards = success }),
+            //    error => error switch
+            //    {
+            //        DrawCardsError.RoomNotFound => NotFound("Room not found."),
+            //        DrawCardsError.PlayerNotFound => NotFound("Player not found."),
+            //        _ => StatusCode(StatusCodes.Status500InternalServerError)
+            //    });
+            //return Ok(cards);
+        }
 
         /// <summary>
         /// 房主点击“开始游戏”后调用
         /// </summary>
-        [HttpPost("{roomId}/start")]
+        [HttpPost("start")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
         [Idempotent]
-        public async Task<IActionResult> Start(string roomId)
+        public async Task<IActionResult> Start([FromBody] StartRoomRequest req) 
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.StartRoom(roomId, playerId);
+            var result = await _roomManager.StartRoom(req.RoomId, playerId);
             return result.Match<IActionResult>(success =>
             {
                 //_hubContext.Clients.Group(roomId)
@@ -150,6 +163,7 @@ namespace Toko.Controllers
                     StartRoomError.AlreadyStarted => BadRequest("Room already started."),
                     StartRoomError.AlreadyFinished => BadRequest("Room already Finished"),
                     StartRoomError.NotHost => BadRequest("You are not the host."),
+                    StartRoomError.NotAllReady => BadRequest("Not all players are ready."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }
@@ -243,6 +257,25 @@ namespace Toko.Controllers
                     DiscardCardsError.CardNotFound => BadRequest("Invalid card IDs."),
                     DiscardCardsError.WrongPhase => BadRequest("Wrong phase."),
                     DiscardCardsError.PlayerBanned => BadRequest("Player is banned."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+        }
+
+        // ready up
+        [HttpPost("ready")]
+        [Idempotent]
+        [EnsureRoomStatus(RoomStatus.Waiting)]
+        public async Task<IActionResult> Ready([FromBody] ReadyRequest req)
+        {
+            var playerId = GetPlayerId();
+            var result = await _roomManager.ReadyUp(req.RoomId, playerId, req.IsReady);
+            return result.Match<IActionResult>(
+                success => Ok(new { message = "Ready", success }),
+                error => error switch
+                {
+                    ReadyUpError.RoomNotFound => NotFound("Room not found."),
+                    ReadyUpError.PlayerNotFound => NotFound("Player not found."),
+                    //ReadyUpError.AlreadyReady => BadRequest("Already ready."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }

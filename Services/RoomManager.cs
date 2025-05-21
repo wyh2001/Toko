@@ -19,6 +19,7 @@ namespace Toko.Services
     {
         // 并发安全的房间字典
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
+        //private readonly ConcurrentDictionary<string, string> _playersInPlay = new(); // playerId -> roomId
         //private readonly ConcurrentDictionary<string, byte> _activeRooms = new();
 
 
@@ -126,19 +127,19 @@ namespace Toko.Services
         /// 给某玩家抽牌：抽取张数 = min(requestedCount, 空余手牌槽数)
         /// </summary>
         /// 
-        public OneOf<DrawCardsSuccess, DrawCardsError> DrawCards(
-            string roomId, string playerId, int requestedCount)
-        {
-            var room = GetRoom(roomId);
-            if (room is null) return DrawCardsError.RoomNotFound;
-            var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            if (racer is null) return DrawCardsError.PlayerNotFound;
-            // 计算还能抽多少张
-            int space = racer.HandCapacity - racer.Hand.Count;
-            int toDraw = Math.Min(requestedCount, Math.Max(0, space));
-            var drawn = DrawCardsInternal(racer, toDraw);
-            return new DrawCardsSuccess(drawn);
-        }
+        //public OneOf<DrawCardsSuccess, DrawCardsError> DrawCards(
+        //    string roomId, string playerId, int requestedCount)
+        //{
+        //    var room = GetRoom(roomId);
+        //    if (room is null) return DrawCardsError.RoomNotFound;
+        //    var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
+        //    if (racer is null) return DrawCardsError.PlayerNotFound;
+        //    // 计算还能抽多少张
+        //    int space = racer.HandCapacity - racer.Hand.Count;
+        //    int toDraw = Math.Min(requestedCount, Math.Max(0, space));
+        //    var drawn = DrawCardsInternal(racer, toDraw);
+        //    return new DrawCardsSuccess(drawn);
+        //}
 
 
         /// <summary>
@@ -208,7 +209,7 @@ namespace Toko.Services
 
             // 最后随机洗牌
             // Fisher–Yates shuffle
-            var rnd = new Random();
+            //var rnd = new Random();
             var all = racer.Deck.ToList();
             ShuffleUtils.Shuffle(all);
             racer.Deck.Clear();
@@ -221,7 +222,7 @@ namespace Toko.Services
         /// 标记房间为已开始
         /// </summary>
         public record StartRoomSuccess(string RoomId);
-        public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost, AlreadyPlayingInAnotherRoom }
+        public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost, NotAllReady }
         public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartRoom(string roomId, string playerId)
         {
             if (!_rooms.TryGetValue(roomId, out var room))
@@ -287,6 +288,32 @@ namespace Toko.Services
             return await room.LeaveRoomAsync(playerId);
         }
 
+        public record ReadyUpSuccess(string PlayerId, bool IsReady);
+        public enum ReadyUpError { RoomNotFound, PlayerNotFound, InternalError }
+        public async Task<OneOf<ReadyUpSuccess, ReadyUpError>> ReadyUp(string roomId, string playerId, bool isReady)
+        {
+            if (!_rooms.TryGetValue(roomId, out var room))
+                return ReadyUpError.RoomNotFound;
+            return await room.ReadyUpAsync(playerId, isReady);
+        }
+
+        public record DrawSkipSuccess(IReadOnlyList<Card> DrawnCards);
+        public enum DrawSkipError
+        {
+            RoomNotFound,
+            PlayerNotFound,
+            NotYourTurn,
+            HandFull,
+            WrongPhase,
+            PlayerBanned
+        }
+        public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkip(string roomId, string playerId)
+        {
+            if (!_rooms.TryGetValue(roomId, out var room))
+                return DrawSkipError.RoomNotFound;
+            return await room.DrawSkipAsync(playerId);
+        }
+
         public static class ShuffleUtils
         {
             //private static readonly Random _random = new Random(); // 避免每次创建新 Random 实例
@@ -300,24 +327,5 @@ namespace Toko.Services
                 }
             }
         }
-
-        //private string IssueToken(string playerId, string roomId)
-        //{
-        //    var creds = new SigningCredentials(
-        //        new SymmetricSecurityKey(
-        //            Encoding.UTF8.GetBytes(_config["Jwt:Key"])),
-        //        SecurityAlgorithms.HmacSha256);
-
-        //    var token = new JwtSecurityToken(
-        //        claims: new[]
-        //        {
-        //    new Claim(JwtRegisteredClaimNames.Sub, playerId),
-        //    new Claim("room", roomId)          // 可选：锁定房间
-        //        },
-        //        expires: DateTime.UtcNow.AddDays(30),  // ← 30 天记住你
-        //        signingCredentials: creds);
-
-        //    return new JwtSecurityTokenHandler().WriteToken(token);
-        //}
     }
 }
