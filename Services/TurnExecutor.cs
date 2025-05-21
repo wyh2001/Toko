@@ -35,7 +35,7 @@ namespace Toko.Services
                     ChangeLane(racer, ins.ExecParameter.Effect, room);
                     break;
                 case CardType.Repair:
-                    Repair(racer, ins.ExecParameter.DiscardedCardIds, room);
+                    Repair(racer, ins.ExecParameter.DiscardedCardIds);
                     break;
                 default:
                     // Junk 不会在此提交
@@ -130,13 +130,13 @@ namespace Toko.Services
             }
         }
 
-        private void AddJunk(Racer racer, int qty)
+        private static void AddJunk(Racer racer, int qty)
         {
             for (int i = 0; i < qty; i++)
                 racer.Deck.Enqueue(new Card { Type = CardType.Junk });
         }
 
-        private void Repair(Racer racer, List<string> discardedCardId, Room room)
+        private static void Repair(Racer racer, List<string> discardedCardId)
         {
             // see if the size is legit
             if (discardedCardId.Count > 2)
@@ -152,11 +152,11 @@ namespace Toko.Services
                     return; // not junk
             }
             // discard the junk card the user chose
-            InternalDiscard(racer, discardedCardId, room);
+            InternalDiscard(racer, discardedCardId);
         }
 
         // dicard cards
-        private static void InternalDiscard(Racer racer, List<string> discardedCardId, Room room)
+        private static void InternalDiscard(Racer racer, List<string> discardedCardId)
         {
             // see if the size is legit
             if (discardedCardId.Count == 0)
@@ -174,7 +174,7 @@ namespace Toko.Services
             }
         }
 
-        public bool DiscardCards(Racer racer, List<string> discardedCardId, Room room)
+        public bool DiscardCards(Racer racer, List<string> discardedCardId)
         {
             if (discardedCardId.Count == 0)
                 return true;
@@ -187,7 +187,7 @@ namespace Toko.Services
                     return false; // not all in hand
             }
             // discard the cards the user chose
-            InternalDiscard(racer, discardedCardId, room);
+            InternalDiscard(racer, discardedCardId);
             return true;
         }
     }

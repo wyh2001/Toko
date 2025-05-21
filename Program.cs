@@ -10,10 +10,15 @@ using Toko.Filters;
 using Toko.Hubs;
 using Toko.Models;
 using Toko.Services;
+using Serilog.Settings.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Host.UseSerilog();
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .CreateLogger();
 
 builder.Services.AddControllers();
 builder.Services.AddSingleton<RoomManager>();

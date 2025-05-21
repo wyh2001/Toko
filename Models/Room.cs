@@ -239,7 +239,7 @@ namespace Toko.Models
                  racer.Hand.First(c => c.Id == cid).Type == CardType.Junk))
                 return DiscardCardsError.CardNotFound;
 
-            new TurnExecutor(Map).DiscardCards(racer, cardIds, this);
+            new TurnExecutor(Map).DiscardCards(racer, cardIds);
             _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
 
             _discardPending.Remove(pid);

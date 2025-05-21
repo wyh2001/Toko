@@ -19,6 +19,7 @@ namespace Toko.Services
     {
         // 并发安全的房间字典
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
+        private readonly ILogger<RoomManager> _log;
         //private readonly ConcurrentDictionary<string, string> _playersInPlay = new(); // playerId -> roomId
         //private readonly ConcurrentDictionary<string, byte> _activeRooms = new();
 
@@ -29,9 +30,10 @@ namespace Toko.Services
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(1);
 
         //public RoomManager(IMediator mediator, IMemoryCache cache)
-        public RoomManager(IMediator mediator)
+        public RoomManager(IMediator mediator, ILogger<RoomManager> log)
         {
             _mediator = mediator;
+            _log = log;
             //_cache = cache;
         }
 
@@ -92,6 +94,7 @@ namespace Toko.Services
             //    }
             //});
             //_activeRooms[room.Id] = 0;
+            _log.LogInformation("Room {RoomId} created", room.Id);
             return (roomId, host);
         }
 
@@ -110,13 +113,6 @@ namespace Toko.Services
         {
             var room = GetRoom(roomId);
             if (room is null) return JoinRoomError.RoomNotFound;
-            //if (room.Racers.Count >= room.MaxPlayers) return JoinRoomError.RoomFull;
-
-            //var racer = new Racer { Id = Guid.NewGuid().ToString(), PlayerName = playerName };
-            //InitializeDeck(racer);
-            //DrawCardsInternal(racer, 3);
-            //room.Racers.Add(racer);
-            //return new JoinRoomSuccess(racer);
             return await room.JoinRoomAsync(playerId, playerName);
         }
 
