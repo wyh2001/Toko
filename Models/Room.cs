@@ -9,6 +9,7 @@ using System.Threading;
 using Toko.Models.Events;
 using Toko.Services;
 using static Toko.Services.RoomManager;
+using static Toko.Services.CardHelper;
 
 namespace Toko.Models
 {
@@ -64,15 +65,17 @@ namespace Toko.Models
         private const string SKIP = "SKIP"; // 代表跳过抽卡
 
         private bool _disposed;
+        private readonly ILogger<Room> _log;
         #endregion
 
-        public Room(IMediator mediator, IEnumerable<int> stepsPerRound)
+        public Room(IMediator mediator, IEnumerable<int> stepsPerRound, ILogger<Room> log)
         {
             _mediator = mediator;
             _steps = stepsPerRound.Any() ? stepsPerRound.ToList() : new() { 5 };
             _gameSM = new(RoomStatus.Waiting);
             _phaseSM = new(Phase.CollectingCards);
             ConfigureFSM();
+            _log = log;
         }
 
         #region ▶ 游戏控制
@@ -420,8 +423,8 @@ namespace Toko.Models
             catch (Exception ex)
             {
                 // 处理异常
-                Console.WriteLine($"Error in OnPromptTimer: {ex.Message}");
-                // TODO: 记录日志或其他处理
+                //Console.WriteLine($"Error in OnPromptTimer: {ex.Message}");
+                _log.LogError(ex, "Error in OnPromptTimer");
             }
             finally
             {
@@ -478,60 +481,6 @@ namespace Toko.Models
             if (++CurrentRound >= _steps.Count)
                 _gameSM.Fire(GameTrigger.GameOver);
 
-        }
-
-        /// <summary>
-        /// 初始化一副标准牌堆：根据需要填充不同类型卡
-        /// </summary>
-        private void InitializeDeck(Racer racer)
-        {
-            // 清空旧牌
-            racer.Deck.Clear();
-            racer.Hand.Clear();
-            racer.DiscardPile.Clear();
-
-
-            void Add(CardType type, int qty)
-            {
-                for (int i = 0; i < qty; i++)
-                    racer.Deck.Enqueue(new Card { Type = type });
-            }
-
-            Add(CardType.Move, 9);
-            Add(CardType.ChangeLane, 9);
-            Add(CardType.Repair, 4);
-
-            // 最后随机洗牌
-            // Fisher–Yates shuffle
-            //var rnd = new Random();
-            var all = racer.Deck.ToList();
-            ShuffleUtils.Shuffle(all);
-            racer.Deck.Clear();
-            foreach (var card in all)
-                racer.Deck.Enqueue(card);
-        }
-
-        /// <summary>
-        /// Internal: 实际从 Deck 抽卡，不作空槽检查，返回抽到的卡
-        /// </summary>
-        private List<Card> DrawCardsInternal(Racer racer, int count)
-        {
-            var drawn = new List<Card>();
-            for (int i = 0; i < count; i++)
-            {
-                // 如果牌堆空了，就洗弃牌堆回去
-                if (!racer.Deck.Any())
-                {
-                    foreach (var c in racer.DiscardPile) racer.Deck.Enqueue(c);
-                    racer.DiscardPile.Clear();
-                }
-                if (!racer.Deck.Any()) break;
-
-                var card = racer.Deck.Dequeue();
-                racer.Hand.Add(card);
-                drawn.Add(card);
-            }
-            return drawn;
         }
 
         public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkipAsync(string pid)

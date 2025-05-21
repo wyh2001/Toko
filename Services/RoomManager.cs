@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Toko.Models;
 using static Toko.Models.Room;
+using static Toko.Services.CardHelper;
 
 namespace Toko.Services
 {
@@ -20,6 +21,7 @@ namespace Toko.Services
         // 并发安全的房间字典
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
         private readonly ILogger<RoomManager> _log;
+        private readonly ILoggerFactory _loggerFactory;
         //private readonly ConcurrentDictionary<string, string> _playersInPlay = new(); // playerId -> roomId
         //private readonly ConcurrentDictionary<string, byte> _activeRooms = new();
 
@@ -30,10 +32,11 @@ namespace Toko.Services
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(1);
 
         //public RoomManager(IMediator mediator, IMemoryCache cache)
-        public RoomManager(IMediator mediator, ILogger<RoomManager> log)
+        public RoomManager(IMediator mediator, ILogger<RoomManager> log, ILoggerFactory loggerFactory)
         {
             _mediator = mediator;
             _log = log;
+            _loggerFactory = loggerFactory;
             //_cache = cache;
         }
 
@@ -50,7 +53,9 @@ namespace Toko.Services
             List<int> stepsPerRound)
         {
             //var roomId = Guid.NewGuid().ToString();
-            var room = new Room(_mediator, stepsPerRound)
+            // iloggerFactory 
+            var roomLogger = _loggerFactory.CreateLogger<Room>();
+            var room = new Room(_mediator, stepsPerRound, roomLogger)
             {
                 //Id = roomId,
                 Name = roomName,
@@ -137,30 +142,6 @@ namespace Toko.Services
         //    return new DrawCardsSuccess(drawn);
         //}
 
-
-        /// <summary>
-        /// Internal: 实际从 Deck 抽卡，不作空槽检查，返回抽到的卡
-        /// </summary>
-        private List<Card> DrawCardsInternal(Racer racer, int count)
-        {
-            var drawn = new List<Card>();
-            for (int i = 0; i < count; i++)
-            {
-                // 如果牌堆空了，就洗弃牌堆回去
-                if (!racer.Deck.Any())
-                {
-                    foreach (var c in racer.DiscardPile) racer.Deck.Enqueue(c);
-                    racer.DiscardPile.Clear();
-                }
-                if (!racer.Deck.Any()) break;
-
-                var card = racer.Deck.Dequeue();
-                racer.Hand.Add(card);
-                drawn.Add(card);
-            }
-            return drawn;
-        }
-
         public record SubmitStepCardSuccess(string CardId);
         public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase,
             PlayerBanned
@@ -181,38 +162,6 @@ namespace Toko.Services
             _rooms.Values.ToList();
 
         // … 其他如 SetMap/GetMap/ExecuteTurn 等方法按需保留 …
-
-        /// <summary>
-        /// 初始化一副标准牌堆：根据需要填充不同类型卡
-        /// </summary>
-        private void InitializeDeck(Racer racer)
-        {
-            // 清空旧牌
-            racer.Deck.Clear();
-            racer.Hand.Clear();
-            racer.DiscardPile.Clear();
-
-
-            void Add(CardType type, int qty)
-            {
-                for (int i = 0; i < qty; i++)
-                    racer.Deck.Enqueue(new Card { Type = type });
-            }
-
-            Add(CardType.Move, 9);
-            Add(CardType.ChangeLane, 9);
-            Add(CardType.Repair, 4);
-
-            // 最后随机洗牌
-            // Fisher–Yates shuffle
-            //var rnd = new Random();
-            var all = racer.Deck.ToList();
-            ShuffleUtils.Shuffle(all);
-            racer.Deck.Clear();
-            foreach (var card in all)
-                racer.Deck.Enqueue(card);
-        }
-
 
         /// <summary>
         /// 标记房间为已开始
@@ -310,18 +259,6 @@ namespace Toko.Services
             return await room.DrawSkipAsync(playerId);
         }
 
-        public static class ShuffleUtils
-        {
-            //private static readonly Random _random = new Random(); // 避免每次创建新 Random 实例
 
-            public static void Shuffle<T>(IList<T> list)
-            {
-                for (int i = list.Count - 1; i > 0; i--)
-                {
-                    int j = Random.Shared.Next(i + 1); // 0 ≤ j ≤ i
-                    (list[i], list[j]) = (list[j], list[i]);
-                }
-            }
-        }
     }
 }

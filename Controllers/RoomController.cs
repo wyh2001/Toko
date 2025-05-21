@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using Toko.Filters;
 using Toko.Hubs;
 using Toko.Models;
@@ -282,7 +283,7 @@ namespace Toko.Controllers
 
         private string GetPlayerId()
         {
-            var playerId = User.FindFirst("PlayerId")?.Value;
+            var playerId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
             if (string.IsNullOrEmpty(playerId))
             {
                 throw new InvalidOperationException("PlayerId not found in JWT token.");

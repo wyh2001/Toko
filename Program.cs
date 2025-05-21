@@ -52,8 +52,8 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
-                "http://localhost:4000",
-                "http://127.0.0.1:4000"
+                "http://localhost:5174",
+                "http://127.0.0.1:5174"
             )
             .AllowAnyHeader()                        // 允许所有请求头
             .AllowAnyMethod()                        // 允许 GET、POST、OPTIONS…

@@ -1,15 +1,15 @@
-﻿namespace Toko.Models
+﻿namespace Toko.Models.Events
 {
-    internal class PlayerDrawToSkip
+    public class PlayerDrawToSkip : IRoomEvent
     {
-        private string id;
-        private int currentRound;
-        private int currentStep;
-        private string pid;
+        public string RoomId { get; }
+        public int currentRound;
+        public int currentStep;
+        public string pid;
 
         public PlayerDrawToSkip(string id, int currentRound, int currentStep, string pid)
         {
-            this.id = id;
+            RoomId = id;
             this.currentRound = currentRound;
             this.currentStep = currentStep;
             this.pid = pid;
