@@ -15,7 +15,7 @@ namespace Toko.Models
 {
     public class Room : IDisposable
     {
-        #region ▶ 公共属性
+        #region Public Properties
         public string Id { get; } = Guid.NewGuid().ToString();
         public string? Name { get; set; }
         public int MaxPlayers { get; set; } = 8;
@@ -37,7 +37,7 @@ namespace Toko.Models
         private readonly StateMachine<Phase, PhaseTrigger> _phaseSM;
         #endregion
 
-        #region ▶ 字段 & 常量
+        #region Constants & Fields
         private readonly List<int> _steps;
         private readonly List<string> _order = new();
         private int _idx;
@@ -45,8 +45,7 @@ namespace Toko.Models
 
         private readonly IMediator _mediator;
         private readonly SemaphoreSlim _gate = new(1, 1);
-        private readonly object _timerLock = new();
-        private Timer? _promptTimer;
+        private Timer _promptTimer;
 
         private readonly Dictionary<string, DateTime> _thinkStart = new();
         private readonly Dictionary<string, TimeSpan> _bank = new();
@@ -56,13 +55,13 @@ namespace Toko.Models
 
         private static readonly TimeSpan INIT_BANK = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan BANK_INCREMENT = TimeSpan.FromSeconds(10);
-        private static readonly TimeSpan TIMEOUT_PROMPT = TimeSpan.FromSeconds(5);   // 轮询频率
+        private static readonly TimeSpan TIMEOUT_PROMPT = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan KICK_ELIGIBLE = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan DISCARD_AUTO_SKIP = TimeSpan.FromSeconds(15);
 
-        private const int AUTO_DRAW = 5;   // 每回合自动抽 5 张
+        private const int AUTO_DRAW = 5; // Draw 5 cards automatically
         private const int DRAW_ON_SKIP = 1;
-        private const string SKIP = "SKIP"; // 代表跳过抽卡
+        private const string SKIP = "SKIP";
 
         private bool _disposed;
         private readonly ILogger<Room> _log;
@@ -74,11 +73,14 @@ namespace Toko.Models
             _steps = stepsPerRound.Any() ? stepsPerRound.ToList() : new() { 5 };
             _gameSM = new(RoomStatus.Waiting);
             _phaseSM = new(Phase.CollectingCards);
+            _promptTimer = new Timer(_ => TimerCallback(), null,
+                                 Timeout.InfiniteTimeSpan,
+                                 Timeout.InfiniteTimeSpan);
             ConfigureFSM();
             _log = log;
         }
 
-        #region ▶ 游戏控制
+        #region Game Control
         public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartGameAsync(string playerId)
         {
             await _gate.WaitAsync();
@@ -154,7 +156,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 收卡
+        #region Collecting Cards
         public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCardAsync(string pid, string cardId)
         {
             await _gate.WaitAsync();
@@ -186,7 +188,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 收参
+        #region Collecting Parameters
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParamAsync(string pid, ExecParameter p)
         {
             await _gate.WaitAsync();
@@ -220,7 +222,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 并发弃牌
+        #region Discarding Cards
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> SubmitDiscardAsync(string pid, List<string> cardIds)
         {
             await _gate.WaitAsync();
@@ -256,7 +258,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 投票踢人
+        #region Vote Kick
         public async Task<OneOf<KickVoteSuccess, KickVoteError>> VoteKickAsync(string voterId, string targetId)
         {
             await _gate.WaitAsync();
@@ -280,7 +282,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ FSM 配置
+        #region FSM Configuration
         void ConfigureFSM()
         {
             _gameSM.Configure(RoomStatus.Waiting)
@@ -313,7 +315,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ 各阶段启动
+        #region Helper Methods for Starting Phases
         void StartCardCollection()
         {
             foreach (var r in Racers) DrawCards(r, AUTO_DRAW);
@@ -345,7 +347,7 @@ namespace Toko.Models
         }
         #endregion
 
-        #region ▶ Prompt & 计时器
+        #region Helper Methods for Prompting Players
         void PromptCard(string pid)
         {
             _thinkStart[pid] = DateTime.UtcNow;
@@ -369,27 +371,21 @@ namespace Toko.Models
 
         private void RescheduleTimer()
         {
-            lock (_timerLock)
+            _gate.Wait();
+            try
             {
-                if (_promptTimer is null)
-                {
-                    _promptTimer = new Timer(_ => OnPromptTimer(), null, TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
-                }
-                else
-                {
-                    _promptTimer.Change(TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
-                }
+                _promptTimer.Change(TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
             }
+            finally { _gate.Release(); }
         }
 
-        private async void OnPromptTimer()
+        private async Task OnPromptTimerAsync()
         {
-            // 单房间串行：拿锁后执行，确保与其他 API 不并发
             await _gate.WaitAsync();
             try
             {
                 if (Status != RoomStatus.Playing)
-                    return;   // 游戏已结束或未开始
+                    return;
 
                 if (_phaseSM.State == Phase.Discarding)
                 {
@@ -410,7 +406,7 @@ namespace Toko.Models
                     if (_discardPending.Count == 0)
                     {
                         _phaseSM.Fire(PhaseTrigger.DiscardDone);
-                        return; // 由状态机中的逻辑决定是否再次调度
+                        return;
                     }
                 }
                 else
@@ -422,20 +418,16 @@ namespace Toko.Models
             }
             catch (Exception ex)
             {
-                // 处理异常
-                //Console.WriteLine($"Error in OnPromptTimer: {ex.Message}");
                 _log.LogError(ex, "Error in OnPromptTimer");
             }
             finally
             {
                 _gate.Release();
-                // 无论如何都重新定时
-                if (_gameSM.State == RoomStatus.Playing) RescheduleTimer();
             }
         }
         #endregion
 
-        #region ▶ 工具
+        #region Other Helper Methods
         static bool Validate(CardType t, ExecParameter p) => t switch
         {
             CardType.Move => p.Effect is 1 or 2,
@@ -515,16 +507,32 @@ namespace Toko.Models
             return drawn;
         }
 
+        private void TimerCallback()
+        {
+            _ = OnPromptTimerAsync()
+                .ContinueWith(t => {
+                    if (t.Exception != null)
+                        _log.LogError(t.Exception, "Timer error");
+                    else if (Status == RoomStatus.Playing)
+                        RescheduleTimer();
+                }, TaskScheduler.Default);
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
-            lock (_timerLock)
+            _gate.Wait();
+            try
             {
                 _promptTimer?.Dispose();
-                _promptTimer = null;
             }
-            _gate.Dispose();
-            _disposed = true;
+            finally
+            {
+                _gate.Release();
+                _gate.Dispose();
+                _disposed = true;
+            }
+
         }
         #endregion
     }
