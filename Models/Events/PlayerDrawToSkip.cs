@@ -3,16 +3,16 @@
     public class PlayerDrawToSkip : IRoomEvent
     {
         public string RoomId { get; }
-        public int currentRound;
-        public int currentStep;
-        public string pid;
+        public int CurrentRound { get; }
+        public int CurrentStep { get; }
+        public string PlayerId { get; }
 
-        public PlayerDrawToSkip(string id, int currentRound, int currentStep, string pid)
+        public PlayerDrawToSkip(string roomId, int currentRound, int currentStep, string playerId)
         {
-            RoomId = id;
-            this.currentRound = currentRound;
-            this.currentStep = currentStep;
-            this.pid = pid;
+            RoomId = roomId;
+            CurrentRound = currentRound;
+            CurrentStep = currentStep;
+            PlayerId = playerId;
         }
     }
 }

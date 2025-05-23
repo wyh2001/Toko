@@ -1,18 +1,18 @@
 ﻿namespace Toko.Models.Events
 {
-    internal class PlayerParameterSubmissionSkipped : IRoomEvent
+    public class PlayerParameterSubmissionSkipped : IRoomEvent
     {
         public string RoomId { get; }
-        public int currentRound;
-        public int currentStep;
-        public string playerId;
+        public int CurrentRound { get; }
+        public int CurrentStep { get; }
+        public string PlayerId { get; }
 
-        public PlayerParameterSubmissionSkipped(string id, int currentRound, int currentStep, string playerId)
+        public PlayerParameterSubmissionSkipped(string roomId, int currentRound, int currentStep, string playerId)
         {
-            this.RoomId = id;
-            this.currentRound = currentRound;
-            this.currentStep = currentStep;
-            this.playerId = playerId;
+            RoomId = roomId;
+            CurrentRound = currentRound;
+            CurrentStep = currentStep;
+            PlayerId = playerId;
         }
     }
 }
