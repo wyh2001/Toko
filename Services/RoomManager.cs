@@ -28,16 +28,16 @@ namespace Toko.Services
 
         private readonly IMediator _mediator;
 
-        //private readonly IMemoryCache _cache;
-        private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(1);
+        private readonly IMemoryCache _cache;
+        private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(30);
 
         //public RoomManager(IMediator mediator, IMemoryCache cache)
-        public RoomManager(IMediator mediator, ILogger<RoomManager> log, ILoggerFactory loggerFactory)
+        public RoomManager(IMediator mediator, ILogger<RoomManager> log, ILoggerFactory loggerFactory, IMemoryCache cache)
         {
             _mediator = mediator;
             _log = log;
             _loggerFactory = loggerFactory;
-            //_cache = cache;
+            _cache = cache;
         }
 
         /// <summary>
@@ -79,25 +79,19 @@ namespace Toko.Services
             _rooms.TryAdd(roomId, room);
 
             // Here use MemoryCache to cache the room object
-            //_cache.Set(room.Id, room, new MemoryCacheEntryOptions
-            //{
-            //    SlidingExpiration = ROOM_TTL,
-            //    PostEvictionCallbacks =
-            //    {
-            //        new PostEvictionCallbackRegistration
-            //        {
-            //            EvictionCallback = (_, value, reason, _) =>
-            //            {
-            //                // reason == TokenExpired / Removed / Replaced / Expired …
-            //                (value as Room)?.Dispose();
-            //                _activeRooms.TryRemove(room.Id, out _);
-            //                //_logger.LogInformation(
-            //                //    "Room {RoomId} evicted from cache: {Reason}", room.Id, reason);
-            //                Console.WriteLine($"Room {room.Id} evicted from cache: {reason}");
-            //            }
-            //        }
-            //    }
-            //});
+            _cache.Set(room.Id, room, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = ROOM_TTL
+            }
+            .RegisterPostEvictionCallback((key, value, reason, state) =>
+            {
+                if (reason == EvictionReason.Expired || reason == EvictionReason.TokenExpired)
+                {
+                    var rm = value as Room;
+                    rm?.Dispose();
+                    _rooms.TryRemove(key.ToString()!, out _);
+                }
+            }));
             //_activeRooms[room.Id] = 0;
             _log.LogInformation("Room {RoomId} created", room.Id);
             return (roomId, host);
@@ -106,8 +100,17 @@ namespace Toko.Services
         /// <summary>
         /// 根据 ID 获取房间
         /// </summary>
-        public Room? GetRoom(string roomId) =>
-            _rooms.TryGetValue(roomId, out var room) ? room : null;
+        //public Room? GetRoom(string roomId) =>
+        //_rooms.TryGetValue(roomId, out var room) ? room : null;
+        public Room? GetRoom(string roomId)
+        {
+            if (!_cache.TryGetValue(roomId, out Room? room))
+            {
+                _rooms.TryRemove(roomId, out _);
+                return null;
+            }
+            return room;
+        }
 
 
         public record JoinRoomSuccess(Racer Racer);

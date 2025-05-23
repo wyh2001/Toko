@@ -430,7 +430,7 @@ namespace Toko.Models
             {
                 _gate.Release();
                 // 无论如何都重新定时
-                RescheduleTimer();
+                if (_gameSM.State == RoomStatus.Playing) RescheduleTimer();
             }
         }
         #endregion
