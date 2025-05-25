@@ -2,7 +2,7 @@
 
 namespace Toko.Models.Requests
 {
-    public class LeaveRoomRequest
+    public class LeaveRoomRequest: IRoomRequest
     {
         [Required]
         public required string RoomId { get; set; }

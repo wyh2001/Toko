@@ -1,12 +1,15 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
-using Toko.Models;
+using Toko.Models.Requests;
 using Toko.Services;
 using static Toko.Models.Room;
 
 namespace Toko.Filters
 {
+    /// <summary>
+    /// Ensures the Room with the given RoomId is in the required status before executing the action.
+    /// </summary>
     public class EnsureRoomStatusFilter : IAsyncActionFilter
     {
         private readonly RoomStatus _required;
@@ -22,47 +25,39 @@ namespace Toko.Filters
             ActionExecutingContext context,
             ActionExecutionDelegate next)
         {
-            // 1. 从参数里拿 roomId
-            string? roomId = null;
-            if (context.ActionArguments.TryGetValue("roomId", out var idObj)
-                && idObj is string rid)
-            {
-                roomId = rid;
-            }
-            else
-            {
-                // 如果是 req DTO，尝试找 RoomId 属性
-                foreach (var arg in context.ActionArguments.Values)
-                {
-                    var prop = arg?.GetType().GetProperty("RoomId");
-                    if (prop != null)
-                    {
-                        roomId = prop.GetValue(arg) as string;
-                        break;
-                    }
-                }
-            }
+            // Try to get any argument implementing IRoomRequest
+            var roomRequest = context
+                .ActionArguments
+                .Values
+                .OfType<IRoomRequest>()
+                .FirstOrDefault();
 
-            if (string.IsNullOrEmpty(roomId))
+            // Validate presence of RoomId
+            if (roomRequest == null || string.IsNullOrWhiteSpace(roomRequest.RoomId))
             {
-                context.Result = new BadRequestObjectResult("缺少 roomId 参数。");
+                context.Result = new BadRequestObjectResult("Missing or empty roomId.");
                 return;
             }
 
-            // 2. 获取房间，检查状态
+            var roomId = roomRequest.RoomId;
+
+            // Look up the room
             var room = _rooms.GetRoom(roomId);
             if (room == null)
             {
-                context.Result = new NotFoundObjectResult("房间不存在。");
-                return;
-            }
-            if (room.Status != _required)
-            {
-                context.Result = new BadRequestObjectResult(
-                    $"此接口只允许 Status = {_required} 的房间调用。当前为 {room.Status}");
+                context.Result = new NotFoundObjectResult("Room not found.");
                 return;
             }
 
+            // Check that its status matches the required one
+            if (room.Status != _required)
+            {
+                context.Result = new BadRequestObjectResult(
+                    $"This endpoint requires room status = {_required}, but current status is {room.Status}.");
+                return;
+            }
+
+            // All good: proceed to the action
             await next();
         }
     }

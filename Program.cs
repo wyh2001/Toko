@@ -25,11 +25,14 @@ builder.Services.AddSingleton<RoomManager>();
 builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 builder.Services.AddHostedService<QueuedHostedService>();
 
-//builder.Services
-//    .AddControllers(options =>
-//    {
-//        options.Filters.Add<HttpResponseExceptionFilter>();
-//    });
+builder.Services.AddOutputCache();
+
+builder.Services
+    .AddControllers(options =>
+    {
+        //options.Filters.Add<HttpResponseExceptionFilter>();
+        options.Filters.Add<ApiWrapperFilter>();
+    });
 
 
 // register MediatR
@@ -93,11 +96,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
            {
                OnMessageReceived = context =>
                {
-                   // SignalR 在 WebSocket 握手时无法带 Cookie，我们允许 query string 携带
-                   var accessToken = context.Request.Query["access_token"];
-                   var path = context.HttpContext.Request.Path;
-                   if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/racehub"))
-                       context.Token = accessToken;
+                   // 1) 优先从 Cookie
+                   var token = context.Request.Cookies["token"];
+
+                   // 2) 如果是 SignalR WebSocket，会把 token 放到 ?access_token=
+                   if (string.IsNullOrEmpty(token) &&
+                       context.Request.Path.StartsWithSegments("/racehub") &&     // Hub 路径
+                       context.Request.Query.TryGetValue("access_token", out var qs))
+                   {
+                       token = qs.ToString();
+                   }
+
+                   context.Token = token;           // 可能是 null；JwtBearer 会自己处理
                    return Task.CompletedTask;
                }
            };
@@ -114,6 +124,7 @@ if (app.Environment.IsDevelopment())
 }
 
 //app.UseHttpsRedirection();
+app.UseOutputCache();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

@@ -2,7 +2,7 @@
 
 namespace Toko.Models.Requests
 {
-    public class SubmitExecParamRequest
+    public class SubmitExecParamRequest : IRoomRequest
     {
         [Required]
         public required string RoomId { get; set; }

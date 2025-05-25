@@ -9,10 +9,12 @@ namespace Toko.Services
     {
         private readonly RaceMap _map;
         public List<TurnLog> Logs { get; } = new List<TurnLog>();
+        private ILogger<TurnExecutor> _log;
 
-        public TurnExecutor(RaceMap map)
+        public TurnExecutor(RaceMap map, ILogger<TurnExecutor> log)
         {
             _map = map ?? throw new ArgumentNullException(nameof(map));
+            _log = log;
         }
 
         public void ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
@@ -41,14 +43,6 @@ namespace Toko.Services
                     // Junk 不会在此提交
                     break;
             }
-            // 记录日志：每条指令结束后
-            Logs.Add(new TurnLog
-            {
-                PlayerId = racer.Id,
-                Instruction = ins,
-                SegmentIndex = racer.SegmentIndex,
-                LaneIndex = racer.LaneIndex
-            });
         }
 
         private void MoveForward(Racer racer, int steps, Room room)
@@ -57,7 +51,7 @@ namespace Toko.Services
             {
                 // 先检查是否进入下一段
                 var seg = _map.Segments[racer.SegmentIndex];
-                if (racer.CellIndex + 1 >= seg.LaneCells.Count)
+                if (racer.CellIndex + 1 >= seg.LaneCells[racer.LaneIndex].Count)
                 {
                     // 如果是最后一段，则结束比赛
                     if (racer.SegmentIndex + 1 >= _map.Segments.Count)

@@ -55,7 +55,7 @@ namespace Toko.Services
             //var roomId = Guid.NewGuid().ToString();
             // iloggerFactory 
             var roomLogger = _loggerFactory.CreateLogger<Room>();
-            var room = new Room(_mediator, stepsPerRound, roomLogger)
+            var room = new Room(_mediator, stepsPerRound, roomLogger, _loggerFactory)
             {
                 //Id = roomId,
                 Name = roomName,
@@ -113,7 +113,7 @@ namespace Toko.Services
         }
 
 
-        public record JoinRoomSuccess(Racer Racer);
+        public record JoinRoomSuccess(Racer Racer, string RoomId);
         public enum JoinRoomError { RoomFull, RoomNotFound }
 
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoom(
@@ -145,7 +145,7 @@ namespace Toko.Services
         //    return new DrawCardsSuccess(drawn);
         //}
 
-        public record SubmitStepCardSuccess(string CardId);
+        public record SubmitStepCardSuccess(string RoomId, string PlayerId, string CardId);
         public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase,
             PlayerBanned
         }
@@ -189,7 +189,7 @@ namespace Toko.Services
             return true;
         }
 
-        public record SubmitExecutionParamSuccess(ConcreteInstruction Instruction);
+        public record SubmitExecutionParamSuccess(string RoomId, string PlayerId, ConcreteInstruction Instruction);
         public enum SubmitExecutionParamError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, InvalidExecParameter, WrongPhase,
             PlayerBanned
         }
@@ -204,7 +204,7 @@ namespace Toko.Services
         }
 
 
-        public record DiscardCardsSuccess(List<string> cardIds);
+        public record DiscardCardsSuccess(string RoomId, string PlayerId, List<string> cardIds);
         public enum DiscardCardsError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, PlayerBanned, WrongPhase, InternalError }
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> DiscardCards(
             string roomId, string playerId, List<string> cardIds)
@@ -218,7 +218,7 @@ namespace Toko.Services
         }
 
 
-        public record LeaveRoomSuccess(string PlayerId);
+        public record LeaveRoomSuccess(string RoomId, string PlayerId);
         public enum LeaveRoomError { RoomNotFound, PlayerNotFound, InternalError }
         //internal bool LeaveRoom(string roomId, string playerId)
         public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoom(string roomId, string playerId)
@@ -236,7 +236,7 @@ namespace Toko.Services
             return await room.LeaveRoomAsync(playerId);
         }
 
-        public record ReadyUpSuccess(string PlayerId, bool IsReady);
+        public record ReadyUpSuccess(string RoomId, string PlayerId, bool IsReady);
         public enum ReadyUpError { RoomNotFound, PlayerNotFound, InternalError }
         public async Task<OneOf<ReadyUpSuccess, ReadyUpError>> ReadyUp(string roomId, string playerId, bool isReady)
         {
@@ -245,13 +245,13 @@ namespace Toko.Services
             return await room.ReadyUpAsync(playerId, isReady);
         }
 
-        public record DrawSkipSuccess(IReadOnlyList<Card> DrawnCards);
+        public record DrawSkipSuccess(string RoomId, string PlayerId, IReadOnlyList<Card> DrawnCards);
         public enum DrawSkipError
         {
             RoomNotFound,
             PlayerNotFound,
             NotYourTurn,
-            HandFull,
+            //HandFull,
             WrongPhase,
             PlayerBanned
         }

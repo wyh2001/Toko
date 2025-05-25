@@ -2,7 +2,7 @@
 
 namespace Toko.Models.Requests
 {
-    public class SubmitStepCardRequest
+    public class SubmitStepCardRequest : IRoomRequest
     {
         [Required]
         public required string RoomId { get; set; }

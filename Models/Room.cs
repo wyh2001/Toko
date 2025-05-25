@@ -65,9 +65,10 @@ namespace Toko.Models
 
         private bool _disposed;
         private readonly ILogger<Room> _log;
+        private readonly ILoggerFactory _loggerFactory;
         #endregion
 
-        public Room(IMediator mediator, IEnumerable<int> stepsPerRound, ILogger<Room> log)
+        public Room(IMediator mediator, IEnumerable<int> stepsPerRound, ILogger<Room> log, ILoggerFactory loggerFactory)
         {
             _mediator = mediator;
             _steps = stepsPerRound.Any() ? stepsPerRound.ToList() : new() { 5 };
@@ -78,6 +79,7 @@ namespace Toko.Models
                                  Timeout.InfiniteTimeSpan);
             ConfigureFSM();
             _log = log;
+            _loggerFactory = loggerFactory;
         }
 
         #region Game Control
@@ -122,7 +124,7 @@ namespace Toko.Models
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
                 InitializeDeck(racer); DrawCardsInternal(racer, 5);
                 Racers.Add(racer);
-                return new JoinRoomSuccess(racer);
+                return new JoinRoomSuccess(racer, this.Id);
             }
             finally { _gate.Release(); }
         }
@@ -137,7 +139,7 @@ namespace Toko.Models
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return LeaveRoomError.PlayerNotFound;
                 Racers.Remove(racer);
-                return new LeaveRoomSuccess(pid);
+                return new LeaveRoomSuccess(this.Id, pid);
             }
             finally { _gate.Release(); }
         }
@@ -150,7 +152,7 @@ namespace Toko.Models
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return ReadyUpError.PlayerNotFound;
                 racer.IsReady = ready;
-                return new ReadyUpSuccess(pid, ready);
+                return new ReadyUpSuccess(this.Id, pid, ready);
             }
             finally { _gate.Release(); }
         }
@@ -184,7 +186,7 @@ namespace Toko.Models
             //_cardNow[pid] = cardId;
             _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
             MoveNextPlayer();
-            return new SubmitStepCardSuccess(cardId);
+            return new SubmitStepCardSuccess(this.Id, pid, cardId);
         }
         #endregion
 
@@ -214,11 +216,12 @@ namespace Toko.Models
             UpdateBank(pid);
 
             var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
-            new TurnExecutor(Map).ApplyInstruction(racer, ins, this);
+            var turnExecutorLogger = _loggerFactory.CreateLogger<TurnExecutor>();
+            new TurnExecutor(Map, turnExecutorLogger).ApplyInstruction(racer, ins, this);
             _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep, new()));
 
             MoveNextPlayer();
-            return new SubmitExecutionParamSuccess(ins);
+            return new SubmitExecutionParamSuccess(this.Id, pid, ins);
         }
         #endregion
 
@@ -244,17 +247,18 @@ namespace Toko.Models
                  racer.Hand.First(c => c.Id == cid).Type == CardType.Junk))
                 return DiscardCardsError.CardNotFound;
 
-            new TurnExecutor(Map).DiscardCards(racer, cardIds);
+            var turnExecutorLogger = _loggerFactory.CreateLogger<TurnExecutor>();
+            new TurnExecutor(Map, turnExecutorLogger).DiscardCards(racer, cardIds);
             _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
 
             _discardPending.Remove(pid);
             UpdateBank(pid);
-            RescheduleTimer();
+            RescheduleTimerAsync();
 
             if (_discardPending.Count == 0)
                 _phaseSM.Fire(PhaseTrigger.DiscardDone);
 
-            return new DiscardCardsSuccess(cardIds);
+            return new DiscardCardsSuccess(this.Id, pid, cardIds);
         }
         #endregion
 
@@ -343,7 +347,7 @@ namespace Toko.Models
                 _thinkStart[pid] = DateTime.UtcNow;
                 _mediator.Publish(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
             }
-            RescheduleTimer();
+            RescheduleTimerAsync();
         }
         #endregion
 
@@ -351,7 +355,7 @@ namespace Toko.Models
         void PromptCard(string pid)
         {
             _thinkStart[pid] = DateTime.UtcNow;
-            RescheduleTimer();
+            RescheduleTimerAsync();
             _mediator.Publish(new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
         }
 
@@ -365,13 +369,14 @@ namespace Toko.Models
                 return;
             }
             _thinkStart[pid] = DateTime.UtcNow;
-            RescheduleTimer();
+            RescheduleTimerAsync();
             _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
         }
 
-        private void RescheduleTimer()
+        private async void RescheduleTimerAsync()
         {
-            _gate.Wait();
+            //_gate.Wait();
+            await _gate.WaitAsync();
             try
             {
                 _promptTimer.Change(TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
@@ -496,7 +501,7 @@ namespace Toko.Models
             _mediator.Publish(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
             _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
             MoveNextPlayer();
-            return new DrawSkipSuccess(result);
+            return new DrawSkipSuccess(this.Id, pid, result);
         }
 
         public List<Card> DrawCards(Racer racer, int requestedCount)
@@ -514,14 +519,15 @@ namespace Toko.Models
                     if (t.Exception != null)
                         _log.LogError(t.Exception, "Timer error");
                     else if (Status == RoomStatus.Playing)
-                        RescheduleTimer();
+                        RescheduleTimerAsync();
                 }, TaskScheduler.Default);
         }
 
-        public void Dispose()
+        public async void Dispose()
         {
             if (_disposed) return;
-            _gate.Wait();
+            //_gate.Wait();
+            await _gate.WaitAsync();
             try
             {
                 _promptTimer?.Dispose();
