@@ -40,11 +40,11 @@ namespace Toko.Controllers
         [Idempotent]
         public IActionResult CreateRoom([FromBody] CreateRoomRequest req)
         {
-            if (req.TotalRounds != req.StepsPerRound.Count)
-            {
-                ModelState.AddModelError(nameof(req.StepsPerRound), "StepsPerRound count must match TotalRounds.");
-                return BadRequest(ModelState);
-            }
+            //if (req.TotalRounds != req.StepsPerRound.Count)
+            //{
+            //    ModelState.AddModelError(nameof(req.StepsPerRound), "StepsPerRound count must match TotalRounds.");
+            //    return BadRequest(ModelState);
+            //}
             
             var playerId = GetPlayerId();
             var (roomId, hostRacer) = _roomManager.CreateRoom(
