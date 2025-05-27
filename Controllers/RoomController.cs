@@ -27,7 +27,7 @@ namespace Toko.Controllers
         //private readonly IHubContext<RaceHub> _hubContext;
 
         public record ApiSuccess<T>(string message, T? data);
-        public record ApiError(string error);
+        public record ApiError(object? Error);
 
         public RoomController(RoomManager roomManager)
         {

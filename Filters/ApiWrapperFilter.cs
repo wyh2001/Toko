@@ -26,9 +26,16 @@ public class ApiWrapperFilter : IAsyncResultFilter
                             new ApiSuccess<object?>("OK", obj.Value))
                         { StatusCode = code };
                     else
-                        ctx.Result = new ObjectResult(
-                            new ApiError(obj.Value?.ToString() ?? ReasonPhrases.GetReasonPhrase(code)))
+                    {
+                        // If the value is ProblemDetails / ValidationProblemDetails, preserve it.
+                        object errorPayload = obj.Value is ProblemDetails
+                                                ? obj.Value
+                                                : obj.Value?.ToString()
+                                                   ?? ReasonPhrases.GetReasonPhrase(code);
+
+                        ctx.Result = new ObjectResult(new ApiError(errorPayload))
                         { StatusCode = code };
+                    }
                     break;
                 }
 
