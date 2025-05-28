@@ -126,8 +126,6 @@ namespace Toko.Models
             finally { _gate.Release(); }
         }
 
-        //public record JoinRoomSuccess(Racer Racer);
-        //public enum JoinRoomError { RoomFull }
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerId, string playerName)
         {
             await _gate.WaitAsync();
@@ -337,11 +335,14 @@ namespace Toko.Models
                     NextStep();
             });
         }
-        #endregion
-
-        #region Helper Methods for Starting Phases
         void StartCardCollection()
         {
+            if (!IsAnyActivePlayer() && Status == RoomStatus.Playing)
+            {
+                _log.LogInformation("No active players left in room {RoomId}. Ending game.", Id);
+                _gameSM.Fire(GameTrigger.GameOver);
+                return;
+            }
             foreach (var r in Racers) DrawCards(r, AUTO_DRAW);
             _cardNow.Clear();
             _idx = 0;
@@ -396,63 +397,6 @@ namespace Toko.Models
             _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
         }
 
-        //private async void RescheduleTimerAsync()
-        //{
-        //    //_gate.Wait();
-        //    await _gate.WaitAsync();
-        //    try
-        //    {
-        //        _promptTimer.Change(TIMEOUT_PROMPT, Timeout.InfiniteTimeSpan);
-        //    }
-        //    finally { _gate.Release(); }
-        //}
-
-        //private async Task OnPromptTimerAsync()
-        //{
-        //    await _gate.WaitAsync();
-        //    try
-        //    {
-        //        if (Status != RoomStatus.Playing)
-        //            return;
-
-        //        if (_phaseSM.State == Phase.Discarding)
-        //        {
-        //            foreach (var pid in _discardPending.ToList())
-        //            {
-        //                var elapsed = DateTime.UtcNow - _thinkStart[pid];
-        //                if (elapsed >= DISCARD_AUTO_SKIP)
-        //                {
-        //                    _discardPending.Remove(pid);
-        //                    await _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, new List<string>()));
-        //                }
-        //                else if (elapsed >= KICK_ELIGIBLE)
-        //                {
-        //                    await _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
-        //                }
-        //            }
-
-        //            if (_discardPending.Count == 0)
-        //            {
-        //                _phaseSM.Fire(PhaseTrigger.DiscardDone);
-        //                return;
-        //            }
-        //        }
-        //        else
-        //        {
-        //            var pid = _order[_idx];
-        //            if (IsKickEligible(pid))
-        //                await _mediator.Publish(new PlayerTimeoutElapsed(Id, pid));
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        _log.LogError(ex, "Error in OnPromptTimer");
-        //    }
-        //    finally
-        //    {
-        //        _gate.Release();
-        //    }
-        //}
         #endregion
 
         #region Other Helper Methods
@@ -543,6 +487,7 @@ namespace Toko.Models
 
         bool IsKickEligible(string pid) => DateTime.UtcNow - _thinkStart[pid] >= KICK_ELIGIBLE;
         bool IsTimeOut(string pid) => DateTime.UtcNow >= _nextPrompt[pid];
+        bool IsAnyActivePlayer() => _order.Any(pid => !_banned.Contains(pid));
 
         void MoveNextPlayer()
         {
@@ -605,34 +550,6 @@ namespace Toko.Models
             return drawn;
         }
 
-        //private void TimerCallback()
-        //{
-        //    _ = OnPromptTimerAsync()
-        //        .ContinueWith(t => {
-        //            if (t.Exception != null)
-        //                _log.LogError(t.Exception, "Timer error");
-        //            else if (Status == RoomStatus.Playing)
-        //                RescheduleTimerAsync();
-        //        }, TaskScheduler.Default);
-        //}
-
-        //public async void Dispose()
-        //{
-        //    if (_disposed) return;
-        //    //_gate.Wait();
-        //    await _gate.WaitAsync();
-        //    try
-        //    {
-        //        _promptTimer?.Dispose();
-        //    }
-        //    finally
-        //    {
-        //        _gate.Release();
-        //        _gate.Dispose();
-        //        _disposed = true;
-        //    }
-
-        //}
         public async ValueTask DisposeAsync()
         {
             if (_disposed) return;
