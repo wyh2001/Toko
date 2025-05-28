@@ -83,15 +83,19 @@ namespace Toko.Services
             {
                 SlidingExpiration = ROOM_TTL
             }
-            .RegisterPostEvictionCallback((key, value, reason, state) =>
+            .RegisterPostEvictionCallback(async (key, value, reason, state) =>
             {
-                if (reason == EvictionReason.Expired || reason == EvictionReason.TokenExpired)
-                {
-                    var rm = value as Room;
-                    rm?.Dispose();
-                    _rooms.TryRemove(key.ToString()!, out _);
-                }
+                if (value is Room rm) await rm.DisposeAsync();
             }));
+            //.RegisterPostEvictionCallback((key, value, reason, state) =>
+            //{
+            //    if (reason == EvictionReason.Expired || reason == EvictionReason.TokenExpired)
+            //    {
+            //        var rm = value as Room;
+            //        rm?.Dispose();
+            //        _rooms.TryRemove(key.ToString()!, out _);
+            //    }
+            //}));
             //_activeRooms[room.Id] = 0;
             _log.LogInformation("Room {RoomId} created", room.Id);
             return (roomId, host);
