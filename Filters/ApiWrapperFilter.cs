@@ -3,61 +3,64 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.WebUtilities;
 using static Toko.Controllers.RoomController;
 
-public class ApiWrapperFilter : IAsyncResultFilter
+namespace Toko.Filters
 {
-    private static readonly HashSet<int> SuccessCodes =
-        new() { StatusCodes.Status200OK, StatusCodes.Status201Created, StatusCodes.Status204NoContent };
-
-    public async Task OnResultExecutionAsync(ResultExecutingContext ctx, ResultExecutionDelegate next)
+    public class ApiWrapperFilter : IAsyncResultFilter
     {
-        //await next(); 
+        private static readonly HashSet<int> SuccessCodes =
+            [StatusCodes.Status200OK, StatusCodes.Status201Created, StatusCodes.Status204NoContent];
 
-        //if (ctx.HttpContext.Response.HasStarted) 
-        //    return;
-
-        switch (ctx.Result)
+        public async Task OnResultExecutionAsync(ResultExecutingContext ctx, ResultExecutionDelegate next)
         {
-            case ObjectResult obj:
-                {
-                    var code = obj.StatusCode ?? StatusCodes.Status200OK;
+            //await next(); 
 
-                    if (SuccessCodes.Contains(code))
-                        ctx.Result = new ObjectResult(
-                            new ApiSuccess<object?>("OK", obj.Value))
-                        { StatusCode = code };
-                    else
+            //if (ctx.HttpContext.Response.HasStarted) 
+            //    return;
+
+            switch (ctx.Result)
+            {
+                case ObjectResult obj:
                     {
-                        // If the value is ProblemDetails / ValidationProblemDetails, preserve it.
-                        object errorPayload = obj.Value is ProblemDetails
-                                                ? obj.Value
-                                                : obj.Value?.ToString()
-                                                   ?? ReasonPhrases.GetReasonPhrase(code);
+                        var code = obj.StatusCode ?? StatusCodes.Status200OK;
 
-                        ctx.Result = new ObjectResult(new ApiError(errorPayload))
-                        { StatusCode = code };
+                        if (SuccessCodes.Contains(code))
+                            ctx.Result = new ObjectResult(
+                                new ApiSuccess<object?>("OK", obj.Value))
+                            { StatusCode = code };
+                        else
+                        {
+                            // If the value is ProblemDetails / ValidationProblemDetails, preserve it.
+                            object errorPayload = obj.Value is ProblemDetails
+                                                    ? obj.Value
+                                                    : obj.Value?.ToString()
+                                                       ?? ReasonPhrases.GetReasonPhrase(code);
+
+                            ctx.Result = new ObjectResult(new ApiError(errorPayload))
+                            { StatusCode = code };
+                        }
+                        break;
                     }
-                    break;
-                }
 
-            case StatusCodeResult sc:
-                {
-                    if (SuccessCodes.Contains(sc.StatusCode))
-                        ctx.Result = new ObjectResult(new ApiSuccess<object?>("OK", null))
-                        { StatusCode = sc.StatusCode };
-                    else
-                        ctx.Result = new ObjectResult(
-                            new ApiError(ReasonPhrases.GetReasonPhrase(sc.StatusCode)))
-                        { StatusCode = sc.StatusCode };
-                    break;
-                }
+                case StatusCodeResult sc:
+                    {
+                        if (SuccessCodes.Contains(sc.StatusCode))
+                            ctx.Result = new ObjectResult(new ApiSuccess<object?>("OK", null))
+                            { StatusCode = sc.StatusCode };
+                        else
+                            ctx.Result = new ObjectResult(
+                                new ApiError(ReasonPhrases.GetReasonPhrase(sc.StatusCode)))
+                            { StatusCode = sc.StatusCode };
+                        break;
+                    }
 
-            case EmptyResult:
-                {
-                    ctx.Result = new ObjectResult(new ApiSuccess<object?>("No content", null))
-                    { StatusCode = StatusCodes.Status204NoContent };
-                    break;
-                }
+                case EmptyResult:
+                    {
+                        ctx.Result = new ObjectResult(new ApiSuccess<object?>("No content", null))
+                        { StatusCode = StatusCodes.Status204NoContent };
+                        break;
+                    }
+            }
+            await next();
         }
-        await next();
     }
 }

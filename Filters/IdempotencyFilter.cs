@@ -6,19 +6,13 @@ using System.Security.Claims;
 
 namespace Toko.Filters
 {
-    public class IdempotencyFilter : IAsyncActionFilter
+    public class IdempotencyFilter(IMemoryCache cache, ILogger<IdempotencyFilter> log) : IAsyncActionFilter
     {
-        private readonly IMemoryCache _cache;
-        private readonly ILogger<IdempotencyFilter> _log;
+        private readonly IMemoryCache _cache = cache;
+        private readonly ILogger<IdempotencyFilter> _log = log;
 
         private static readonly TimeSpan DefaultTtl = TimeSpan.FromSeconds(30);
         private const int DefaultMaxBytes = 1_048_576;
-
-        public IdempotencyFilter(IMemoryCache cache, ILogger<IdempotencyFilter> log)
-        {
-            _cache = cache;
-            _log = log;
-        }
 
         public async Task OnActionExecutionAsync(ActionExecutingContext ctx, ActionExecutionDelegate next)
         {

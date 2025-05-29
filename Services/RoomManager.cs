@@ -16,29 +16,20 @@ using static Toko.Services.CardHelper;
 
 namespace Toko.Services
 {
-    public class RoomManager
+    public class RoomManager(IMediator mediator, ILogger<RoomManager> log, ILoggerFactory loggerFactory, IMemoryCache cache)
     {
         // 并发安全的房间字典
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
-        private readonly ILogger<RoomManager> _log;
-        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogger<RoomManager> _log = log;
+        private readonly ILoggerFactory _loggerFactory = loggerFactory;
         //private readonly ConcurrentDictionary<string, string> _playersInPlay = new(); // playerId -> roomId
         //private readonly ConcurrentDictionary<string, byte> _activeRooms = new();
 
 
-        private readonly IMediator _mediator;
+        private readonly IMediator _mediator = mediator;
 
-        private readonly IMemoryCache _cache;
+        private readonly IMemoryCache _cache = cache;
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(30);
-
-        //public RoomManager(IMediator mediator, IMemoryCache cache)
-        public RoomManager(IMediator mediator, ILogger<RoomManager> log, ILoggerFactory loggerFactory, IMemoryCache cache)
-        {
-            _mediator = mediator;
-            _log = log;
-            _loggerFactory = loggerFactory;
-            _cache = cache;
-        }
 
         /// <summary>
         /// 创建房间，并为房主生成一辆赛车
@@ -49,7 +40,7 @@ namespace Toko.Services
             int maxPlayers,
             bool isPrivate,
             string playerName,
-            int totalRounds,
+            //int totalRounds,
             List<int> stepsPerRound)
         {
             //var roomId = Guid.NewGuid().ToString();
@@ -208,7 +199,7 @@ namespace Toko.Services
         }
 
 
-        public record DiscardCardsSuccess(string RoomId, string PlayerId, List<string> cardIds);
+        public record DiscardCardsSuccess(string RoomId, string PlayerId, List<string> CardIds);
         public enum DiscardCardsError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, PlayerBanned, WrongPhase, InternalError }
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> DiscardCards(
             string roomId, string playerId, List<string> cardIds)

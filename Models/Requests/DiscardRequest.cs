@@ -9,6 +9,6 @@ namespace Toko.Models.Requests
         //[Required]
         //public int Step { get; set; }
         [Required]
-        public List<string> CardIds { get; set; } = new List<string>();
+        public List<string> CardIds { get; set; } = [];
     }
 }

@@ -10,16 +10,10 @@ namespace Toko.Filters
     /// <summary>
     /// Ensures the Room with the given RoomId is in the required status before executing the action.
     /// </summary>
-    public class EnsureRoomStatusFilter : IAsyncActionFilter
+    public class EnsureRoomStatusFilter(Models.Room.RoomStatus required, RoomManager rooms) : IAsyncActionFilter
     {
-        private readonly RoomStatus _required;
-        private readonly RoomManager _rooms;
-
-        public EnsureRoomStatusFilter(RoomStatus required, RoomManager rooms)
-        {
-            _required = required;
-            _rooms = rooms;
-        }
+        private readonly RoomStatus _required = required;
+        private readonly RoomManager _rooms = rooms;
 
         public async Task OnActionExecutionAsync(
             ActionExecutingContext context,

@@ -22,7 +22,7 @@ namespace Toko.Models
         public int MaxPlayers { get; set; } = 8;
         public bool IsPrivate { get; set; }
         public RaceMap Map { get; set; } = RaceMapFactory.CreateDefaultMap();
-        public List<Racer> Racers { get; } = new();
+        public List<Racer> Racers { get; } = [];
         public int CurrentRound { get; private set; }
         public int CurrentStep => _stepInRound;
         public RoomStatus Status => _gameSM.State;
@@ -40,7 +40,7 @@ namespace Toko.Models
 
         #region Constants & Fields
         private readonly List<int> _steps;
-        private readonly List<string> _order = new();
+        private readonly List<string> _order = [];
         private int _idx;
         private int _stepInRound;
 
@@ -48,15 +48,15 @@ namespace Toko.Models
         private readonly SemaphoreSlim _gate = new(1, 1);
         //private Timer _promptTimer;
 
-        private readonly Dictionary<string, DateTime> _thinkStart = new();
-        private readonly Dictionary<string, TimeSpan> _bank = new();
-        private readonly HashSet<string> _banned = new();
-        private readonly Dictionary<(string, int, int), string> _cardNow = new(); // (pid, round, step) -> cardId
-        private HashSet<string> _discardPending = new();
+        private readonly Dictionary<string, DateTime> _thinkStart = [];
+        private readonly Dictionary<string, TimeSpan> _bank = [];
+        private readonly HashSet<string> _banned = [];
+        private readonly Dictionary<(string, int, int), string> _cardNow = []; // (pid, round, step) -> cardId
+        private HashSet<string> _discardPending = [];
 
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _pumpTask;
-        private readonly Dictionary<string, DateTime> _nextPrompt = new();
+        private readonly Dictionary<string, DateTime> _nextPrompt = [];
 
         private static readonly TimeSpan INIT_BANK = TimeSpan.FromSeconds(30);
         private static readonly TimeSpan BANK_INCREMENT = TimeSpan.FromSeconds(10);
@@ -98,7 +98,7 @@ namespace Toko.Models
             {
                 if (Status == RoomStatus.Playing) return StartRoomError.AlreadyStarted;
                 if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
-                if (!Racers.Any()) return StartRoomError.NoPlayers;
+                if (Racers.Count == 0) return StartRoomError.NoPlayers;
                 var host = Racers.FirstOrDefault(r => r.Id == playerId);
                 if (host?.IsHost != true) return StartRoomError.NotHost;
                 if (this.Racers.Any(r => !r.IsReady)) return StartRoomError.NotAllReady;
@@ -281,17 +281,17 @@ namespace Toko.Models
         #endregion
 
         #region Vote Kick
-        public async Task<OneOf<KickVoteSuccess, KickVoteError>> VoteKickAsync(string voterId, string targetId)
+        public async Task<OneOf<KickVoteSuccess, KickVoteError>> VoteKickAsync(string targetId)
         {
             await _gate.WaitAsync();
-            try { return VoteKick(voterId, targetId); }
+            try { return VoteKick(targetId); }
             finally { _gate.Release(); }
         }
 
         public enum KickVoteError { WrongPhase, TooEarly, TargetNotFound, AlreadyKicked }
         public record KickVoteSuccess(string TargetId);
 
-        private OneOf<KickVoteSuccess, KickVoteError> VoteKick(string voterId, string targetId)
+        private OneOf<KickVoteSuccess, KickVoteError> VoteKick(string targetId)
         {
             if (Status != RoomStatus.Playing) return KickVoteError.WrongPhase;
             if (!_order.Contains(targetId)) return KickVoteError.TargetNotFound;
@@ -404,7 +404,7 @@ namespace Toko.Models
         {
             CardType.Move => p.Effect is 1 or 2,
             CardType.ChangeLane => p.Effect is 1 or -1,
-            CardType.Repair => p.DiscardedCardIds?.Any() == true,
+            CardType.Repair => p.DiscardedCardIds.Count > 0,
             _ => false
         };
 

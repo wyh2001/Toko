@@ -10,15 +10,9 @@ namespace Toko.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class AuthController : ControllerBase
+    public class AuthController(IConfiguration cfg) : ControllerBase
     {
-        private readonly string _jwtKey;
-
-        public AuthController(IConfiguration cfg)
-        {
-            // read JWT key from configuration
-            _jwtKey = cfg["Jwt:Key"] ?? throw new InvalidOperationException("Missing Jwt:Key");
-        }
+        private readonly string _jwtKey = cfg["Jwt:Key"] ?? throw new InvalidOperationException("Missing Jwt:Key");
 
         [HttpGet("anon")]
         public IActionResult IssueAnonymous()

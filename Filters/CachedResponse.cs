@@ -1,17 +1,10 @@
 ﻿namespace Toko.Filters
 {
-    public class CachedResponse
+    public class CachedResponse(int statusCode, string? contentType, byte[] body)
     {
-        public int StatusCode { get; }
-        public string? ContentType { get; }
-        public byte[] Body { get; }
-
-        public CachedResponse(int statusCode, string? contentType, byte[] body)
-        {
-            StatusCode = statusCode;
-            ContentType = contentType;
-            Body = body;
-        }
+        public int StatusCode { get; } = statusCode;
+        public string? ContentType { get; } = contentType;
+        public byte[] Body { get; } = body;
     }
 
 }

@@ -20,21 +20,14 @@ namespace Toko.Controllers
     [Authorize]
     [Route("api/[controller]")]
     [ApiController]
-    public partial class RoomController : ControllerBase
+    public partial class RoomController(RoomManager roomManager) : ControllerBase
     {
-        private readonly RoomManager _roomManager;
+        private readonly RoomManager _roomManager = roomManager;
         //private readonly IBackgroundTaskQueue _taskQueue;
         //private readonly IHubContext<RaceHub> _hubContext;
 
-        public record ApiSuccess<T>(string message, T? data);
+        public record ApiSuccess<T>(string Message, T? Data);
         public record ApiError(object? Error);
-
-        public RoomController(RoomManager roomManager)
-        {
-            _roomManager = roomManager;
-            //_taskQueue = taskQueue;
-            //_hubContext = hubContext;
-        }
 
         [HttpPost("create")]
         [Idempotent]
@@ -48,7 +41,7 @@ namespace Toko.Controllers
             
             var playerId = GetPlayerId();
             var (roomId, hostRacer) = _roomManager.CreateRoom(
-                playerId, req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.TotalRounds, req.StepsPerRound);
+                playerId, req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.StepsPerRound);
 
             return Ok(new
             {
@@ -362,7 +355,7 @@ namespace Toko.Controllers
                     {
                         success.RoomId,
                         success.PlayerId,
-                        success.cardIds
+                        success.CardIds
                     }
                 }),
                 error => error switch

@@ -5,17 +5,11 @@ using Toko.Models;
 
 namespace Toko.Services
 {
-    public class TurnExecutor
+    public class TurnExecutor(RaceMap map, ILogger<TurnExecutor> log)
     {
-        private readonly RaceMap _map;
-        public List<TurnLog> Logs { get; } = new List<TurnLog>();
-        private ILogger<TurnExecutor> _log;
-
-        public TurnExecutor(RaceMap map, ILogger<TurnExecutor> log)
-        {
-            _map = map ?? throw new ArgumentNullException(nameof(map));
-            _log = log;
-        }
+        private readonly RaceMap _map = map ?? throw new ArgumentNullException(nameof(map));
+        public List<TurnLog> Logs { get; } = [];
+        private readonly ILogger<TurnExecutor> _log = log;
 
         public void ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
         {
@@ -59,7 +53,7 @@ namespace Toko.Services
                         return;
                     }
                     // 下一段
-                    racer.LaneIndex = racer.LaneIndex / (seg.LaneCount / _map.Segments[racer.SegmentIndex + 1].LaneCount);
+                    racer.LaneIndex /= (seg.LaneCount / _map.Segments[racer.SegmentIndex + 1].LaneCount);
                     racer.SegmentIndex++;
                     racer.CellIndex = 0;
                     //racer.CellIndex++;
@@ -77,7 +71,7 @@ namespace Toko.Services
                              && r.LaneIndex == racer.LaneIndex)
                     .ToList();
 
-                if (collided.Any())
+                if (collided.Count != 0)
                 {
                     // 主动撞与被撞都得 Junk
                     AddJunk(racer, 1);
@@ -112,7 +106,7 @@ namespace Toko.Services
                          && r.CellIndex == racer.CellIndex
                          && r.LaneIndex == racer.LaneIndex)
                 .ToList();
-            if (collided.Any())
+            if (collided.Count != 0)
             {
                 AddJunk(racer, 1);
                 foreach (var other in collided)
