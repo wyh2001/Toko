@@ -155,20 +155,22 @@ namespace Toko.Controllers
             return Ok(new
             {
                 message = "Room list retrieved successfully",
-                data = rooms.Select(r => new
-                {
-                    r.Id,
-                    r.Name,
-                    r.MaxPlayers,
-                    r.IsPrivate,
-                    Racers = r.Racers.Select(r => new
+                data = rooms
+                    .Where(r => !r.IsPrivate)
+                    .Select(r => new
                     {
                         r.Id,
-                        r.PlayerName
-                    }).ToList(),
-                    //Map = r.Map?.ToString(),
-                    r.CurrentRound
-                })
+                        r.Name,
+                        r.MaxPlayers,
+                        r.IsPrivate,
+                        Racers = r.Racers.Select(r => new
+                        {
+                            r.Id,
+                            r.PlayerName
+                        }).ToList(),
+                        //Map = r.Map?.ToString(),
+                        r.CurrentRound
+                    })
             });
         }
 
