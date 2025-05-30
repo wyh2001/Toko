@@ -33,26 +33,19 @@ namespace Toko.Controllers
         [Idempotent]
         public IActionResult CreateRoom([FromBody] CreateRoomRequest req)
         {
-            //if (req.TotalRounds != req.StepsPerRound.Count)
-            //{
-            //    ModelState.AddModelError(nameof(req.StepsPerRound), "StepsPerRound count must match TotalRounds.");
-            //    return BadRequest(ModelState);
-            //}
-            
             var playerId = GetPlayerId();
             var (roomId, hostRacer) = _roomManager.CreateRoom(
                 playerId, req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.StepsPerRound);
 
-            return Ok(new
-            {
-                message = "Room created successfully",
-                data = new
+            return Ok(new ApiSuccess<object>(
+                "Room created successfully",
+                new
                 {
                     roomId,
                     playerId = hostRacer.Id,
                     displayName = hostRacer.PlayerName,
                 }
-            });
+            ));
         }
 
         [HttpPost("join")]
@@ -63,17 +56,15 @@ namespace Toko.Controllers
             var playerId = GetPlayerId();
             var result = await _roomManager.JoinRoom(request.RoomId, playerId, request.PlayerName);
             return result.Match<IActionResult>(
-                //success => Ok(new { message = "Joined room", playerId = success.Racer.Id }),
-                success => Ok(new
-                {
-                    message = "Joined room successfully",
-                    data = new
+                success => Ok(new ApiSuccess<object>(
+                    "Joined room successfully",
+                    new
                     {
                         playerId = success.Racer.Id,
                         displayName = success.Racer.PlayerName,
                         roomId = success.RoomId
                     }
-                }),
+                )),
                 error => error switch
                 {
                     JoinRoomError.RoomNotFound => NotFound("Room not found."),
@@ -90,26 +81,9 @@ namespace Toko.Controllers
             {
                 return NotFound("Room not found.");
             }
-            //return Ok(
-            //    new
-            //    {
-            //        room.Id,
-            //        room.Name,
-            //        room.MaxPlayers,
-            //        room.IsPrivate,
-            //        Racers = room.Racers.Select(r => new
-            //        {
-            //            r.Id,
-            //            r.PlayerName
-            //        }).ToList(),
-            //        //Map = room.Map?.ToString(),
-            //        room.CurrentRound
-            //    }
-            //    );
-            return Ok(new
-            {
-                message = "Room details retrieved successfully",
-                data = new
+            return Ok(new ApiSuccess<object>(
+                "Room details retrieved successfully",
+                new
                 {
                     room.Id,
                     room.Name,
@@ -123,7 +97,7 @@ namespace Toko.Controllers
                     //Map = room.Map?.ToString(),
                     room.CurrentRound
                 }
-            });
+            ));
         }
 
         [AllowAnonymous]
@@ -132,23 +106,9 @@ namespace Toko.Controllers
         public IActionResult ListRooms()
         {
             var rooms = _roomManager.GetAllRooms();
-            //return Ok(rooms.Select(r => new
-            //{
-            //    r.Id,
-            //    r.Name,
-            //    r.MaxPlayers,
-            //    r.IsPrivate,
-            //    Racers = r.Racers.Select(r => new
-            //    {
-            //        r.Id,
-            //        r.PlayerName
-            //    }).ToList(),
-            //    r.CurrentRound
-            //}));
-            return Ok(new
-            {
-                message = "Room list retrieved successfully",
-                data = rooms
+            return Ok(new ApiSuccess<object>(
+                "Room list retrieved successfully",
+                rooms
                     .Where(r => !r.IsPrivate)
                     .Select(r => new
                     {
@@ -164,7 +124,7 @@ namespace Toko.Controllers
                         //Map = r.Map?.ToString(),
                         r.CurrentRound
                     })
-            });
+            ));
         }
 
         [HttpPost("drawSkip")]
@@ -174,17 +134,15 @@ namespace Toko.Controllers
             var playerId = GetPlayerId();
             var result = await _roomManager.DrawSkip(req.RoomId, playerId);
             return result.Match<IActionResult>(
-                //success => Ok(new { message = "Draw skip", success }),
-                success => Ok(new
-                {
-                    message = "Draw skip successful",
-                    data = new
+                success => Ok(new ApiSuccess<object>(
+                    "Draw skip successful",
+                    new
                     {
                         success.RoomId,
                         success.PlayerId,
                         success.DrawnCards,
                     }
-                }),
+                )),
                 error => error switch
                 {
                     DrawSkipError.RoomNotFound => NotFound("Room not found."),
@@ -194,17 +152,6 @@ namespace Toko.Controllers
                     DrawSkipError.PlayerBanned => BadRequest("Player is banned."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
-            //var cards = _roomManager.DrawCards(
-            //    req.RoomId, req.PlayerId, req.Count);
-            //return cards.Match<IActionResult>(
-            //    success => Ok(new { cards = success }),
-            //    error => error switch
-            //    {
-            //        DrawCardsError.RoomNotFound => NotFound("Room not found."),
-            //        DrawCardsError.PlayerNotFound => NotFound("Player not found."),
-            //        _ => StatusCode(StatusCodes.Status500InternalServerError)
-            //    });
-            //return Ok(cards);
         }
 
         [HttpPost("start")]
@@ -218,15 +165,13 @@ namespace Toko.Controllers
             {
                 //_hubContext.Clients.Group(roomId)
                 //    .SendAsync("GameStarted", success.RoomId);
-                //return Ok(new { message = "Game started", success.RoomId });
-                return Ok(new
-                {
-                    message = "Game started successfully",
-                    data = new
+                return Ok(new ApiSuccess<object>(
+                    "Game started successfully",
+                    new
                     {
                         success.RoomId
                     }
-                });
+                ));
             },
                 error => error switch
                 {
@@ -251,17 +196,15 @@ namespace Toko.Controllers
                 {
                     //_hubContext.Clients.Group(req.RoomId)
                     //    .SendAsync("ReceiveStepCardSubmissions", success.CardId);
-                    //return Ok(new { message = "Step card submitted successfully", success.CardId });
-                    return Ok(new
-                    {
-                        message = "Step card submitted successfully",
-                        data = new
+                    return Ok(new ApiSuccess<object>(
+                        "Step card submitted successfully",
+                        new
                         {
                             success.RoomId,
                             success.PlayerId,
                             success.CardId
                         }
-                    });
+                    ));
                 },
                 error => error switch
                 {
@@ -285,17 +228,15 @@ namespace Toko.Controllers
             return result.Match<IActionResult>(
                 success =>
                 {
-                    //return Ok(new { message = "Execution submitted", success });
-                    return Ok(new
-                    {
-                        message = "Execution submitted successfully",
-                        data = new
+                    return Ok(new ApiSuccess<object>(
+                        "Execution submitted successfully",
+                        new
                         {
                             success.RoomId,
                             success.PlayerId,
                             success.Instruction,
                         }
-                    });
+                    ));
                 },
                 error => error switch
                 {
@@ -319,16 +260,14 @@ namespace Toko.Controllers
             var result = await _roomManager.LeaveRoom(req.RoomId, playerId);
 
             return result.Match<IActionResult>(
-                //success => Ok(new { message = "Left room successfully.", success.PlayerId }),
-                success => Ok(new
-                {
-                    message = "Left room successfully",
-                    data = new
+                success => Ok(new ApiSuccess<object>(
+                    "Left room successfully",
+                    new
                     {
                         success.RoomId,
                         success.PlayerId
                     }
-                }),
+                )),
                 error => error switch
                 {
                     LeaveRoomError.RoomNotFound => NotFound("Room not found."),
@@ -347,17 +286,15 @@ namespace Toko.Controllers
             var result = await _roomManager.DiscardCards(
                 req.RoomId, playerId, req.CardIds);
             return result.Match<IActionResult>(
-                //success => Ok(new { message = "Discarded cards", success }),
-                success => Ok(new
-                {
-                    message = "Cards discarded successfully",
-                    data = new
+                success => Ok(new ApiSuccess<object>(
+                    "Cards discarded successfully",
+                    new
                     {
                         success.RoomId,
                         success.PlayerId,
                         success.CardIds
                     }
-                }),
+                )),
                 error => error switch
                 {
                     DiscardCardsError.RoomNotFound => NotFound("Room not found."),
@@ -379,17 +316,15 @@ namespace Toko.Controllers
             var playerId = GetPlayerId();
             var result = await _roomManager.ReadyUp(req.RoomId, playerId, req.IsReady);
             return result.Match<IActionResult>(
-                //success => Ok(new { message = "Ready", success }),
-                success => Ok(new
-                {
-                    message = "Ready status updated successfully",
-                    data = new
+                success => Ok(new ApiSuccess<object>(
+                    "Ready status updated successfully",
+                    new
                     {
                         success.RoomId,
                         success.PlayerId,
                         success.IsReady
                     }
-                }),
+                )),
                 error => error switch
                 {
                     ReadyUpError.RoomNotFound => NotFound("Room not found."),

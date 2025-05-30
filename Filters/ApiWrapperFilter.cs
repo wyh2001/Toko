@@ -23,6 +23,9 @@ namespace Toko.Filters
                     {
                         var code = obj.StatusCode ?? StatusCodes.Status200OK;
 
+                        if (IsAlreadyWrapped(obj.Value))
+                            break;
+
                         if (SuccessCodes.Contains(code))
                             ctx.Result = new ObjectResult(
                                 new ApiSuccess<object?>("OK", obj.Value))
@@ -61,6 +64,15 @@ namespace Toko.Filters
                     }
             }
             await next();
+        }
+
+        private bool IsAlreadyWrapped(object? value)
+        {
+            if (value == null) return false;
+            var type = value.GetType();
+            if (type == typeof(ApiError)) return true;
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ApiSuccess<>)) return true;
+            return false;
         }
     }
 }
