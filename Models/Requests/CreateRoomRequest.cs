@@ -5,6 +5,7 @@ namespace Toko.Models.Requests
     public class CreateRoomRequest : IValidatableObject
     {
         [Required]
+        [MinLength(1)]
         public required string PlayerName { get; set; }
         public string? RoomName { get; set; }
         [Range(4, 8, ErrorMessage = "Max players must be between 4 and 8.")]
