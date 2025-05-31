@@ -26,14 +26,24 @@ namespace Toko.Filters
                 .OfType<IRoomRequest>()
                 .FirstOrDefault();
 
+            var roomId = roomRequest?.RoomId;
+            // If not found, try to get it from the route data and action arguments
+            roomId ??= context.RouteData.Values.TryGetValue("roomId", out var routeVal) ? routeVal?.ToString() : null;
+            roomId ??= context.ActionArguments.TryGetValue("roomId", out var arg) ? arg as string : null;
+
             // Validate presence of RoomId
-            if (roomRequest == null || string.IsNullOrWhiteSpace(roomRequest.RoomId))
+            if (string.IsNullOrWhiteSpace(roomId))
             {
                 context.Result = new BadRequestObjectResult("Missing or empty roomId.");
                 return;
             }
 
-            var roomId = roomRequest.RoomId;
+            // Validate if uuid format
+            if (!Guid.TryParse(roomId, out _))
+            {
+                context.Result = new BadRequestObjectResult("Invalid roomId format. Must be a valid UUID.");
+                return;
+            }
 
             // Look up the room
             var room = _rooms.GetRoom(roomId);

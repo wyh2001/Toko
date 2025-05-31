@@ -109,7 +109,7 @@ namespace Toko.Services
 
 
         public record JoinRoomSuccess(Racer Racer, string RoomId);
-        public enum JoinRoomError { RoomFull, RoomNotFound }
+        public enum JoinRoomError { RoomFull, RoomNotFound, AlreadyJoined }
 
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoom(
            string roomId, string playerId, string playerName)

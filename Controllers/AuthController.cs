@@ -5,6 +5,7 @@ using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using static Toko.Controllers.RoomController;
 
 namespace Toko.Controllers
 {
@@ -45,19 +46,25 @@ namespace Toko.Controllers
             {
                 HttpOnly = true,
                 SameSite = SameSiteMode.Lax,
-                Secure = true,
+                Secure = Request.IsHttps,
+                //Secure = true,
                 Expires = DateTimeOffset.UtcNow.AddDays(30)
             });
 
-            return Ok(new
+            //return Ok(new
+            //{
+            //    message = "Anonymous identity issued",
+            //    data = new
+            //    {
+            //        playerName = display,
+            //        playerId
+            //    }
+            //});
+            return Ok(new ApiSuccess<object?>("Anonymous identity issued", new
             {
-                message = "Anonymous identity issued",
-                data = new
-                {
-                    displayName = display,
-                    playerId
-                }
-            });
+                playerName = display,
+                playerId
+            }));
         }
     }
 }

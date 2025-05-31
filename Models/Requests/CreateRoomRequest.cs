@@ -14,6 +14,7 @@ namespace Toko.Models.Requests
         //[Range(1, 20)]
         //public int TotalRounds { get; set; } = 3;
         [Required]
+        [MinLength(1, ErrorMessage = "StepsPerRound must have at least 1 value.")]
         public List<int> StepsPerRound { get; set; } = [3, 3, 3];
 
         public IEnumerable<ValidationResult> Validate(ValidationContext context)

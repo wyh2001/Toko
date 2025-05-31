@@ -1,16 +1,12 @@
-using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
-using Serilog.Events;
 using System.Text;
+using System.Text.Json;
 using Toko.Filters;
 using Toko.Hubs;
-using Toko.Models;
 using Toko.Services;
-using Serilog.Settings.Configuration;
+using static Toko.Filters.ApiWrapperFilter;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,9 +54,9 @@ builder.Services.AddCors(options =>
                 "http://localhost:5174",
                 "http://127.0.0.1:5174"
             )
-            .AllowAnyHeader()                        // 允许所有请求头
-            .AllowAnyMethod()                        // 允许 GET、POST、OPTIONS…
-            .AllowCredentials();                     // 如果你用 SignalR，需要允许凭据
+            .AllowAnyHeader()                        // allow all headers
+            .AllowAnyMethod()                        // allow all methods (GET, POST, etc.)
+            .AllowCredentials();                     // allow credentials (cookies, authorization headers, etc.)
     });
 });
 
@@ -69,6 +65,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSignalR();
 
+builder.Services.AddProblemDetails();
 
 //builder.Services.AddRazorPages();             
 //builder.Services.AddServerSideBlazor();
@@ -94,20 +91,49 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
            options.Events = new JwtBearerEvents
            {
+               // 401 Unauthorized
+               OnChallenge = context =>
+               {
+                   context.HandleResponse();
+
+                   var pd = ToApiError(
+                       "Unauthorized access.",
+                       StatusCodes.Status401Unauthorized,
+                       context.HttpContext);
+
+                   context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                   context.Response.ContentType = "application/json";
+                   return context.Response.WriteAsync(JsonSerializer.Serialize(pd));
+               },
+
+               // 403 Forbidden
+               OnForbidden = context =>
+               {
+                   context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                   context.Response.ContentType = "application/json";
+
+                   var pd = ToApiError(
+                       "Forbidden access. You do not have permission to access this resource.",
+                       StatusCodes.Status403Forbidden,
+                       context.HttpContext);
+
+                   return context.Response.WriteAsync(JsonSerializer.Serialize(pd));
+               },
                OnMessageReceived = context =>
                {
-                   // 1) 优先从 Cookie
+                   // firstly from cookie
                    var token = context.Request.Cookies["token"];
 
-                   // 2) 如果是 SignalR WebSocket，会把 token 放到 ?access_token=
+                   // if not found then from query string
+                   // (SignalR WebSocket, token in ?access_token=
                    if (string.IsNullOrEmpty(token) &&
-                       context.Request.Path.StartsWithSegments("/racehub") &&     // Hub 路径
+                       context.Request.Path.StartsWithSegments("/racehub") &&     // Hub path
                        context.Request.Query.TryGetValue("access_token", out var qs))
                    {
                        token = qs.ToString();
                    }
 
-                   context.Token = token;           // 可能是 null；JwtBearer 会自己处理
+                   context.Token = token;           // may be null, leave it to the middleware
                    return Task.CompletedTask;
                }
            };
@@ -120,7 +146,7 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(); 
+    app.UseSwaggerUI();
 }
 
 //app.UseHttpsRedirection();

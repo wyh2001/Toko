@@ -27,7 +27,7 @@ namespace Toko.Controllers
         //private readonly IHubContext<RaceHub> _hubContext;
 
         public record ApiSuccess<T>(string Message, T? Data);
-        public record ApiError(object? Error);
+        //public record ApiError(string Message, object? Errors = null, string? TraceId = null);
 
         [HttpPost("create")]
         [Idempotent]
@@ -43,32 +43,33 @@ namespace Toko.Controllers
                 {
                     roomId,
                     playerId = hostRacer.Id,
-                    displayName = hostRacer.PlayerName,
+                    playerName = hostRacer.PlayerName,
                 }
             ));
         }
 
-        [HttpPost("join")]
+        [HttpPost("{roomId}/join")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
         [Idempotent]
-        public async Task<IActionResult> JoinRoom([FromBody] JoinRoomRequest request)
+        public async Task<IActionResult> JoinRoom([FromBody] JoinRoomRequest request, string roomId)
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.JoinRoom(request.RoomId, playerId, request.PlayerName);
+            var result = await _roomManager.JoinRoom(roomId, playerId, request.PlayerName);
             return result.Match<IActionResult>(
                 success => Ok(new ApiSuccess<object>(
                     "Joined room successfully",
                     new
                     {
+                        roomId = success.RoomId,
                         playerId = success.Racer.Id,
-                        displayName = success.Racer.PlayerName,
-                        roomId = success.RoomId
+                        playerName = success.Racer.PlayerName,
                     }
                 )),
                 error => error switch
                 {
                     JoinRoomError.RoomNotFound => NotFound("Room not found."),
                     JoinRoomError.RoomFull => BadRequest("Room is full."),
+                    JoinRoomError.AlreadyJoined => BadRequest("Already joined this room."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }
@@ -100,7 +101,7 @@ namespace Toko.Controllers
             ));
         }
 
-        [AllowAnonymous]
+        //[AllowAnonymous]
         [HttpGet("list")]
         [OutputCache(Duration = 5)]
         public IActionResult ListRooms()

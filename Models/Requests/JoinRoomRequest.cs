@@ -1,11 +1,12 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace Toko.Models.Requests
 {
-    public class JoinRoomRequest: IRoomRequest
+    //public class JoinRoomRequest: IRoomRequest
+    public class JoinRoomRequest
     {
-        [Required]
-        public required string RoomId { get; set; }
+        //public required string RoomId { get; set; }
         [Required]
         public required string PlayerName { get; set; }
     }

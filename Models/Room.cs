@@ -131,6 +131,8 @@ namespace Toko.Models
             await _gate.WaitAsync();
             try
             {
+                // prevent from joining if already joined
+                if (Racers.Any(r => r.Id == playerId)) return JoinRoomError.AlreadyJoined;
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
                 InitializeDeck(racer); DrawCardsInternal(racer, 5); 
