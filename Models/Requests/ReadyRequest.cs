@@ -2,10 +2,8 @@
 
 namespace Toko.Models.Requests
 {
-    public class ReadyRequest : IRoomRequest
+    public class ReadyRequest
     {
-        [Required]
-        public required string RoomId { get; set; }
         [Required]
         public required bool IsReady { get; set; }
     }

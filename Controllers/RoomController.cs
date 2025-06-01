@@ -96,12 +96,13 @@ namespace Toko.Controllers
                         r.PlayerName
                     }).ToList(),
                     //Map = room.Map?.ToString(),
-                    room.CurrentRound
+                    //room.CurrentRound
+                    Status = room.Status.ToString(),
                 }
             ));
         }
 
-        //[AllowAnonymous]
+        [AllowAnonymous]
         [HttpGet("list")]
         [OutputCache(Duration = 5)]
         public IActionResult ListRooms()
@@ -123,7 +124,9 @@ namespace Toko.Controllers
                             r.PlayerName
                         }).ToList(),
                         //Map = r.Map?.ToString(),
-                        r.CurrentRound
+                        //r.CurrentRound
+                        //r.Status,
+                        Status = r.Status.ToString()
                     })
             ));
         }
@@ -309,13 +312,13 @@ namespace Toko.Controllers
         }
 
         // ready up
-        [HttpPost("ready")]
+        [HttpPost("{roomId}/ready")]
         [Idempotent]
         [EnsureRoomStatus(RoomStatus.Waiting)]
-        public async Task<IActionResult> Ready([FromBody] ReadyRequest req)
+        public async Task<IActionResult> Ready([FromBody] ReadyRequest req, string roomId)
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.ReadyUp(req.RoomId, playerId, req.IsReady);
+            var result = await _roomManager.ReadyUp(roomId, playerId, req.IsReady);
             return result.Match<IActionResult>(
                 success => Ok(new ApiSuccess<object>(
                     "Ready status updated successfully",
