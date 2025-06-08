@@ -131,12 +131,12 @@ namespace Toko.Controllers
             ));
         }
 
-        [HttpPost("drawSkip")]
+        [HttpPost("{roomId}/drawSkip")]
         [EnsureRoomStatus(RoomStatus.Playing)]
-        public async Task<IActionResult> DrawSkipAsync([FromBody] DrawSkipRequest req)
+        public async Task<IActionResult> DrawSkipAsync(string roomId)
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.DrawSkip(req.RoomId, playerId);
+            var result = await _roomManager.DrawSkip(roomId, playerId);
             return result.Match<IActionResult>(
                 success => Ok(new ApiSuccess<object>(
                     "Draw skip successful",
@@ -189,13 +189,13 @@ namespace Toko.Controllers
                 });
         }
 
-        [HttpPost("submit-step-card")]
+        [HttpPost("{roomId}/submit-step-card")]
         [EnsureRoomStatus(RoomStatus.Playing)]
         [Idempotent]
-        public async Task<IActionResult> SubmitStepCard([FromBody] SubmitStepCardRequest req)
+        public async Task<IActionResult> SubmitStepCard([FromBody] SubmitStepCardRequest req, string roomId)
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.SubmitStepCard(req.RoomId, playerId, req.CardId);
+            var result = await _roomManager.SubmitStepCard(roomId, playerId, req.CardId);
             return result.Match<IActionResult>(
                 success =>
                 {
@@ -223,13 +223,13 @@ namespace Toko.Controllers
                 });
         }
 
-        [HttpPost("submit-exec-param")]
+        [HttpPost("{roomId}/submit-exec-param")]
         [EnsureRoomStatus(RoomStatus.Playing)]
         [Idempotent]
-        public async Task<IActionResult> SubmitExecParam([FromBody] SubmitExecParamRequest req)
+        public async Task<IActionResult> SubmitExecParam([FromBody] SubmitExecParamRequest req, string roomId)
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.SubmitExecutionParam(req.RoomId, playerId, req.ExecParameter);
+            var result = await _roomManager.SubmitExecutionParam(roomId, playerId, req.ExecParameter);
             return result.Match<IActionResult>(
                 success =>
                 {
@@ -287,14 +287,14 @@ namespace Toko.Controllers
         }
 
 
-        [HttpPost("discard-cards")]
+        [HttpPost("{roomId}/discard-cards")]
         [Idempotent]
         [EnsureRoomStatus(RoomStatus.Playing)]
-        public async Task<IActionResult> Discard([FromBody] DiscardRequest req)
+        public async Task<IActionResult> Discard([FromBody] DiscardRequest req, string roomId)
         {
             var playerId = GetPlayerId();
             var result = await _roomManager.DiscardCards(
-                req.RoomId, playerId, req.CardIds);
+                roomId, playerId, req.CardIds);
             return result.Match<IActionResult>(
                 success => Ok(new ApiSuccess<object>(
                     "Cards discarded successfully",

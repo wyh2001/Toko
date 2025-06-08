@@ -2,10 +2,10 @@
 
 namespace Toko.Models.Requests
 {
-    public class DrawSkipRequest : IRoomRequest
+    public class DrawSkipRequest
     {
-        [Required]
-        public required string RoomId { get; set; }
+        //[Required]
+        //public required string RoomId { get; set; }
     }
 }
 
