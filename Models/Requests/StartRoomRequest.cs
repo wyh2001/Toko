@@ -2,9 +2,9 @@
 
 namespace Toko.Models.Requests
 {
-    public class StartRoomRequest : IRoomRequest
+    public class StartRoomRequest
     {
-        [Required]
-        public required string RoomId { get; set; }
+        //[Required]
+        //public required string RoomId { get; set; }
     }
 }

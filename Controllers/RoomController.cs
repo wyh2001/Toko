@@ -158,13 +158,13 @@ namespace Toko.Controllers
                 });
         }
 
-        [HttpPost("start")]
+        [HttpPost("{roomId}/start")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
         [Idempotent]
-        public async Task<IActionResult> Start([FromBody] StartRoomRequest req) 
+        public async Task<IActionResult> Start(string roomId) 
         {
             var playerId = GetPlayerId();
-            var result = await _roomManager.StartRoom(req.RoomId, playerId);
+            var result = await _roomManager.StartRoom(roomId, playerId);
             return result.Match<IActionResult>(success =>
             {
                 //_hubContext.Clients.Group(roomId)
@@ -182,7 +182,8 @@ namespace Toko.Controllers
                     StartRoomError.RoomNotFound => NotFound("Room not found."),
                     StartRoomError.AlreadyStarted => BadRequest("Room already started."),
                     StartRoomError.AlreadyFinished => BadRequest("Room already Finished"),
-                    StartRoomError.NotHost => BadRequest("You are not the host."),
+                    StartRoomError.NotInTheRoom => NotFound("You are not in the room."),
+                    StartRoomError.NotHost => StatusCode(403, "You are not the host"),
                     StartRoomError.NotAllReady => BadRequest("Not all players are ready."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
@@ -255,13 +256,18 @@ namespace Toko.Controllers
                 });
         }
 
-        [HttpPost("leave")]
+        [HttpPost("{roomId}/leave")]
         [Idempotent]
-        [EnsureRoomStatus(RoomStatus.Waiting)]
-        public async Task<IActionResult> LeaveRoom([FromBody] LeaveRoomRequest req)
+        //[EnsureRoomStatus(RoomStatus.Waiting)]
+        public async Task<IActionResult> LeaveRoom(string roomId)
         {
+            // Ensure the roomId is a valid UUID format
+            if (!Guid.TryParse(roomId, out _))
+            {
+                return BadRequest("Invalid roomId format. Must be a valid UUID.");
+            }
             var playerId = GetPlayerId();
-            var result = await _roomManager.LeaveRoom(req.RoomId, playerId);
+            var result = await _roomManager.LeaveRoom(roomId, playerId);
 
             return result.Match<IActionResult>(
                 success => Ok(new ApiSuccess<object>(
@@ -275,7 +281,7 @@ namespace Toko.Controllers
                 error => error switch
                 {
                     LeaveRoomError.RoomNotFound => NotFound("Room not found."),
-                    LeaveRoomError.PlayerNotFound => NotFound("Player not found."),
+                    LeaveRoomError.PlayerNotFound => NotFound("Player not in the room."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }

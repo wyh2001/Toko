@@ -165,7 +165,7 @@ namespace Toko.Services
         /// 标记房间为已开始
         /// </summary>
         public record StartRoomSuccess(string RoomId);
-        public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost, NotAllReady }
+        public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost, NotAllReady, NotInTheRoom }
         public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartRoom(string roomId, string playerId)
         {
             if (!_rooms.TryGetValue(roomId, out var room))

@@ -100,6 +100,7 @@ namespace Toko.Models
                 if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
                 if (Racers.Count == 0) return StartRoomError.NoPlayers;
                 var host = Racers.FirstOrDefault(r => r.Id == playerId);
+                if (host is null) return StartRoomError.NotInTheRoom;
                 if (host?.IsHost != true) return StartRoomError.NotHost;
                 if (this.Racers.Any(r => !r.IsReady)) return StartRoomError.NotAllReady;
 
