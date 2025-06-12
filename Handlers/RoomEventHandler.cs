@@ -3,12 +3,10 @@ using Microsoft.AspNetCore.SignalR;
 using Toko.Hubs;
 using Toko.Models.Events;
 
-public class RoomEventHandler<TEvent> : INotificationHandler<TEvent>
+public class RoomEventHandler<TEvent>(IHubContext<RaceHub> hub) : INotificationHandler<TEvent>
     where TEvent : IRoomEvent
 {
-    private readonly IHubContext<RaceHub> _hub;
-    public RoomEventHandler(IHubContext<RaceHub> hub)
-        => _hub = hub;
+    private readonly IHubContext<RaceHub> _hub = hub;
 
     public Task Handle(TEvent evt, CancellationToken ct)
     {

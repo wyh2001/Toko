@@ -29,7 +29,7 @@ namespace Toko.Models
         #endregion
 
         #region ▶ FSM
-        private enum Phase { CollectingCards, CollectingParams, Discarding }
+        public enum Phase { CollectingCards, CollectingParams, Discarding }
         public enum RoomStatus { Waiting, Playing, Finished }
         private enum GameTrigger { Start, GameOver }
         private enum PhaseTrigger { CardsReady, ParamsDone, DiscardDone }
@@ -115,6 +115,7 @@ namespace Toko.Models
 
                 CurrentRound = 0; _stepInRound = 0;
                 _gameSM.Fire(GameTrigger.Start);
+                await _mediator.Publish(new RoomStarted(Id, _order));
                 return new StartRoomSuccess(Id);
             }
             finally { _gate.Release(); }
@@ -123,7 +124,7 @@ namespace Toko.Models
         public async Task EndGameAsync()
         {
             await _gate.WaitAsync();
-            try { _gameSM.Fire(GameTrigger.GameOver); }
+            try { _gameSM.Fire(GameTrigger.GameOver); await _mediator.Publish(new RoomEnded(Id)); }
             finally { _gate.Release(); }
         }
 
@@ -138,6 +139,7 @@ namespace Toko.Models
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
                 InitializeDeck(racer); DrawCardsInternal(racer, 5); 
                 Racers.Add(racer);
+                await _mediator.Publish(new PlayerJoined(Id, racer.Id, racer.PlayerName));
 
                 // just in case somehow these are not initialized
                 if (!_bank.ContainsKey(playerId))
@@ -159,8 +161,10 @@ namespace Toko.Models
             {
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return LeaveRoomError.PlayerNotFound;
+                string playerName = racer.PlayerName;
                 Racers.Remove(racer);
                 _banned.Add(pid); // auto skip
+                await _mediator.Publish(new PlayerLeft(Id, pid, playerName));
                 return new LeaveRoomSuccess(this.Id, pid);
             }
             finally { _gate.Release(); }
@@ -174,6 +178,7 @@ namespace Toko.Models
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return ReadyUpError.PlayerNotFound;
                 racer.IsReady = ready;
+                await _mediator.Publish(new PlayerReadyToggled(Id, pid, ready));
                 return new ReadyUpSuccess(this.Id, pid, ready);
             }
             finally { _gate.Release(); }
@@ -207,6 +212,7 @@ namespace Toko.Models
 
             //_cardNow[pid] = cardId;
             _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
+            _mediator.Publish(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
             MoveNextPlayer();
             return new SubmitStepCardSuccess(this.Id, pid, cardId);
         }
@@ -239,7 +245,7 @@ namespace Toko.Models
 
             var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
             _turnExecutor.ApplyInstruction(racer, ins, this);
-            _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep, new()));
+            _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
 
             MoveNextPlayer();
             return new SubmitExecutionParamSuccess(this.Id, pid, ins);
@@ -302,7 +308,7 @@ namespace Toko.Models
             if (!IsKickEligible(targetId)) return KickVoteError.TooEarly;
 
             _banned.Add(targetId);
-            _mediator.Publish(new PlayerKicked(Id, targetId));
+            _mediator.Publish(new PlayerKicked(Id, targetId, CurrentRound, CurrentStep));
             return new KickVoteSuccess(targetId);
         }
         #endregion
@@ -334,6 +340,7 @@ namespace Toko.Models
 
             _phaseSM.OnTransitioned(t =>
             {
+                _mediator.Publish(new PhaseChanged(Id, t.Destination, CurrentRound, CurrentStep));
                 if (t.Trigger == PhaseTrigger.DiscardDone)
                     NextStep();
             });
@@ -417,6 +424,7 @@ namespace Toko.Models
             _bank[pid] -= elapsed;
             _bank[pid] += BANK_INCREMENT;
             //if (_bank[pid] < TimeSpan.Zero) _bank[pid] = TimeSpan.Zero;
+            _mediator.Publish(new PlayerBankUpdated(Id, pid, _bank[pid]));
 
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
@@ -455,6 +463,7 @@ namespace Toko.Models
                                     await _mediator.Publish(
                                         new PlayerDiscardExecuted(
                                             Id, CurrentRound, CurrentStep, pid, new List<string>()), ct);
+                                    await _mediator.Publish(new PlayerBankUpdated(Id, pid, _bank[pid]), ct);
 
                                     // if no more players pending discard, then move to next phase
                                     if (_discardPending.Count == 0)
@@ -476,6 +485,7 @@ namespace Toko.Models
                         {
                             await _mediator.Publish(
                                 new PlayerTimeoutElapsed(Id, pidTurn), ct);
+                            await _mediator.Publish(new PlayerBankUpdated(Id, pidTurn, _bank[pidTurn]), ct);
 
                             _nextPrompt[pidTurn] = DateTime.MaxValue;
                         }
@@ -501,10 +511,12 @@ namespace Toko.Models
                 _idx = 0;
                 if (++_stepInRound >= _steps[CurrentRound])
                 {
+                    _mediator.Publish(new StepAdvanced(Id, CurrentRound, _stepInRound));
                     var trigger = _phaseSM.State == Phase.CollectingCards ? PhaseTrigger.CardsReady : PhaseTrigger.ParamsDone;
                     _phaseSM.Fire(trigger);
                     return;
                 }
+                _mediator.Publish(new StepAdvanced(Id, CurrentRound, _stepInRound));
             }
 
 
@@ -518,6 +530,8 @@ namespace Toko.Models
             _stepInRound = 0;
             if (++CurrentRound >= _steps.Count)
                 _gameSM.Fire(GameTrigger.GameOver);
+            else
+                _mediator.Publish(new RoundAdvanced(Id, CurrentRound));
 
         }
 
@@ -550,6 +564,7 @@ namespace Toko.Models
             int space = racer.HandCapacity - racer.Hand.Count;
             int toDraw = Math.Min(requestedCount, Math.Max(0, space));
             var drawn = DrawCardsInternal(racer, toDraw);
+            _mediator.Publish(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, racer.Id, racer.Hand.Count));
             return drawn;
         }
 
