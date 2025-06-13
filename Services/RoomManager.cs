@@ -97,7 +97,7 @@ namespace Toko.Services
         /// </summary>
         //public Room? GetRoom(string roomId) =>
         //_rooms.TryGetValue(roomId, out var room) ? room : null;
-        public Room? GetRoom(string roomId)
+        private Room? GetRoomInternal(string roomId)
         {
             if (!_cache.TryGetValue(roomId, out Room? room))
             {
@@ -107,6 +107,13 @@ namespace Toko.Services
             return room;
         }
 
+        public RoomStatus? GetRoomStatus(string roomId)
+        {
+            var room = GetRoomInternal(roomId);
+            if (room is null) return null;
+            return room.Status;
+        }
+
 
         public record JoinRoomSuccess(Racer Racer, string RoomId);
         public enum JoinRoomError { RoomFull, RoomNotFound, AlreadyJoined }
@@ -114,7 +121,7 @@ namespace Toko.Services
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoom(
            string roomId, string playerId, string playerName)
         {
-            var room = GetRoom(roomId);
+            var room = GetRoomInternal(roomId);
             if (room is null) return JoinRoomError.RoomNotFound;
             return await room.JoinRoomAsync(playerId, playerName);
         }
@@ -147,7 +154,7 @@ namespace Toko.Services
         public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCard(
             string roomId, string playerId, string cardId)
         {
-            var room = GetRoom(roomId);
+            var room = GetRoomInternal(roomId);
             if (room is null) return SubmitStepCardError.RoomNotFound;
 
             return await room.SubmitStepCardAsync(playerId, cardId);
@@ -176,8 +183,8 @@ namespace Toko.Services
 
         public async Task<bool> EndRoom(string roomId)
         {
-            if (!_rooms.TryGetValue(roomId, out var room))
-                return false;
+            var room = GetRoomInternal(roomId);
+            if (room is null) return false;
 
             // Await the asynchronous call to ensure proper execution order
             await room.EndGameAsync();
@@ -192,7 +199,7 @@ namespace Toko.Services
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParam(
             string roomId, string playerId, ExecParameter execParameter)
         {
-            var room = GetRoom(roomId);
+            var room = GetRoomInternal(roomId);
             if (room is null) return SubmitExecutionParamError.RoomNotFound;
 
             return await room.SubmitExecutionParamAsync(playerId, execParameter);
@@ -204,7 +211,7 @@ namespace Toko.Services
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> DiscardCards(
             string roomId, string playerId, List<string> cardIds)
         {
-            var room = GetRoom(roomId);
+            var room = GetRoomInternal(roomId);
             if (room is null) return DiscardCardsError.RoomNotFound;
             //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
             //if (racer is null) return DiscardCardsError.PlayerNotFound;
@@ -218,8 +225,8 @@ namespace Toko.Services
         //internal bool LeaveRoom(string roomId, string playerId)
         public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoom(string roomId, string playerId)
         {
-            if (!_rooms.TryGetValue(roomId, out var room))
-                return LeaveRoomError.RoomNotFound;
+            var room = GetRoomInternal(roomId);
+            if (room is null) return LeaveRoomError.RoomNotFound;
             //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
             //if (racer is null)
             //    return LeaveRoomError.PlayerNotFound;
@@ -235,8 +242,8 @@ namespace Toko.Services
         public enum ReadyUpError { RoomNotFound, PlayerNotFound, InternalError }
         public async Task<OneOf<ReadyUpSuccess, ReadyUpError>> ReadyUp(string roomId, string playerId, bool isReady)
         {
-            if (!_rooms.TryGetValue(roomId, out var room))
-                return ReadyUpError.RoomNotFound;
+            var room = GetRoomInternal(roomId);
+            if (room is null) return ReadyUpError.RoomNotFound;
             return await room.ReadyUpAsync(playerId, isReady);
         }
 
@@ -252,11 +259,29 @@ namespace Toko.Services
         }
         public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkip(string roomId, string playerId)
         {
-            if (!_rooms.TryGetValue(roomId, out var room))
-                return DrawSkipError.RoomNotFound;
+            var room = GetRoomInternal(roomId);
+            if (room is null) return DrawSkipError.RoomNotFound;
             return await room.DrawSkipAsync(playerId);
         }
 
+        public record GetHandSuccess(string RoomId, string PlayerId, List<Card> Hand);
+        public enum GetHandError { RoomNotFound, PlayerNotFound, InternalError }
+        public async Task<OneOf<GetHandSuccess, GetHandError>> GetHand(string roomId, string playerId)
+        {
+            var room = GetRoomInternal(roomId);
+            if (room is null) return GetHandError.RoomNotFound;
+            return await room.GetHandAsync(playerId);
+        }
 
+        public record GetRoomStatusSuccess(Room.RoomStatusSnapshot Snapshot);
+        public enum GetRoomStatusError { RoomNotFound }
+
+        public async Task<OneOf<GetRoomStatusSuccess, GetRoomStatusError>> GetRoomStatusAsync(string roomId)
+        {
+            var room = GetRoomInternal(roomId);
+            if (room is null) return GetRoomStatusError.RoomNotFound;
+            var snapshot = await room.GetStatusSnapshotAsync();
+            return new GetRoomStatusSuccess(snapshot);
+        }
     }
 }

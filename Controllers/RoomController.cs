@@ -75,31 +75,37 @@ namespace Toko.Controllers
         }
 
         [HttpGet("{roomId}")]
-        public IActionResult GetRoom(string roomId)
+        public async Task<IActionResult> GetRoom(string roomId)
         {
-            var room = _roomManager.GetRoom(roomId);
-            if (room == null)
-            {
-                return NotFound("Room not found.");
-            }
-            return Ok(new ApiSuccess<object>(
-                "Room details retrieved successfully",
-                new
+            var result = await _roomManager.GetRoomStatusAsync(roomId);
+            return result.Match<IActionResult>(
+                success =>
                 {
-                    room.Id,
-                    room.Name,
-                    room.MaxPlayers,
-                    room.IsPrivate,
-                    Racers = room.Racers.Select(r => new
-                    {
-                        r.Id,
-                        r.PlayerName
-                    }).ToList(),
-                    //Map = room.Map?.ToString(),
-                    //room.CurrentRound
-                    Status = room.Status.ToString(),
-                }
-            ));
+                    var snapshot = success.Snapshot;
+                    return Ok(new ApiSuccess<object>(
+                        "Room details retrieved successfully",
+                        new
+                        {
+                            Id = snapshot.RoomId,
+                            // Room.Name and IsPrivate are not in the snapshot, so return null or remove if not needed
+                            Name = (string?)null,
+                            MaxPlayers = 0, // Not available in snapshot, set to 0 or remove if not needed
+                            IsPrivate = false, // Not available in snapshot, set to false or remove if not needed
+                            Racers = snapshot.Racers.Select(r => new
+                            {
+                                r.Id,
+                                Name = r.Name
+                            }).ToList(),
+                            Map = snapshot.Map?.ToString(),
+                            Status = snapshot.Status
+                        }
+                    ));
+                },
+                error => error switch
+                {
+                    RoomManager.GetRoomStatusError.RoomNotFound => NotFound("Room not found."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
         }
 
         [AllowAnonymous]
@@ -340,6 +346,47 @@ namespace Toko.Controllers
                     ReadyUpError.RoomNotFound => NotFound("Room not found."),
                     ReadyUpError.PlayerNotFound => NotFound("Player not found."),
                     //ReadyUpError.AlreadyReady => BadRequest("Already ready."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+        }
+
+        [HttpGet("{roomId}/hand")]
+        [EnsureRoomStatus(RoomStatus.Playing)]
+        public async Task<IActionResult> GetHand(string roomId)
+        {
+            var playerId = GetPlayerId();
+            var result = await _roomManager.GetHand(roomId, playerId);
+            return result.Match<IActionResult>(
+                success => Ok(new ApiSuccess<object>(
+                    "Hand retrieved successfully",
+                    new
+                    {
+                        success.RoomId,
+                        success.PlayerId,
+                        Cards = success.Hand.Select(c => new
+                        {
+                            c.Id,
+                            c.Type,
+                        }).ToList()
+                    }
+                )),
+                error => error switch
+                {
+                    GetHandError.RoomNotFound => NotFound("Room not found."),
+                    GetHandError.PlayerNotFound => NotFound("Player not found."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+        }
+
+        [HttpGet("{roomId}/status")]
+        public async Task<IActionResult> GetRoomStatus(string roomId)
+        {
+            var result = await _roomManager.GetRoomStatusAsync(roomId);
+            return result.Match<IActionResult>(
+                success => Ok(success.Snapshot),
+                error => error switch
+                {
+                    GetRoomStatusError.RoomNotFound => NotFound(new { message = "Room not found." }),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }

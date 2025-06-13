@@ -46,18 +46,18 @@ namespace Toko.Filters
             }
 
             // Look up the room
-            var room = _rooms.GetRoom(roomId);
-            if (room == null)
+            var roomStatus = _rooms.GetRoomStatus(roomId);
+            if (roomStatus == null)
             {
                 context.Result = new NotFoundObjectResult("Room not found.");
                 return;
             }
 
             // Check that its status matches the required one
-            if (room.Status != _required)
+            if (roomStatus != _required)
             {
                 context.Result = new BadRequestObjectResult(
-                    $"This endpoint requires room status = {_required}, but current status is {room.Status}.");
+                    $"This endpoint requires room status = {_required}, but current status is {roomStatus}.");
                 return;
             }
 

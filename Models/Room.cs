@@ -568,6 +568,28 @@ namespace Toko.Models
             return drawn;
         }
 
+        public async Task<OneOf<GetHandSuccess, GetHandError>> GetHandAsync(string playerId)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                var racer = Racers.FirstOrDefault(r => r.Id == playerId);
+                if (racer is null)
+                    return GetHandError.PlayerNotFound;
+                // Return a copy to avoid external mutation
+                var handCopy = racer.Hand.Select(card => new Card
+                {
+                    Id = card.Id,
+                    Type = card.Type
+                }).ToList();
+                return new GetHandSuccess(this.Id, playerId, handCopy);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+
         public async ValueTask DisposeAsync()
         {
             if (_disposed) return;
@@ -580,6 +602,57 @@ namespace Toko.Models
 
             _gate.Dispose();
             _cts.Dispose();
+        }
+        #endregion
+
+        #region Snapshot for API
+        // Snapshot DTO for API
+        public record RoomStatusSnapshot(
+            string RoomId,
+            string Status,
+            string Phase,
+            int CurrentRound,
+            int CurrentStep,
+            List<RacerStatus> Racers,
+            object Map
+        );
+        public record RacerStatus(string Id, string Name, int Lane, int Tile, double Bank);
+
+        // Returns a snapshot of the current room status for API
+        public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                var phase = _phaseSM.State.ToString();
+                var racers = Racers.Select(r => new RacerStatus(
+                    r.Id,
+                    r.PlayerName,
+                    r.LaneIndex,
+                    r.CellIndex,
+                    _bank.TryGetValue(r.Id, out var bank) ? Math.Round(bank.TotalSeconds, 2) : 0.0
+                )).ToList();
+                var map = new {
+                    Segments = Map.Segments.Select(seg => new {
+                        Type = seg.Type.ToString(),
+                        LaneCount = seg.LaneCount,
+                        LaneCells = seg.LaneCells.Select(lane => lane.Select(pt => new { pt.X, pt.Y }).ToList()).ToList()
+                    }).ToList()
+                };
+                return new RoomStatusSnapshot(
+                    Id,
+                    Status.ToString(),
+                    phase,
+                    CurrentRound,
+                    CurrentStep,
+                    racers,
+                    map
+                );
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         #endregion
     }
