@@ -10,6 +10,7 @@ namespace Toko.Services
         private readonly RaceMap _map = map ?? throw new ArgumentNullException(nameof(map));
         public List<TurnLog> Logs { get; } = [];
         private readonly ILogger<TurnExecutor> _log = log;
+        private const int MAX_INTERACTION_DEPTH = 5;
 
         public void ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
         {
@@ -17,18 +18,18 @@ namespace Toko.Services
             switch (ins.Type)
             {
                 case CardType.Move:
-                    if (ins.ExecParameter.Effect <=0 || ins.ExecParameter.Effect > 2)
+                    if (ins.ExecParameter.Effect <= 0 || ins.ExecParameter.Effect > 2)
                     {
                         return; //or throw?
                     }
-                    MoveForward(racer, ins.ExecParameter.Effect, room);
+                    MoveForward(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
                     break;
                 case CardType.ChangeLane:
                     if (ins.ExecParameter.Effect != -1 && ins.ExecParameter.Effect != 1)
                     {
                         return; //or throw?
                     }
-                    ChangeLane(racer, ins.ExecParameter.Effect, room);
+                    ChangeLane(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
                     break;
                 case CardType.Repair:
                     Repair(racer, ins.ExecParameter.DiscardedCardIds);
@@ -39,8 +40,14 @@ namespace Toko.Services
             }
         }
 
-        private void MoveForward(Racer racer, int steps, Room room)
+        private void MoveForward(Racer racer, int steps, Room room, int depth)
         {
+            if (depth >= MAX_INTERACTION_DEPTH)
+            {
+                _log.LogWarning($"MoveForward for racer {racer.Id} reached max interaction depth of {MAX_INTERACTION_DEPTH}. Halting further movement in this step to prevent potential loop.");
+                return;
+            }
+
             for (int i = 0; i < steps; i++)
             {
                 // 先检查是否进入下一段
@@ -79,14 +86,20 @@ namespace Toko.Services
                     {
                         AddJunk(other, 1);
                         // 被撞者前进一格
-                        MoveForward(other, 1, room);
+                        MoveForward(other, 1, room, depth + 1); // Increment depth
                     }
                 }
             }
         }
 
-        private void ChangeLane(Racer racer, int delta, Room room)
+        private void ChangeLane(Racer racer, int delta, Room room, int depth)
         {
+            if (depth >= MAX_INTERACTION_DEPTH)
+            {
+                _log.LogWarning($"ChangeLane for racer {racer.Id} reached max interaction depth of {MAX_INTERACTION_DEPTH}. Halting further lane changes in this step to prevent potential loop.");
+                return;
+            }
+
             int newLane = racer.LaneIndex + delta;
             var seg = _map.Segments[racer.SegmentIndex];
 
@@ -112,9 +125,8 @@ namespace Toko.Services
                 foreach (var other in collided)
                 {
                     AddJunk(other, 1);
-                    ChangeLane(other, delta, room);
+                    ChangeLane(other, delta, room, depth + 1); // Increment depth
                 }
-                    
             }
         }
 
