@@ -129,24 +129,6 @@ namespace Toko.Services
         public record DrawCardsSuccess(List<Card> Cards);
         public enum DrawCardsError { RoomNotFound, PlayerNotFound }
 
-        /// <summary>
-        /// 给某玩家抽牌：抽取张数 = min(requestedCount, 空余手牌槽数)
-        /// </summary>
-        /// 
-        //public OneOf<DrawCardsSuccess, DrawCardsError> DrawCards(
-        //    string roomId, string playerId, int requestedCount)
-        //{
-        //    var room = GetRoom(roomId);
-        //    if (room is null) return DrawCardsError.RoomNotFound;
-        //    var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-        //    if (racer is null) return DrawCardsError.PlayerNotFound;
-        //    // 计算还能抽多少张
-        //    int space = racer.HandCapacity - racer.Hand.Count;
-        //    int toDraw = Math.Min(requestedCount, Math.Max(0, space));
-        //    var drawn = DrawCardsInternal(racer, toDraw);
-        //    return new DrawCardsSuccess(drawn);
-        //}
-
         public record SubmitStepCardSuccess(string RoomId, string PlayerId, string CardId);
         public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase,
             PlayerBanned
@@ -213,8 +195,6 @@ namespace Toko.Services
         {
             var room = GetRoomInternal(roomId);
             if (room is null) return DiscardCardsError.RoomNotFound;
-            //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            //if (racer is null) return DiscardCardsError.PlayerNotFound;
 
             return await room.SubmitDiscardAsync(playerId, cardIds);
         }
@@ -227,14 +207,6 @@ namespace Toko.Services
         {
             var room = GetRoomInternal(roomId);
             if (room is null) return LeaveRoomError.RoomNotFound;
-            //var racer = room.Racers.FirstOrDefault(r => r.Id == playerId);
-            //if (racer is null)
-            //    return LeaveRoomError.PlayerNotFound;
-            //if (room.Racers.Remove(racer))
-            //    return new LeaveRoomSuccess(playerId);
-            //else
-            //    return LeaveRoomError.InternalError;
-
             return await room.LeaveRoomAsync(playerId);
         }
 
