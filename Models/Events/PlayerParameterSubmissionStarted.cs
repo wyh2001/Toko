@@ -2,20 +2,12 @@
 
 namespace Toko.Models.Events
 {
-    public class PlayerParameterSubmissionStarted : IRoomEvent
+    public class PlayerParameterSubmissionStarted(string roomId, int round, int step, string playerId) : IRoomEvent
     {
-        public string RoomId { get; }
-        public int Round { get; }
-        public int Step { get; }
-        public string PlayerId { get; }
-
-        public PlayerParameterSubmissionStarted(string roomId, int round, int step, string playerId)
-        {
-            RoomId = roomId;
-            Round = round;
-            Step = step;
-            PlayerId = playerId;
-        }
+        public string RoomId { get; } = roomId;
+        public int Round { get; } = round;
+        public int Step { get; } = step;
+        public string PlayerId { get; } = playerId;
     }
 
 }

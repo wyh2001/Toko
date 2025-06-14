@@ -161,11 +161,36 @@ namespace Toko.Models
             {
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return LeaveRoomError.PlayerNotFound;
-                string playerName = racer.PlayerName;
-                Racers.Remove(racer);
-                _banned.Add(pid); // auto skip
-                await _mediator.Publish(new PlayerLeft(Id, pid, playerName));
-                return new LeaveRoomSuccess(this.Id, pid);
+                switch (Status)
+                {
+                    case RoomStatus.Waiting:
+                        if (racer.IsHost)
+                        {
+                            // change host to the next player if exists
+                            var nextHost = Racers.FirstOrDefault(r => r.Id != pid);
+                            if (nextHost is not null)
+                            {
+                                nextHost.IsHost = true;
+                                await _mediator.Publish(new HostChanged(Id, nextHost.Id, nextHost.PlayerName));
+                            }
+                            // the empty room will be deleted later by the RoomManager
+                        }
+                        string playerName = racer.PlayerName;
+                        Racers.Remove(racer);
+                        await _mediator.Publish(new PlayerLeft(Id, pid, playerName));
+                        return new LeaveRoomSuccess(this.Id, pid);
+
+                    case RoomStatus.Playing:
+                        _banned.Add(pid); // auto skip
+                        await _mediator.Publish(new PlayerLeft(Id, pid, racer.PlayerName));
+                        return new LeaveRoomSuccess(this.Id, pid);
+
+                    case RoomStatus.Finished:
+                        return LeaveRoomError.AlreadyFinished;
+
+                    default:
+                        throw new InvalidOperationException("Unexpected room status when leaving.");
+                }
             }
             finally { _gate.Release(); }
         }
@@ -290,26 +315,36 @@ namespace Toko.Models
         #endregion
 
         #region Vote Kick
-        public async Task<OneOf<KickVoteSuccess, KickVoteError>> VoteKickAsync(string targetId)
+        public async Task<OneOf<KickPlayerSuccess, KickPlayerError>> KickPlayerAsync(string playerId, string kickedPlayerId)
         {
             await _gate.WaitAsync();
-            try { return VoteKick(targetId); }
+            try { return KickPlayer(playerId, kickedPlayerId); }
             finally { _gate.Release(); }
         }
 
-        public enum KickVoteError { WrongPhase, TooEarly, TargetNotFound, AlreadyKicked }
-        public record KickVoteSuccess(string TargetId);
-
-        private OneOf<KickVoteSuccess, KickVoteError> VoteKick(string targetId)
+        private OneOf<KickPlayerSuccess, KickPlayerError> KickPlayer(string playerId, string kickedPlayerId)
         {
-            if (Status != RoomStatus.Playing) return KickVoteError.WrongPhase;
-            if (!_order.Contains(targetId)) return KickVoteError.TargetNotFound;
-            if (_banned.Contains(targetId)) return KickVoteError.AlreadyKicked;
-            if (!IsKickEligible(targetId)) return KickVoteError.TooEarly;
+            // find the kicker
+            var kicker = Racers.FirstOrDefault(r => r.Id == playerId);
+            if (kicker is null) return KickPlayerError.PlayerNotFound;
+            if (Status == RoomStatus.Waiting)
+            {
+                if (!kicker.IsHost) return KickPlayerError.NotHost;
+                // if the room is waiting, just remove the player
+                var targetRacer = Racers.FirstOrDefault(r => r.Id == kickedPlayerId);
+                if (targetRacer is null) return KickPlayerError.TargetNotFound;
+                Racers.Remove(targetRacer);
+                _mediator.Publish(new PlayerKicked(Id, kickedPlayerId));
+                return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
+            }
+            if (Status != RoomStatus.Playing) return KickPlayerError.WrongPhase;
+            if (!_order.Contains(kickedPlayerId)) return KickPlayerError.TargetNotFound;
+            if (_banned.Contains(kickedPlayerId)) return KickPlayerError.AlreadyKicked;
+            if (!IsKickEligible(kickedPlayerId)) return KickPlayerError.TooEarly;
 
-            _banned.Add(targetId);
-            _mediator.Publish(new PlayerKicked(Id, targetId, CurrentRound, CurrentStep));
-            return new KickVoteSuccess(targetId);
+            _banned.Add(kickedPlayerId);
+            _mediator.Publish(new PlayerKicked(Id, kickedPlayerId));
+            return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
         }
         #endregion
 
@@ -609,14 +644,19 @@ namespace Toko.Models
         // Snapshot DTO for API
         public record RoomStatusSnapshot(
             string RoomId,
+            string Name,
+            int MaxPlayers,
+            bool IsPrivate,
             string Status,
             string Phase,
             int CurrentRound,
             int CurrentStep,
+            string? CurrentTurnPlayerId,
+            List<string> DiscardPendingPlayerIds,
             List<RacerStatus> Racers,
             object Map
         );
-        public record RacerStatus(string Id, string Name, int Lane, int Tile, double Bank);
+        public record RacerStatus(string Id, string Name, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
 
         // Returns a snapshot of the current room status for API
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
@@ -630,10 +670,16 @@ namespace Toko.Models
                     r.PlayerName,
                     r.LaneIndex,
                     r.CellIndex,
-                    _bank.TryGetValue(r.Id, out var bank) ? Math.Round(bank.TotalSeconds, 2) : 0.0
+                    _bank.TryGetValue(r.Id, out var bank) ? Math.Round(bank.TotalSeconds, 2) : 0.0,
+                    r.IsHost,
+                    r.IsReady,
+                    r.Hand.Count,
+                    _banned.Contains(r.Id)
                 )).ToList();
-                var map = new {
-                    Segments = Map.Segments.Select(seg => new {
+                var map = new
+                {
+                    Segments = Map.Segments.Select(seg => new
+                    {
                         Type = seg.Type.ToString(),
                         LaneCount = seg.LaneCount,
                         LaneCells = seg.LaneCells.Select(lane => lane.Select(pt => new { pt.X, pt.Y }).ToList()).ToList()
@@ -641,10 +687,15 @@ namespace Toko.Models
                 };
                 return new RoomStatusSnapshot(
                     Id,
+                    Name ?? string.Empty, // Ensure Name is not null
+                    MaxPlayers,
+                    IsPrivate,
                     Status.ToString(),
                     phase,
                     CurrentRound,
-                    CurrentStep,
+                    CurrentStep, // Add the missing CurrentStep argument
+                    _order.ElementAtOrDefault(_idx), // CurrentTurnPlayerId
+                    _discardPending.ToList(), // DiscardPendingPlayerIds
                     racers,
                     map
                 );

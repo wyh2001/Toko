@@ -391,6 +391,34 @@ namespace Toko.Controllers
                 });
         }
 
+        [HttpPost("{roomId}/kick")]
+        public async Task<IActionResult> KickPlayer([FromBody] KickPlayerRequest req, string roomId)
+        {
+            var playerId = GetPlayerId();
+            var result = await _roomManager.KickPlayer(roomId, playerId, req.KickedPlayerId);
+            return result.Match<IActionResult>(
+                success => Ok(new ApiSuccess<object>(
+                    "Player kicked successfully",
+                    new
+                    {
+                        success.RoomId,
+                        success.PlayerId,
+                        success.KickedPlayerId
+                    }
+                )),
+                error => error switch
+                {
+                    KickPlayerError.RoomNotFound => NotFound("Room not found."),
+                    KickPlayerError.PlayerNotFound => NotFound("Player not found."),
+                    KickPlayerError.NotHost => StatusCode(StatusCodes.Status403Forbidden, "You are not the host."),
+                    KickPlayerError.TargetNotFound => NotFound("Player to kick not found."),
+                    KickPlayerError.TooEarly => BadRequest("Cannot kick player that still has time."),
+                    KickPlayerError.WrongPhase => BadRequest("Wrong phase."),
+                    KickPlayerError.AlreadyKicked => BadRequest("Player already kicked."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+        }
+
         private string GetPlayerId()
         {
             var playerId = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??

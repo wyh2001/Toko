@@ -2,17 +2,10 @@ using MediatR;
 
 namespace Toko.Models.Events
 {
-    public class StepAdvanced : IRoomEvent
+    public class StepAdvanced(string roomId, int round, int step) : IRoomEvent
     {
-        public string RoomId { get; }
-        public int Round { get; }
-        public int Step { get; }
-
-        public StepAdvanced(string roomId, int round, int step)
-        {
-            RoomId = roomId;
-            Round = round;
-            Step = step;
-        }
+        public string RoomId { get; } = roomId;
+        public int Round { get; } = round;
+        public int Step { get; } = step;
     }
 }

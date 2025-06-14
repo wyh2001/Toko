@@ -201,7 +201,7 @@ namespace Toko.Services
 
 
         public record LeaveRoomSuccess(string RoomId, string PlayerId);
-        public enum LeaveRoomError { RoomNotFound, PlayerNotFound, InternalError }
+        public enum LeaveRoomError { RoomNotFound, PlayerNotFound, AlreadyFinished, InternalError }
         //internal bool LeaveRoom(string roomId, string playerId)
         public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoom(string roomId, string playerId)
         {
@@ -254,6 +254,15 @@ namespace Toko.Services
             if (room is null) return GetRoomStatusError.RoomNotFound;
             var snapshot = await room.GetStatusSnapshotAsync();
             return new GetRoomStatusSuccess(snapshot);
+        }
+
+        public enum KickPlayerError { RoomNotFound, WrongPhase, TooEarly, TargetNotFound, AlreadyKicked, PlayerNotFound, NotHost }
+        public record KickPlayerSuccess(string RoomId, string PlayerId, string KickedPlayerId);
+        public async Task<OneOf<KickPlayerSuccess, KickPlayerError>> KickPlayer(string roomId, string playerId, string kickedPlayerId)
+        {
+            var room = GetRoomInternal(roomId);
+            if (room is null) return KickPlayerError.RoomNotFound;
+            return await room.KickPlayerAsync(playerId, kickedPlayerId);
         }
     }
 }
