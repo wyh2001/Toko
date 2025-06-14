@@ -39,7 +39,7 @@ namespace Toko.Models
         #endregion
 
         #region Constants & Fields
-        private readonly List<int> _steps;
+        private List<int> _steps;
         private readonly List<string> _order = [];
         private int _idx;
         private int _stepInRound;
@@ -347,6 +347,25 @@ namespace Toko.Models
             return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
         }
         #endregion
+
+        public async Task<OneOf<UpdateRoomSettingsSuccess, UpdateRoomSettingsError>> UpdateSettingsAsync(string playerId, RoomSettings settings)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                if (Status != RoomStatus.Waiting) return UpdateRoomSettingsError.WrongPhase;
+                var host = Racers.FirstOrDefault(r => r.Id == playerId);
+                if (host is null) return UpdateRoomSettingsError.PlayerNotFound;
+                if (!host.IsHost) return UpdateRoomSettingsError.NotHost;
+                Name = settings.Name ?? Name;
+                MaxPlayers = settings.MaxPlayers ?? MaxPlayers;
+                IsPrivate = settings.IsPrivate ?? IsPrivate;
+                _steps = settings.StepsPerRound ?? _steps;
+                await _mediator.Publish(new RoomSettingsUpdated(Id, settings));
+                return new UpdateRoomSettingsSuccess(Id, playerId, settings);
+            }
+            finally { _gate.Release(); }
+        }
 
         #region FSM Configuration
         void ConfigureFSM()

@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Toko.Models.Requests
 {
     public class KickPlayerRequest
     {
-        public string KickedPlayerId { get; set; }
+        [Required]
+        public required string KickedPlayerId { get; set; }
     }
 }

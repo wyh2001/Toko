@@ -419,6 +419,42 @@ namespace Toko.Controllers
                 });
         }
 
+        [HttpPost("{roomId}/updateSettings")]
+        [EnsureRoomStatus(RoomStatus.Waiting)]
+        public async Task<IActionResult> UpdateRoomSettings([FromBody] UpdateRoomSettingsRequest req, string roomId)
+        {
+            var playerId = GetPlayerId();
+            if (req.IsEmpty)
+            {
+                return BadRequest("At least one setting must be provided.");
+            }
+            var settings = new RoomSettings(
+                req.RoomName,
+                req.MaxPlayers,
+                req.IsPrivate,
+                req.StepsPerRound
+            );
+
+            var result = await _roomManager.UpdateRoomSettings(roomId, playerId, settings);
+            return result.Match<IActionResult>(
+                success => Ok(new ApiSuccess<object>(
+                    "Room settings updated successfully",
+                    new
+                    {
+                        success.RoomId,
+                        success.PlayerId,
+                        success.Settings
+                    }
+                )),
+                error => error switch
+                {
+                    UpdateRoomSettingsError.RoomNotFound => NotFound("Room not found."),
+                    UpdateRoomSettingsError.PlayerNotFound => NotFound("Player not found."),
+                    UpdateRoomSettingsError.NotHost => StatusCode(StatusCodes.Status403Forbidden, "You are not the host."),
+                    _ => StatusCode(StatusCodes.Status500InternalServerError)
+                });
+        }
+
         private string GetPlayerId()
         {
             var playerId = User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??

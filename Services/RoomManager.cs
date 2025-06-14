@@ -49,7 +49,7 @@ namespace Toko.Services
             var room = new Room(_mediator, stepsPerRound, roomLogger, _loggerFactory)
             {
                 //Id = roomId,
-                Name = roomName,
+                Name = roomName ?? $"Room-{Random.Shared.Next(1000, 9999)}",
                 MaxPlayers = maxPlayers,
                 IsPrivate = isPrivate,
                 Map = RaceMapFactory.CreateDefaultMap()
@@ -263,6 +263,18 @@ namespace Toko.Services
             var room = GetRoomInternal(roomId);
             if (room is null) return KickPlayerError.RoomNotFound;
             return await room.KickPlayerAsync(playerId, kickedPlayerId);
+        }
+
+        public enum UpdateRoomSettingsError { RoomNotFound, NotHost, InternalError, WrongPhase, PlayerNotFound}
+        public record UpdateRoomSettingsSuccess(string RoomId, string PlayerId, RoomSettings Settings);
+        //public record RoomSettings(string? Name, int MaxPlayers, bool IsPrivate, List<int> StepsPerRound, RaceMap Map);
+        public record RoomSettings(string? Name, int? MaxPlayers, bool? IsPrivate, List<int>? StepsPerRound); // at this time, no map for simplicity
+        public async Task<OneOf<UpdateRoomSettingsSuccess, UpdateRoomSettingsError>> UpdateRoomSettings(
+            string roomId, string playerId, RoomSettings settings)
+        {
+            var room = GetRoomInternal(roomId);
+            if (room is null) return UpdateRoomSettingsError.RoomNotFound;
+            return await room.UpdateSettingsAsync(playerId, settings);
         }
     }
 }
