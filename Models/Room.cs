@@ -121,10 +121,14 @@ namespace Toko.Models
             finally { _gate.Release(); }
         }
 
-        public async Task EndGameAsync()
+        public enum GameEndReason { RoundsCompleted, NoActivePlayers, HostAborted }
+        public record GameResult(string PlayerId, int Rank, int Score);
+        //public record RoomEnded(string RoomId, GameEndReason Reason, List<GameResult> Results);
+
+        public async Task EndGameAsync(GameEndReason reason, List<GameResult> results)
         {
             await _gate.WaitAsync();
-            try { _gameSM.Fire(GameTrigger.GameOver); await _mediator.Publish(new RoomEnded(Id)); }
+            try { _gameSM.Fire(GameTrigger.GameOver); await _mediator.Publish(new RoomEnded(Id, reason, results)); }
             finally { _gate.Release(); }
         }
 
