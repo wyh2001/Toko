@@ -93,8 +93,7 @@ namespace Toko.Models
         #region Game Control
         public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartGameAsync(string playerId)
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync<OneOf<StartRoomSuccess, StartRoomError>>(events =>
             {
                 if (Status == RoomStatus.Playing) return StartRoomError.AlreadyStarted;
                 if (Status == RoomStatus.Finished) return StartRoomError.AlreadyFinished;
@@ -106,19 +105,18 @@ namespace Toko.Models
 
                 _order.Clear();
                 _order.AddRange(Racers.Select(r => r.Id));
-                foreach (var id in _order) 
-                { 
-                    _bank[id] = INIT_BANK; 
+                foreach (var id in _order)
+                {
+                    _bank[id] = INIT_BANK;
                     _thinkStart[id] = DateTime.UtcNow;
                     _nextPrompt[id] = DateTime.MaxValue;
                 }
 
                 CurrentRound = 0; _stepInRound = 0;
                 _gameSM.Fire(GameTrigger.Start);
-                await _mediator.Publish(new RoomStarted(Id, _order));
+                events.Add(new RoomStarted(Id, _order));
                 return new StartRoomSuccess(Id);
-            }
-            finally { _gate.Release(); }
+            });
         }
 
         public enum GameEndReason
@@ -178,29 +176,35 @@ namespace Toko.Models
             return results;
         }
 
-        public async Task EndGameAsync(GameEndReason reason)
+        public async Task<List<PlayerResult>> EndGameAsync(GameEndReason reason)
         {
-            await _gate.WaitAsync();
-            try { 
-                _gameSM.Fire(GameTrigger.GameOver);
-                List<PlayerResult> results = CollectGameResults();
-                await _mediator.Publish(new RoomEnded(Id, reason, results)); 
-            }
-            finally { _gate.Release(); }
+            return await WithGateAsync(events =>
+            {
+                var results = EndGame(reason);
+                events.Add(new RoomEnded(Id, reason, results));
+                return results;
+            });
+        }
+
+        private List<PlayerResult> EndGame(GameEndReason reason)
+        {
+            _gameSM.Fire(GameTrigger.GameOver);
+            List<PlayerResult> results = CollectGameResults();
+            return results;
+            
         }
 
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerId, string playerName)
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync<OneOf<JoinRoomSuccess, JoinRoomError>>(events =>
             {
                 // prevent from joining if already joined
                 if (Racers.Any(r => r.Id == playerId)) return JoinRoomError.AlreadyJoined;
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
-                InitializeDeck(racer); DrawCardsInternal(racer, 5); 
+                InitializeDeck(racer); DrawCardsInternal(racer, 5);
                 Racers.Add(racer);
-                await _mediator.Publish(new PlayerJoined(Id, racer.Id, racer.PlayerName));
+                events.Add(new PlayerJoined(Id, racer.Id, racer.PlayerName));
 
                 // just in case somehow these are not initialized
                 if (!_bank.ContainsKey(playerId))
@@ -209,16 +213,12 @@ namespace Toko.Models
                     _nextPrompt[playerId] = DateTime.MaxValue;
 
                 return new JoinRoomSuccess(racer, this.Id);
-            }
-            finally { _gate.Release(); }
+            });
         }
 
-        //public record LeaveRoomSuccess(string PlayerId);
-        //public enum LeaveRoomError { PlayerNotFound }
         public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoomAsync(string pid)
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync<OneOf<LeaveRoomSuccess, LeaveRoomError>>(events =>
             {
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return LeaveRoomError.PlayerNotFound;
@@ -232,18 +232,18 @@ namespace Toko.Models
                             if (nextHost is not null)
                             {
                                 nextHost.IsHost = true;
-                                await _mediator.Publish(new HostChanged(Id, nextHost.Id, nextHost.PlayerName));
+                                events.Add(new HostChanged(Id, nextHost.Id, nextHost.PlayerName));
                             }
                             // the empty room will be deleted later by the RoomManager
                         }
                         string playerName = racer.PlayerName;
                         Racers.Remove(racer);
-                        await _mediator.Publish(new PlayerLeft(Id, pid, playerName));
+                        events.Add(new PlayerLeft(Id, pid, playerName));
                         return new LeaveRoomSuccess(this.Id, pid);
 
                     case RoomStatus.Playing:
                         _banned.Add(pid); // auto skip
-                        await _mediator.Publish(new PlayerLeft(Id, pid, racer.PlayerName));
+                        events.Add(new PlayerLeft(Id, pid, racer.PlayerName));
                         return new LeaveRoomSuccess(this.Id, pid);
 
                     case RoomStatus.Finished:
@@ -252,63 +252,53 @@ namespace Toko.Models
                     default:
                         throw new InvalidOperationException("Unexpected room status when leaving.");
                 }
-            }
-            finally { _gate.Release(); }
+            });
         }
 
         public async Task<OneOf<ReadyUpSuccess, ReadyUpError>> ReadyUpAsync(string pid, bool ready)
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync<OneOf<ReadyUpSuccess, ReadyUpError>>(events =>
             {
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return ReadyUpError.PlayerNotFound;
                 racer.IsReady = ready;
-                await _mediator.Publish(new PlayerReadyToggled(Id, pid, ready));
+                events.Add(new PlayerReadyToggled(Id, pid, ready));
                 return new ReadyUpSuccess(this.Id, pid, ready);
-            }
-            finally { _gate.Release(); }
+            });
         }
         #endregion
 
         #region Collecting Cards
         public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCardAsync(string pid, string cardId)
         {
-            await _gate.WaitAsync();
-            try { return SubmitStepCard(pid, cardId); }
-            finally { _gate.Release(); }
-        }
+            return await WithGateAsync<OneOf<SubmitStepCardSuccess, SubmitStepCardError>>(events =>
+            {
+                if (_banned.Contains(pid)) return SubmitStepCardError.PlayerBanned;
+                if (_phaseSM.State != Phase.CollectingCards)
+                    return SubmitStepCardError.WrongPhase;
+                if (pid != _order[_idx]) return SubmitStepCardError.NotYourTurn;
 
-        private OneOf<SubmitStepCardSuccess, SubmitStepCardError>
-            SubmitStepCard(string pid, string cardId)
-        {
-            if (_banned.Contains(pid)) return SubmitStepCardError.PlayerBanned;
-            if (_phaseSM.State != Phase.CollectingCards)
-                return SubmitStepCardError.WrongPhase;
-            if (pid != _order[_idx]) return SubmitStepCardError.NotYourTurn;
-
-            var racer = Racers.FirstOrDefault(r => r.Id == pid)
+                var racer = Racers.FirstOrDefault(r => r.Id == pid)
                        ?? throw new InvalidOperationException();
-            var cardObj = racer.Hand.FirstOrDefault(c => c.Id == cardId);
-            if (cardObj is null) return SubmitStepCardError.CardNotFound;
+                var cardObj = racer.Hand.FirstOrDefault(c => c.Id == cardId);
+                if (cardObj is null) return SubmitStepCardError.CardNotFound;
 
-            UpdateBank(pid);
-            racer.Hand.Remove(cardObj);
-            racer.DiscardPile.Add(cardObj);
+                UpdateBank(pid);
+                racer.Hand.Remove(cardObj);
+                racer.DiscardPile.Add(cardObj);
 
-            //_cardNow[pid] = cardId;
-            _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
-            _mediator.Publish(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
-            MoveNextPlayer();
-            return new SubmitStepCardSuccess(this.Id, pid, cardId);
+                _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
+                events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
+                MoveNextPlayer();
+                return new SubmitStepCardSuccess(this.Id, pid, cardId);
+            });
         }
         #endregion
 
         #region Collecting Parameters
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParamAsync(string pid, ExecParameter p)
         {
-            await _gate.WaitAsync();
-            try 
+            return await WithGateAsync<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>>(events => 
             {
                 if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
                 if (_phaseSM.State != Phase.CollectingParams)
@@ -328,91 +318,83 @@ namespace Toko.Models
                 var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this);
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
-                    await EndGameAsync(GameEndReason.FinisherCrossedLine);
+                    // Because EndGameAsync uses WithGateAsync internally, we can't call it directly from here
+                    // as it would cause a deadlock. Instead, we'll add a flag or event to handle this later.
+                    events.Add(new PlayerFinished(Id, pid));
+                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
+                    _gameSM.Fire(GameTrigger.GameOver);
                 }
-                await _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
+                events.Add(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
                 MoveNextPlayer();
-                return new SubmitExecutionParamSuccess(this.Id, pid, ins); ; 
-            }
-            finally { _gate.Release(); }
+                return new SubmitExecutionParamSuccess(this.Id, pid, ins);
+            });
         }
         #endregion
 
         #region Discarding Cards
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> SubmitDiscardAsync(string pid, List<string> cardIds)
         {
-            await _gate.WaitAsync();
-            try { return SubmitDiscard(pid, cardIds); }
-            finally { _gate.Release(); }
-        }
+            return await WithGateAsync<OneOf<DiscardCardsSuccess, DiscardCardsError>>(events =>
+            {
+                if (_banned.Contains(pid)) return DiscardCardsError.PlayerBanned;
+                if (_phaseSM.State != Phase.Discarding)
+                    return DiscardCardsError.WrongPhase;
+                if (!_discardPending.Contains(pid)) return DiscardCardsError.NotYourTurn;
 
-        private OneOf<DiscardCardsSuccess, DiscardCardsError>
-            SubmitDiscard(string pid, List<string> cardIds)
-        {
-            if (_banned.Contains(pid)) return DiscardCardsError.PlayerBanned;
-            if (_phaseSM.State != Phase.Discarding)
-                return DiscardCardsError.WrongPhase;
-            if (!_discardPending.Contains(pid)) return DiscardCardsError.NotYourTurn;
+                var racer = Racers.First(r => r.Id == pid);
+                if (cardIds.Any(cid =>
+                     racer.Hand.All(c => c.Id != cid) ||
+                     racer.Hand.First(c => c.Id == cid).Type == CardType.Junk))
+                    return DiscardCardsError.CardNotFound;
 
-            var racer = Racers.First(r => r.Id == pid);
-            if (cardIds.Any(cid =>
-                 racer.Hand.All(c => c.Id != cid) ||
-                 racer.Hand.First(c => c.Id == cid).Type == CardType.Junk))
-                return DiscardCardsError.CardNotFound;
+                _turnExecutor.DiscardCards(racer, cardIds);
+                events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
 
-            _turnExecutor.DiscardCards(racer, cardIds);
-            _mediator.Publish(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
+                _discardPending.Remove(pid);
+                UpdateBank(pid);
+                ResetPrompt(pid);
 
-            _discardPending.Remove(pid);
-            UpdateBank(pid);
-            //RescheduleTimerAsync();
-            ResetPrompt(pid);
+                if (_discardPending.Count == 0)
+                    _phaseSM.Fire(PhaseTrigger.DiscardDone);
 
-            if (_discardPending.Count == 0)
-                _phaseSM.Fire(PhaseTrigger.DiscardDone);
-
-            return new DiscardCardsSuccess(this.Id, pid, cardIds);
+                return new DiscardCardsSuccess(this.Id, pid, cardIds);
+            });
         }
         #endregion
 
         #region Vote Kick
         public async Task<OneOf<KickPlayerSuccess, KickPlayerError>> KickPlayerAsync(string playerId, string kickedPlayerId)
         {
-            await _gate.WaitAsync();
-            try { return KickPlayer(playerId, kickedPlayerId); }
-            finally { _gate.Release(); }
-        }
-
-        private OneOf<KickPlayerSuccess, KickPlayerError> KickPlayer(string playerId, string kickedPlayerId)
-        {
-            // find the kicker
-            var kicker = Racers.FirstOrDefault(r => r.Id == playerId);
-            if (kicker is null) return KickPlayerError.PlayerNotFound;
-            if (Status == RoomStatus.Waiting)
+            return await WithGateAsync<OneOf<KickPlayerSuccess, KickPlayerError>>(events =>
             {
-                if (!kicker.IsHost) return KickPlayerError.NotHost;
-                // if the room is waiting, just remove the player
-                var targetRacer = Racers.FirstOrDefault(r => r.Id == kickedPlayerId);
-                if (targetRacer is null) return KickPlayerError.TargetNotFound;
-                Racers.Remove(targetRacer);
-                _mediator.Publish(new PlayerKicked(Id, kickedPlayerId));
-                return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
-            }
-            if (Status != RoomStatus.Playing) return KickPlayerError.WrongPhase;
-            if (!_order.Contains(kickedPlayerId)) return KickPlayerError.TargetNotFound;
-            if (_banned.Contains(kickedPlayerId)) return KickPlayerError.AlreadyKicked;
-            if (!IsKickEligible(kickedPlayerId)) return KickPlayerError.TooEarly;
+                // find the kicker
+                var kicker = Racers.FirstOrDefault(r => r.Id == playerId);
+                if (kicker is null) return KickPlayerError.PlayerNotFound;
+                if (Status == RoomStatus.Waiting)
+                {
+                    if (!kicker.IsHost) return KickPlayerError.NotHost;
+                    // if the room is waiting, just remove the player
+                    var targetRacer = Racers.FirstOrDefault(r => r.Id == kickedPlayerId);
+                    if (targetRacer is null) return KickPlayerError.TargetNotFound;
+                    Racers.Remove(targetRacer);
+                    events.Add(new PlayerKicked(Id, kickedPlayerId));
+                    return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
+                }
+                if (Status != RoomStatus.Playing) return KickPlayerError.WrongPhase;
+                if (!_order.Contains(kickedPlayerId)) return KickPlayerError.TargetNotFound;
+                if (_banned.Contains(kickedPlayerId)) return KickPlayerError.AlreadyKicked;
+                if (!IsKickEligible(kickedPlayerId)) return KickPlayerError.TooEarly;
 
-            _banned.Add(kickedPlayerId);
-            _mediator.Publish(new PlayerKicked(Id, kickedPlayerId));
-            return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
+                _banned.Add(kickedPlayerId);
+                events.Add(new PlayerKicked(Id, kickedPlayerId));
+                return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
+            });
         }
         #endregion
 
         public async Task<OneOf<UpdateRoomSettingsSuccess, UpdateRoomSettingsError>> UpdateSettingsAsync(string playerId, RoomSettings settings)
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync<OneOf<UpdateRoomSettingsSuccess, UpdateRoomSettingsError>>(events =>
             {
                 if (Status != RoomStatus.Waiting) return UpdateRoomSettingsError.WrongPhase;
                 var host = Racers.FirstOrDefault(r => r.Id == playerId);
@@ -422,10 +404,9 @@ namespace Toko.Models
                 MaxPlayers = settings.MaxPlayers ?? MaxPlayers;
                 IsPrivate = settings.IsPrivate ?? IsPrivate;
                 _steps = settings.StepsPerRound ?? _steps;
-                await _mediator.Publish(new RoomSettingsUpdated(Id, settings));
+                events.Add(new RoomSettingsUpdated(Id, settings));
                 return new UpdateRoomSettingsSuccess(Id, playerId, settings);
-            }
-            finally { _gate.Release(); }
+            });
         }
 
         #region FSM Configuration
@@ -465,7 +446,8 @@ namespace Toko.Models
             if (!IsAnyActivePlayer() && Status == RoomStatus.Playing)
             {
                 _log.LogInformation("No active players left in room {RoomId}. Ending game.", Id);
-                _gameSM.Fire(GameTrigger.GameOver);
+                //_gameSM.Fire(GameTrigger.GameOver);
+                EndGame(GameEndReason.NoActivePlayersLeft);
                 return;
             }
             foreach (var r in Racers) DrawCards(r, AUTO_DRAW);
@@ -652,26 +634,22 @@ namespace Toko.Models
 
         public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkipAsync(string pid)
         {
-            await _gate.WaitAsync();
-            try { return DrawSkip(pid); }
-            finally { _gate.Release(); }
-        }
+            return await WithGateAsync<OneOf<DrawSkipSuccess, DrawSkipError>>(events =>
+            {
+                if (_banned.Contains(pid)) return DrawSkipError.PlayerBanned;
+                if (_phaseSM.State != Phase.CollectingCards)
+                    return DrawSkipError.WrongPhase;
+                if (pid != _order[_idx]) return DrawSkipError.NotYourTurn;
 
-        private OneOf<DrawSkipSuccess, DrawSkipError> DrawSkip(string pid)
-        {
-            if (_banned.Contains(pid)) return DrawSkipError.PlayerBanned;
-            if (_phaseSM.State != Phase.CollectingCards)
-                return DrawSkipError.WrongPhase;
-            if (pid != _order[_idx]) return DrawSkipError.NotYourTurn;
-
-            var racer = Racers.FirstOrDefault(r => r.Id == pid)
+                var racer = Racers.FirstOrDefault(r => r.Id == pid)
                        ?? throw new InvalidOperationException();
-            UpdateBank(pid);
-            var result = DrawCards(racer, DRAW_ON_SKIP);
-            _mediator.Publish(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
-            _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
-            MoveNextPlayer();
-            return new DrawSkipSuccess(this.Id, pid, result);
+                UpdateBank(pid);
+                var result = DrawCards(racer, DRAW_ON_SKIP);
+                events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
+                _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
+                MoveNextPlayer();
+                return new DrawSkipSuccess(this.Id, pid, result);
+            });
         }
 
         public List<Card> DrawCards(Racer racer, int requestedCount)
@@ -685,8 +663,7 @@ namespace Toko.Models
 
         public async Task<OneOf<GetHandSuccess, GetHandError>> GetHandAsync(string playerId)
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync<OneOf<GetHandSuccess, GetHandError>>(events =>
             {
                 var racer = Racers.FirstOrDefault(r => r.Id == playerId);
                 if (racer is null)
@@ -698,11 +675,7 @@ namespace Toko.Models
                     Type = card.Type
                 }).ToList();
                 return new GetHandSuccess(this.Id, playerId, handCopy);
-            }
-            finally
-            {
-                _gate.Release();
-            }
+            });
         }
 
         public async ValueTask DisposeAsync()
@@ -741,8 +714,7 @@ namespace Toko.Models
         // Returns a snapshot of the current room status for API
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
         {
-            await _gate.WaitAsync();
-            try
+            return await WithGateAsync(events =>
             {
                 var phase = _phaseSM.State.ToString();
                 var racers = Racers.Select(r => new RacerStatus(
@@ -773,18 +745,32 @@ namespace Toko.Models
                     Status.ToString(),
                     phase,
                     CurrentRound,
-                    CurrentStep, // Add the missing CurrentStep argument
+                    CurrentStep,
                     _order.ElementAtOrDefault(_idx), // CurrentTurnPlayerId
                     _discardPending.ToList(), // DiscardPendingPlayerIds
                     racers,
                     map
                 );
-            }
-            finally
-            {
-                _gate.Release();
-            }
+            });
         }
         #endregion
+
+        private async Task<TResult> WithGateAsync<TResult>(Func<List<INotification>, TResult> body)
+        {
+            await _gate.WaitAsync();
+            var events = new List<INotification>();
+            TResult result;
+            try
+            {
+                result = body(events);
+            }
+            finally { _gate.Release(); }
+
+            foreach (var e in events)
+                await _mediator.Publish(e);
+
+            return result;
+        }
+
     }
 }
