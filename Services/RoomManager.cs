@@ -163,13 +163,13 @@ namespace Toko.Services
                 return await room.StartGameAsync(playerId);
         }
 
-        public async Task<bool> EndRoom(string roomId)
+        public async Task<bool> EndRoom(string roomId, GameEndReason reason)
         {
             var room = GetRoomInternal(roomId);
             if (room is null) return false;
 
             // Await the asynchronous call to ensure proper execution order
-            await room.EndGameAsync();
+            await room.EndGameAsync(reason);
             return true;
         }
 

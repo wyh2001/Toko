@@ -121,14 +121,71 @@ namespace Toko.Models
             finally { _gate.Release(); }
         }
 
-        public enum GameEndReason { RoundsCompleted, NoActivePlayers, HostAborted }
-        public record GameResult(string PlayerId, int Rank, int Score);
+        public enum GameEndReason
+        {
+            FinisherCrossedLine,
+            NoActivePlayersLeft,
+        }
+        public record PlayerResult(string PlayerId, int Rank, int Score);
+        //public record GameEndState(GameEndReason Reason, IReadOnlyList<PlayerResult> Results);
+        //public record GameContinueState();
+        //public interface IGameEndPolicy
+        //{
+        //    OneOf<GameContinueState,GameEndState> Evaluate(Room room);
+        //}
         //public record RoomEnded(string RoomId, GameEndReason Reason, List<GameResult> Results);
 
-        public async Task EndGameAsync(GameEndReason reason, List<GameResult> results)
+        // Collects and returns the game results, ranking players by progress and assigning scores (total cells passed)
+        private List<PlayerResult> CollectGameResults()
+        {
+            // Calculate total cells in the map (all segments, all cells in a lane)
+            int totalSegments = Map.Segments.Count;
+            int cellsPerSegment = Map.Segments[0].LaneCells[0].Count;
+            int totalCells = totalSegments * cellsPerSegment;
+
+            // Compute progress for each player: total cells passed
+            var progressList = Racers.Select(r => new
+            {
+                Racer = r,
+                // Total cells passed (segmentIndex * cellsPerSegment + cellIndex + 1)
+                Score = r.SegmentIndex * cellsPerSegment + r.CellIndex + 1
+            }).ToList();
+
+            // Sort by score descending
+            var ranked = progressList
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+            var results = new List<PlayerResult>();
+            int rank = 0;
+            int prevScore = -1;
+            int sameRankCount = 0;
+            foreach (var entry in ranked)
+            {
+                // If score is same as previous, use same rank
+                if (entry.Score == prevScore)
+                {
+                    sameRankCount++;
+                }
+                else
+                {
+                    rank += sameRankCount + 1;
+                    sameRankCount = 0;
+                }
+                prevScore = entry.Score;
+                results.Add(new PlayerResult(entry.Racer.Id, rank, entry.Score));
+            }
+            return results;
+        }
+
+        public async Task EndGameAsync(GameEndReason reason)
         {
             await _gate.WaitAsync();
-            try { _gameSM.Fire(GameTrigger.GameOver); await _mediator.Publish(new RoomEnded(Id, reason, results)); }
+            try { 
+                _gameSM.Fire(GameTrigger.GameOver);
+                List<PlayerResult> results = CollectGameResults();
+                await _mediator.Publish(new RoomEnded(Id, reason, results)); 
+            }
             finally { _gate.Release(); }
         }
 
@@ -251,33 +308,33 @@ namespace Toko.Models
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParamAsync(string pid, ExecParameter p)
         {
             await _gate.WaitAsync();
-            try { return SubmitExecutionParam(pid, p); }
+            try 
+            {
+                if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
+                if (_phaseSM.State != Phase.CollectingParams)
+                    return SubmitExecutionParamError.WrongPhase;
+                if (pid != _order[_idx]) return SubmitExecutionParamError.NotYourTurn;
+
+                var racer = Racers.First(r => r.Id == pid);
+                if (!_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId))
+                    return SubmitExecutionParamError.CardNotFound;
+
+                var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
+                if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
+
+                UpdateBank(pid);
+
+                var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
+                var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this);
+                if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
+                {
+                    await EndGameAsync(GameEndReason.FinisherCrossedLine);
+                }
+                await _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
+                MoveNextPlayer();
+                return new SubmitExecutionParamSuccess(this.Id, pid, ins); ; 
+            }
             finally { _gate.Release(); }
-        }
-
-        private OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>
-            SubmitExecutionParam(string pid, ExecParameter p)
-        {
-            if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
-            if (_phaseSM.State != Phase.CollectingParams)
-                return SubmitExecutionParamError.WrongPhase;
-            if (pid != _order[_idx]) return SubmitExecutionParamError.NotYourTurn;
-
-            var racer = Racers.First(r => r.Id == pid);
-            if (!_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId))
-                return SubmitExecutionParamError.CardNotFound;
-
-            var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
-            if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
-
-            UpdateBank(pid);
-
-            var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
-            _turnExecutor.ApplyInstruction(racer, ins, this);
-            _mediator.Publish(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
-
-            MoveNextPlayer();
-            return new SubmitExecutionParamSuccess(this.Id, pid, ins);
         }
         #endregion
 

@@ -12,7 +12,14 @@ namespace Toko.Services
         private readonly ILogger<TurnExecutor> _log = log;
         private const int MAX_INTERACTION_DEPTH = 5;
 
-        public void ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
+        public enum TurnExecutionResult
+        {
+            Continue,
+            PlayerFinished,
+            InvalidState
+        }
+
+        public TurnExecutionResult ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
         {
             // 先执行动作
             switch (ins.Type)
@@ -20,32 +27,31 @@ namespace Toko.Services
                 case CardType.Move:
                     if (ins.ExecParameter.Effect <= 0 || ins.ExecParameter.Effect > 2)
                     {
-                        return; //or throw?
+                        return TurnExecutionResult.InvalidState;
                     }
-                    MoveForward(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
-                    break;
+                    return MoveForward(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
                 case CardType.ChangeLane:
                     if (ins.ExecParameter.Effect != -1 && ins.ExecParameter.Effect != 1)
                     {
-                        return; //or throw?
+                        return TurnExecutionResult.InvalidState;
                     }
                     ChangeLane(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
-                    break;
+                    return TurnExecutionResult.Continue;
                 case CardType.Repair:
                     Repair(racer, ins.ExecParameter.DiscardedCardIds);
-                    break;
+                    return TurnExecutionResult.Continue;
                 default:
                     // Junk 不会在此提交
-                    break;
+                    return TurnExecutionResult.Continue;
             }
         }
 
-        private void MoveForward(Racer racer, int steps, Room room, int depth)
+        private TurnExecutionResult MoveForward(Racer racer, int steps, Room room, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
                 _log.LogWarning($"MoveForward for racer {racer.Id} reached max interaction depth of {MAX_INTERACTION_DEPTH}. Halting further movement in this step to prevent potential loop.");
-                return;
+                return TurnExecutionResult.Continue;
             }
 
             for (int i = 0; i < steps; i++)
@@ -57,7 +63,7 @@ namespace Toko.Services
                     // 如果是最后一段，则结束比赛
                     if (racer.SegmentIndex + 1 >= _map.Segments.Count)
                     {
-                        return;
+                        return TurnExecutionResult.PlayerFinished;
                     }
                     // 下一段
                     racer.LaneIndex /= (seg.LaneCount / _map.Segments[racer.SegmentIndex + 1].LaneCount);
@@ -86,10 +92,12 @@ namespace Toko.Services
                     {
                         AddJunk(other, 1);
                         // 被撞者前进一格
-                        MoveForward(other, 1, room, depth + 1); // Increment depth
+                        return MoveForward(other, 1, room, depth + 1); // Increment depth
                     }
                 }
             }
+
+            return TurnExecutionResult.Continue;
         }
 
         private void ChangeLane(Racer racer, int delta, Room room, int depth)
