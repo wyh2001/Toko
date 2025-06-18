@@ -2,10 +2,5 @@
 
 namespace Toko.Models.Events
 {
-    public class RoomEnded(string roomId, GameEndReason reason, List<PlayerResult> results) : IRoomEvent
-    {
-        public string RoomId { get; } = roomId;
-        public GameEndReason Reason { get; } = reason;
-        public List<PlayerResult> Results { get; } = results;
-    }
+    public record RoomEnded(string RoomId, GameEndReason Reason, List<PlayerResult> Results) : IRoomEvent;
 }

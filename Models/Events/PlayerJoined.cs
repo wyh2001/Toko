@@ -2,10 +2,5 @@ using MediatR;
 
 namespace Toko.Models.Events
 {
-    public class PlayerJoined(string roomId, string playerId, string playerName) : IRoomEvent
-    {
-        public string RoomId { get; } = roomId;
-        public string PlayerId { get; } = playerId;
-        public string PlayerName { get; } = playerName;
-    }
+    public record PlayerJoined(string RoomId, string PlayerId, string PlayerName) : IRoomEvent;
 }

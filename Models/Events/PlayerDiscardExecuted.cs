@@ -1,11 +1,4 @@
 namespace Toko.Models.Events
 {
-    public class PlayerDiscardExecuted(string roomId, int round, int step, string playerId, List<string> discardedCardIds) : IRoomEvent
-    {
-        public string RoomId { get; } = roomId;
-        public int Round { get; } = round;
-        public int Step { get; } = step;
-        public string PlayerId { get; } = playerId;
-        public List<string> DiscardedCardIds { get; } = discardedCardIds;
-    }
+    public record PlayerDiscardExecuted(string RoomId, int Round, int Step, string PlayerId, List<string> DiscardedCardIds) : IRoomEvent;
 }
