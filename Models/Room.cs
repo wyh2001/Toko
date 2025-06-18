@@ -541,6 +541,7 @@ namespace Toko.Models
                 while (await _ticker.WaitForNextTickAsync(ct).ConfigureAwait(false))
                 {
                     await _gate.WaitAsync(ct).ConfigureAwait(false);
+                    var events = new List<INotification>();
                     try
                     {
                         if (Status != RoomStatus.Playing) continue;
@@ -557,10 +558,8 @@ namespace Toko.Models
                                 {
                                     _discardPending.Remove(pid);
                                     _thinkStart[pid] = DateTime.UtcNow; // reset think start
-                                    await _mediator.Publish(
-                                        new PlayerDiscardExecuted(
-                                            Id, CurrentRound, CurrentStep, pid, new List<string>()), ct);
-                                    await _mediator.Publish(new PlayerBankUpdated(Id, pid, _bank[pid]), ct);
+                                    events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, new List<string>()));
+                                    events.Add(new PlayerBankUpdated(Id, pid, _bank[pid]));
 
                                     // if no more players pending discard, then move to next phase
                                     if (_discardPending.Count == 0)
@@ -568,8 +567,7 @@ namespace Toko.Models
                                 }
                                 else if (IsTimeOut(pid))
                                 {
-                                    await _mediator.Publish(
-                                        new PlayerTimeoutElapsed(Id, pid), ct);
+                                    events.Add(new PlayerTimeoutElapsed(Id, pid));
                                 }
                             }
 
@@ -580,14 +578,17 @@ namespace Toko.Models
                         var pidTurn = _order[_idx]; // current turn player's id
                         if (IsTimeOut(pidTurn))
                         {
-                            await _mediator.Publish(
-                                new PlayerTimeoutElapsed(Id, pidTurn), ct);
-                            await _mediator.Publish(new PlayerBankUpdated(Id, pidTurn, _bank[pidTurn]), ct);
+                            events.Add(new PlayerTimeoutElapsed(Id, pidTurn));
+                            events.Add(new PlayerBankUpdated(Id, pidTurn, _bank[pidTurn]));
 
                             _nextPrompt[pidTurn] = DateTime.MaxValue;
                         }
                     }
                     finally { _gate.Release(); }
+
+                    // Publish events outside the lock
+                    foreach (var e in events)
+                        await _mediator.Publish(e, ct);
                 }
             }
             catch (OperationCanceledException) { }
