@@ -137,6 +137,21 @@ namespace Toko.Controllers
             ));
         }
 
+        [AllowAnonymous]
+        [HttpGet("waiting-count")]
+        [OutputCache(Duration = 5)]
+        public IActionResult GetWaitingRoomsCount()
+        {
+            var waitingCount = _roomManager.GetWaitingRoomsCount();
+            return Ok(new ApiSuccess<object>(
+                "Waiting rooms count retrieved successfully",
+                new
+                {
+                    count = waitingCount
+                }
+            ));
+        }
+
         [HttpPost("{roomId}/drawSkip")]
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> DrawSkipAsync(string roomId)

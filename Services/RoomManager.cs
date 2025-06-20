@@ -9,6 +9,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Toko.Models;
 using static Toko.Models.Room;
@@ -30,6 +31,12 @@ namespace Toko.Services
 
         private readonly IMemoryCache _cache = cache;
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(30);
+        private long _waitingRoomsCount = 0;
+
+        /// <summary>
+        /// Get the current count of waiting rooms
+        /// </summary>
+        public long GetWaitingRoomsCount() => Interlocked.Read(ref _waitingRoomsCount);
 
         /// <summary>
         /// 创建房间，并为房主生成一辆赛车
@@ -69,6 +76,9 @@ namespace Toko.Services
             room.Racers.Add(host);
             _rooms.TryAdd(roomId, room);
 
+            // Increment waiting rooms count when a new room is created
+            Interlocked.Increment(ref _waitingRoomsCount);
+
             // Here use MemoryCache to cache the room object
             _cache.Set(room.Id, room, new MemoryCacheEntryOptions
             {
@@ -76,18 +86,17 @@ namespace Toko.Services
             }
             .RegisterPostEvictionCallback(async (key, value, reason, state) =>
             {
-                if (value is Room rm) await rm.DisposeAsync();
+                if (value is Room rm) 
+                {
+                    // If the room being evicted is in Waiting status, decrement the counter
+                    if (rm.Status == RoomStatus.Waiting)
+                    {
+                        Interlocked.Decrement(ref _waitingRoomsCount);
+                    }
+                    await rm.DisposeAsync();
+                }
             }));
-            //.RegisterPostEvictionCallback((key, value, reason, state) =>
-            //{
-            //    if (reason == EvictionReason.Expired || reason == EvictionReason.TokenExpired)
-            //    {
-            //        var rm = value as Room;
-            //        rm?.Dispose();
-            //        _rooms.TryRemove(key.ToString()!, out _);
-            //    }
-            //}));
-            //_activeRooms[room.Id] = 0;
+            
             _log.LogInformation("Room {RoomId} created", room.Id);
             return (roomId, host);
         }
@@ -160,7 +169,15 @@ namespace Toko.Services
             if (!_rooms.TryGetValue(roomId, out var room))
                 return StartRoomError.RoomNotFound;
 
-                return await room.StartGameAsync(playerId);
+            var result = await room.StartGameAsync(playerId);
+            
+            // If the room was successfully started, decrement the waiting rooms counter
+            if (result.IsT0)
+            {
+                Interlocked.Decrement(ref _waitingRoomsCount);
+            }
+            
+            return result;
         }
 
         public async Task<bool> EndRoom(string roomId, GameEndReason reason)
@@ -168,6 +185,12 @@ namespace Toko.Services
             var room = GetRoomInternal(roomId);
             if (room is null) return false;
 
+            // If the room was in Waiting status before ending, decrement the counter
+            if (room.Status == RoomStatus.Waiting)
+            {
+                Interlocked.Decrement(ref _waitingRoomsCount);
+            }
+            
             // Await the asynchronous call to ensure proper execution order
             await room.EndGameAsync(reason);
             return true;
