@@ -32,11 +32,17 @@ namespace Toko.Services
         private readonly IMemoryCache _cache = cache;
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(30);
         private long _waitingRoomsCount = 0;
+        private long _normallyCompletedRoomsCount = 0;
 
         /// <summary>
         /// Get the current count of waiting rooms
         /// </summary>
         public long GetWaitingRoomsCount() => Interlocked.Read(ref _waitingRoomsCount);
+
+        /// <summary>
+        /// Get the count of rooms that completed normally (player crossed the finish line)
+        /// </summary>
+        public long GetNormallyCompletedRoomsCount() => Interlocked.Read(ref _normallyCompletedRoomsCount);
 
         /// <summary>
         /// 创建房间，并为房主生成一辆赛车
@@ -185,13 +191,17 @@ namespace Toko.Services
             var room = GetRoomInternal(roomId);
             if (room is null) return false;
 
-            // If the room was in Waiting status before ending, decrement the counter
             if (room.Status == RoomStatus.Waiting)
             {
                 Interlocked.Decrement(ref _waitingRoomsCount);
             }
             
-            // Await the asynchronous call to ensure proper execution order
+            if (reason == GameEndReason.FinisherCrossedLine)
+            {
+                Interlocked.Increment(ref _normallyCompletedRoomsCount);
+                _log.LogInformation("Room {RoomId} completed normally with player crossing finish line", roomId);
+            }
+
             await room.EndGameAsync(reason);
             return true;
         }

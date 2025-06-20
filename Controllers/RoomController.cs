@@ -152,6 +152,21 @@ namespace Toko.Controllers
             ));
         }
 
+        [AllowAnonymous]
+        [HttpGet("completed-count")]
+        [OutputCache(Duration = 60)]
+        public IActionResult GetNormallyCompletedRoomsCount()
+        {
+            var completedCount = _roomManager.GetNormallyCompletedRoomsCount();
+            return Ok(new ApiSuccess<object>(
+                "Normally completed rooms count retrieved successfully",
+                new
+                {
+                    count = completedCount
+                }
+            ));
+        }
+
         [HttpPost("{roomId}/drawSkip")]
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> DrawSkipAsync(string roomId)
