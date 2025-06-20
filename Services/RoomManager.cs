@@ -92,7 +92,7 @@ namespace Toko.Services
             }
             .RegisterPostEvictionCallback(async (key, value, reason, state) =>
             {
-                if (value is Room rm) 
+                if (value is Room rm)
                 {
                     // If the room being evicted is in Waiting status, decrement the counter
                     if (rm.Status == RoomStatus.Waiting)
@@ -102,7 +102,7 @@ namespace Toko.Services
                     await rm.DisposeAsync();
                 }
             }));
-            
+
             _log.LogInformation("Room {RoomId} created", room.Id);
             return (roomId, host);
         }
@@ -145,9 +145,7 @@ namespace Toko.Services
         public enum DrawCardsError { RoomNotFound, PlayerNotFound }
 
         public record SubmitStepCardSuccess(string RoomId, string PlayerId, string CardId);
-        public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase,
-            PlayerBanned
-        }
+        public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase, PlayerBanned }
         public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCard(
             string roomId, string playerId, string cardId)
         {
@@ -176,13 +174,13 @@ namespace Toko.Services
                 return StartRoomError.RoomNotFound;
 
             var result = await room.StartGameAsync(playerId);
-            
+
             // If the room was successfully started, decrement the waiting rooms counter
             if (result.IsT0)
             {
                 Interlocked.Decrement(ref _waitingRoomsCount);
             }
-            
+
             return result;
         }
 
@@ -195,7 +193,7 @@ namespace Toko.Services
             {
                 Interlocked.Decrement(ref _waitingRoomsCount);
             }
-            
+
             if (reason == GameEndReason.FinisherCrossedLine)
             {
                 Interlocked.Increment(ref _normallyCompletedRoomsCount);
@@ -207,10 +205,7 @@ namespace Toko.Services
         }
 
         public record SubmitExecutionParamSuccess(string RoomId, string PlayerId, ConcreteInstruction Instruction);
-        public enum SubmitExecutionParamError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, InvalidExecParameter, WrongPhase,
-            PlayerBanned
-        }
-
+        public enum SubmitExecutionParamError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, InvalidExecParameter, WrongPhase, PlayerBanned }
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParam(
             string roomId, string playerId, ExecParameter execParameter)
         {
@@ -235,7 +230,6 @@ namespace Toko.Services
 
         public record LeaveRoomSuccess(string RoomId, string PlayerId);
         public enum LeaveRoomError { RoomNotFound, PlayerNotFound, AlreadyFinished, InternalError }
-        //internal bool LeaveRoom(string roomId, string playerId)
         public async Task<OneOf<LeaveRoomSuccess, LeaveRoomError>> LeaveRoom(string roomId, string playerId)
         {
             var room = GetRoomInternal(roomId);
@@ -298,7 +292,7 @@ namespace Toko.Services
             return await room.KickPlayerAsync(playerId, kickedPlayerId);
         }
 
-        public enum UpdateRoomSettingsError { RoomNotFound, NotHost, InternalError, WrongPhase, PlayerNotFound}
+        public enum UpdateRoomSettingsError { RoomNotFound, NotHost, InternalError, WrongPhase, PlayerNotFound }
         public record UpdateRoomSettingsSuccess(string RoomId, string PlayerId, RoomSettings Settings);
         //public record RoomSettings(string? Name, int MaxPlayers, bool IsPrivate, List<int> StepsPerRound, RaceMap Map);
         public record RoomSettings(string? Name, int? MaxPlayers, bool? IsPrivate, List<int>? StepsPerRound); // at this time, no map for simplicity
