@@ -585,8 +585,24 @@ namespace Toko.Models
             catch (Exception ex) { _log.LogError(ex, "pump crashed"); }
         }
 
-        bool IsKickEligible(string pid) => DateTime.UtcNow - _thinkStart[pid] >= KICK_ELIGIBLE;
-        bool IsTimeOut(string pid) => DateTime.UtcNow >= _nextPrompt[pid];
+        bool IsKickEligible(string pid)
+        {
+            if (_thinkStart.TryGetValue(pid, out var thinkStart))
+            {
+                return DateTime.UtcNow - thinkStart >= KICK_ELIGIBLE;
+            }
+            return false;
+        }
+
+        bool IsTimeOut(string pid)
+        {
+            if (_nextPrompt.TryGetValue(pid, out var nextPrompt))
+            {
+                return DateTime.UtcNow >= nextPrompt;
+            }
+            return false;
+        }
+
         bool IsAnyActivePlayer() => _order.Any(pid => !_banned.Contains(pid));
 
         void MoveNextPlayer(List<INotification> events)
