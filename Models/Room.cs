@@ -441,11 +441,13 @@ namespace Toko.Models
                 await _mediator.Publish(new RoomEnded(Id, GameEndReason.NoActivePlayersLeft, results));
                 return;
             }
+            var eventsToPublish = new List<INotification>();
             foreach (var r in Racers)
             {
                 DrawCards(r, AUTO_DRAW);
-                await _mediator.Publish(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, r.Id, r.Hand.Count));
+                eventsToPublish.Add(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, r.Id, r.Hand.Count));
             }
+            await PublishEventsAsync(eventsToPublish);
             _cardNow.Clear();
             _idx = 0;
             _stepInRound = 0;
@@ -464,12 +466,14 @@ namespace Toko.Models
             _discardPending = _order.Where(id => !_banned.Contains(id))
                                      .ToHashSet();
 
+            var eventsToPublish = new List<INotification>();
             foreach (var pid in _discardPending)
             {
                 _thinkStart[pid] = DateTime.UtcNow;
-                await _mediator.Publish(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
+                eventsToPublish.Add(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
                 ResetPrompt(pid);
             }
+            await PublishEventsAsync(eventsToPublish);
         }
         #endregion
 
@@ -576,8 +580,8 @@ namespace Toko.Models
                     finally { _gate.Release(); }
 
                     // Publish events outside the lock
-                    foreach (var e in events)
-                        await _mediator.Publish(e, ct);
+                    if (events.Any())
+                        await PublishEventsAsync(events, ct);
                 }
             }
             catch (OperationCanceledException) { }
@@ -758,6 +762,24 @@ namespace Toko.Models
         }
         #endregion
 
+        private Task PublishEventsAsync(IEnumerable<INotification> events, CancellationToken ct = default)
+        {
+            var cancellationToken = ct == default ? _cts.Token : ct;
+            var tasks = events.Select(e =>
+            {
+                try
+                {
+                    return _mediator.Publish(e, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Error publishing event {EventType}", e.GetType().Name);
+                    return Task.CompletedTask;
+                }
+            });
+            return Task.WhenAll(tasks);
+        }
+
         private async Task<TResult> WithGateAsync<TResult>(Func<List<INotification>, TResult> body)
         {
             await _gate.WaitAsync(_cts.Token);
@@ -769,8 +791,8 @@ namespace Toko.Models
             }
             finally { _gate.Release(); }
 
-            foreach (var e in events)
-                await _mediator.Publish(e);
+            if (events.Any())
+                await PublishEventsAsync(events);
 
             return result;
         }
