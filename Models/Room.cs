@@ -78,6 +78,7 @@ namespace Toko.Models
 
         public Room(IMediator mediator, IEnumerable<int> stepsPerRound, ILogger<Room> log, ILoggerFactory loggerFactory)
         {
+            _log = log ?? throw new ArgumentNullException(nameof(log));
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
             _steps = stepsPerRound?.Any() == true ? stepsPerRound.ToList() : new() { 5 };
             _gameSM = new(RoomStatus.Waiting);
@@ -87,7 +88,6 @@ namespace Toko.Models
             _turnExecutor = new TurnExecutor(Map, turnExecutorLogger);
             ConfigureFSM();
             _pumpTask = Task.Run(() => PromptPumpAsync(_cts.Token));
-            _log = log ?? throw new ArgumentNullException(nameof(log));
         }
 
         #region Game Control
