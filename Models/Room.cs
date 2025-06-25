@@ -130,17 +130,14 @@ namespace Toko.Models
         // Collects and returns the game results, ranking players by progress and assigning scores (total cells passed)
         private List<PlayerResult> CollectGameResults()
         {
-            // Calculate total cells in the map (all segments, all cells in a lane)
-            int totalSegments = Map.Segments.Count;
-            int cellsPerSegment = Map.Segments[0].LaneCells[0].Count;
-            int totalCells = totalSegments * cellsPerSegment;
+            var segmentLengths = Map.SegmentLengths;
 
             // Compute progress for each player: total cells passed
             var progressList = Racers.Select(r => new
             {
                 Racer = r,
-                // Total cells passed (segmentIndex * cellsPerSegment + cellIndex + 1)
-                Score = r.SegmentIndex * cellsPerSegment + r.CellIndex + 1
+                // Total cells passed (sum of lengths of previous segments + current cell index + 1)
+                Score = segmentLengths.Take(r.SegmentIndex).Sum() + r.CellIndex + 1
             }).ToList();
 
             // Sort by score descending
