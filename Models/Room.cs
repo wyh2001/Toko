@@ -614,8 +614,9 @@ namespace Toko.Models
                 _idx = 0;
                 if (++_stepInRound >= _steps[CurrentRound])
                 {
-                    events.Add(new StepAdvanced(Id, CurrentRound, _stepInRound));
                     var trigger = _phaseSM.State == Phase.CollectingCards ? PhaseTrigger.CardsReady : PhaseTrigger.ParamsDone;
+                    var nextPhase = _phaseSM.State == Phase.CollectingCards ? "CollectingParams" : "Discarding";
+                    events.Add(new StepAdvanced(Id, CurrentRound, _stepInRound, nextPhase));
                     var oldState = _phaseSM.State;
                     _phaseSM.Fire(trigger);
                     var newState = _phaseSM.State;
