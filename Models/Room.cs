@@ -447,7 +447,20 @@ namespace Toko.Models
             {
                 _log.LogInformation("No active players left in room {RoomId}. Ending game.", Id);
                 //_gameSM.Fire(GameTrigger.GameOver);
+
+                // Fire and forget
                 EndGame(GameEndReason.NoActivePlayersLeft);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _mediator.Publish(new RoomEnded(Id, GameEndReason.NoActivePlayersLeft, CollectGameResults()));
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogError(ex, "Error publishing RoomEnded event for Room {RoomId}", Id);
+                    }
+                });
                 return;
             }
             foreach (var r in Racers) DrawCards(r, AUTO_DRAW);
