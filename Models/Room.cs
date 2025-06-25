@@ -760,7 +760,7 @@ namespace Toko.Models
 
         private async Task<TResult> WithGateAsync<TResult>(Func<List<INotification>, TResult> body)
         {
-            await _gate.WaitAsync();
+            await _gate.WaitAsync(_cts.Token);
             var events = new List<INotification>();
             TResult result;
             try
