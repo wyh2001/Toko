@@ -741,7 +741,7 @@ namespace Toko.Models
                     {
                         Type = seg.Type.ToString(),
                         LaneCount = seg.LaneCount,
-                        LaneCells = seg.LaneCells.Select(lane => lane.Select(pt => new { pt.X, pt.Y }).ToList()).ToList()
+                        LaneCellCounts = seg.LaneCells.Select(lane => lane.Count).ToList()
                     }).ToList()
                 };
                 return new RoomStatusSnapshot(
