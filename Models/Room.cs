@@ -123,15 +123,9 @@ namespace Toko.Models
         {
             FinisherCrossedLine,
             NoActivePlayersLeft,
+            TurnLimitReached,
         }
         public record PlayerResult(string PlayerId, int Rank, int Score);
-        //public record GameEndState(GameEndReason Reason, IReadOnlyList<PlayerResult> Results);
-        //public record GameContinueState();
-        //public interface IGameEndPolicy
-        //{
-        //    OneOf<GameContinueState,GameEndState> Evaluate(Room room);
-        //}
-        //public record RoomEnded(string RoomId, GameEndReason Reason, List<GameResult> Results);
 
         // Collects and returns the game results, ranking players by progress and assigning scores (total cells passed)
         private List<PlayerResult> CollectGameResults()
@@ -191,7 +185,6 @@ namespace Toko.Models
             _gameSM.Fire(GameTrigger.GameOver);
             List<PlayerResult> results = CollectGameResults();
             return results;
-            
         }
 
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerId, string playerName)
@@ -283,13 +276,13 @@ namespace Toko.Models
                 var cardObj = racer.Hand.FirstOrDefault(c => c.Id == cardId);
                 if (cardObj is null) return SubmitStepCardError.CardNotFound;
 
-                UpdateBank(pid);
+                UpdateBank(pid, events);
                 racer.Hand.Remove(cardObj);
                 racer.DiscardPile.Add(cardObj);
 
                 _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
                 events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
-                MoveNextPlayer();
+                MoveNextPlayer(events);
                 return new SubmitStepCardSuccess(this.Id, pid, cardId);
             });
         }
@@ -298,7 +291,7 @@ namespace Toko.Models
         #region Collecting Parameters
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParamAsync(string pid, ExecParameter p)
         {
-            return await WithGateAsync<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>>(events => 
+            return await WithGateAsync<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>>(events =>
             {
                 if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
                 if (_phaseSM.State != Phase.CollectingParams)
@@ -312,20 +305,18 @@ namespace Toko.Models
                 var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
                 if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
 
-                UpdateBank(pid);
+                UpdateBank(pid, events);
 
                 var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
                 var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this);
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
-                    // Because EndGameAsync uses WithGateAsync internally, we can't call it directly from here
-                    // as it would cause a deadlock. Instead, we'll add a flag or event to handle this later.
                     events.Add(new PlayerFinished(Id, pid));
                     events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 events.Add(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
-                MoveNextPlayer();
+                MoveNextPlayer(events);
                 return new SubmitExecutionParamSuccess(this.Id, pid, ins);
             });
         }
@@ -351,7 +342,7 @@ namespace Toko.Models
                 events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
 
                 _discardPending.Remove(pid);
-                UpdateBank(pid);
+                UpdateBank(pid, events);
                 ResetPrompt(pid);
 
                 if (_discardPending.Count == 0)
@@ -420,10 +411,9 @@ namespace Toko.Models
                    .Permit(GameTrigger.GameOver, RoomStatus.Finished);
 
             _gameSM.Configure(RoomStatus.Finished);
-                   //.OnEntry(() => _cts?.Cancel());
 
             _phaseSM.Configure(Phase.CollectingCards)
-                    .OnEntry(StartCardCollection)
+                    .OnEntryAsync(StartCardCollectionAsync)
                     .Permit(PhaseTrigger.CardsReady, Phase.CollectingParams);
 
             _phaseSM.Configure(Phase.CollectingParams)
@@ -431,53 +421,44 @@ namespace Toko.Models
                     .Permit(PhaseTrigger.ParamsDone, Phase.Discarding);
 
             _phaseSM.Configure(Phase.Discarding)
-                    .OnEntry(StartDiscardPhase)
+                    .OnEntryAsync(StartDiscardPhaseAsync)
                     .Permit(PhaseTrigger.DiscardDone, Phase.CollectingCards);
 
-            _phaseSM.OnTransitioned(t =>
+            _phaseSM.OnTransitionedAsync(async t =>
             {
-                _mediator.Publish(new PhaseChanged(Id, t.Destination, CurrentRound, CurrentStep));
+                await _mediator.Publish(new PhaseChanged(Id, t.Destination, CurrentRound, CurrentStep));
                 if (t.Trigger == PhaseTrigger.DiscardDone)
-                    NextStep();
+                    await NextStepAsync();
             });
         }
-        void StartCardCollection()
+
+        async Task StartCardCollectionAsync()
         {
             if (!IsAnyActivePlayer() && Status == RoomStatus.Playing)
             {
                 _log.LogInformation("No active players left in room {RoomId}. Ending game.", Id);
-                //_gameSM.Fire(GameTrigger.GameOver);
-
-                // Fire and forget
-                EndGame(GameEndReason.NoActivePlayersLeft);
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await _mediator.Publish(new RoomEnded(Id, GameEndReason.NoActivePlayersLeft, CollectGameResults()));
-                    }
-                    catch (Exception ex)
-                    {
-                        _log.LogError(ex, "Error publishing RoomEnded event for Room {RoomId}", Id);
-                    }
-                });
+                var results = EndGame(GameEndReason.NoActivePlayersLeft);
+                await _mediator.Publish(new RoomEnded(Id, GameEndReason.NoActivePlayersLeft, results));
                 return;
             }
-            foreach (var r in Racers) DrawCards(r, AUTO_DRAW);
+            foreach (var r in Racers)
+            {
+                DrawCards(r, AUTO_DRAW);
+                await _mediator.Publish(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, r.Id, r.Hand.Count));
+            }
             _cardNow.Clear();
             _idx = 0;
             _stepInRound = 0;
-            PromptCard(_order[0]);
+            await _mediator.Publish(PromptCard(_order[0]));
         }
 
         void StartParamCollection()
         {
             _idx = 0;
             _stepInRound = 0;
-            PromptParam(_order[0]);
         }
 
-        void StartDiscardPhase()
+        async Task StartDiscardPhaseAsync()
         {
             _idx = 0;
             _discardPending = _order.Where(id => !_banned.Contains(id))
@@ -486,37 +467,33 @@ namespace Toko.Models
             foreach (var pid in _discardPending)
             {
                 _thinkStart[pid] = DateTime.UtcNow;
-                _mediator.Publish(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
+                await _mediator.Publish(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
                 ResetPrompt(pid);
             }
-            //RescheduleTimerAsync();
         }
         #endregion
 
         #region Helper Methods for Prompting Players
-        void PromptCard(string pid)
+        PlayerCardSubmissionStarted PromptCard(string pid)
         {
             _thinkStart[pid] = DateTime.UtcNow;
-            //RescheduleTimerAsync();
             ResetPrompt(pid);
-            _mediator.Publish(new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
+            return new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid);
         }
 
-        void PromptParam(string pid)
+        void PromptParam(string pid, List<INotification> events)
         {
             //check if draw to skip
             if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId) && cardId == SKIP)
             {
-                _mediator.Publish(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
-                MoveNextPlayer();
+                events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
+                MoveNextPlayer(events);
                 return;
             }
             _thinkStart[pid] = DateTime.UtcNow;
-            //RescheduleTimerAsync();
             ResetPrompt(pid);
-            _mediator.Publish(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
+            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
         }
-
         #endregion
 
         #region Other Helper Methods
@@ -528,13 +505,12 @@ namespace Toko.Models
             _ => false
         };
 
-        void UpdateBank(string pid)
+        void UpdateBank(string pid, List<INotification> events)
         {
             var elapsed = DateTime.UtcNow - _thinkStart[pid];
             _bank[pid] -= elapsed;
             _bank[pid] += BANK_INCREMENT;
-            //if (_bank[pid] < TimeSpan.Zero) _bank[pid] = TimeSpan.Zero;
-            _mediator.Publish(new PlayerBankUpdated(Id, pid, _bank[pid]));
+            events.Add(new PlayerBankUpdated(Id, pid, _bank[pid]));
 
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
@@ -608,12 +584,11 @@ namespace Toko.Models
             catch (Exception ex) { _log.LogError(ex, "pump crashed"); }
         }
 
-
         bool IsKickEligible(string pid) => DateTime.UtcNow - _thinkStart[pid] >= KICK_ELIGIBLE;
         bool IsTimeOut(string pid) => DateTime.UtcNow >= _nextPrompt[pid];
         bool IsAnyActivePlayer() => _order.Any(pid => !_banned.Contains(pid));
 
-        void MoveNextPlayer()
+        void MoveNextPlayer(List<INotification> events)
         {
             do { _idx++; } while (_idx < _order.Count && _banned.Contains(_order[_idx]));
 
@@ -622,28 +597,43 @@ namespace Toko.Models
                 _idx = 0;
                 if (++_stepInRound >= _steps[CurrentRound])
                 {
-                    _mediator.Publish(new StepAdvanced(Id, CurrentRound, _stepInRound));
+                    events.Add(new StepAdvanced(Id, CurrentRound, _stepInRound));
                     var trigger = _phaseSM.State == Phase.CollectingCards ? PhaseTrigger.CardsReady : PhaseTrigger.ParamsDone;
+                    var oldState = _phaseSM.State;
                     _phaseSM.Fire(trigger);
+                    var newState = _phaseSM.State;
+                    if (oldState == Phase.CollectingCards && newState == Phase.CollectingParams)
+                    {
+                        PromptParam(_order[0], events);
+                    }
                     return;
                 }
-                _mediator.Publish(new StepAdvanced(Id, CurrentRound, _stepInRound));
+                events.Add(new StepAdvanced(Id, CurrentRound, _stepInRound));
             }
 
-
-            if (_phaseSM.State == Phase.CollectingCards) PromptCard(_order[_idx]);
-            else if (_phaseSM.State == Phase.CollectingParams) PromptParam(_order[_idx]);
-            
+            if (_phaseSM.State == Phase.CollectingCards) events.Add(PromptCard(_order[_idx]));
+            else if (_phaseSM.State == Phase.CollectingParams) PromptParam(_order[_idx], events);
         }
 
-        void NextStep()
+        async Task NextStepAsync(CancellationToken ct = default)
         {
             _stepInRound = 0;
             if (++CurrentRound >= _steps.Count)
-                _gameSM.Fire(GameTrigger.GameOver);
+            {
+                var results = EndGame(GameEndReason.TurnLimitReached);
+                try
+                {
+                    await _mediator.Publish(new RoomEnded(Id, GameEndReason.TurnLimitReached, results), ct);
+                }
+                catch (Exception ex)
+                {
+                    _log.LogError(ex, "Error publishing RoomEnded event for Room {RoomId}", Id);
+                }
+            }
             else
-                _mediator.Publish(new RoundAdvanced(Id, CurrentRound));
-
+            {
+                await _mediator.Publish(new RoundAdvanced(Id, CurrentRound), ct);
+            }
         }
 
         public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkipAsync(string pid)
@@ -657,11 +647,11 @@ namespace Toko.Models
 
                 var racer = Racers.FirstOrDefault(r => r.Id == pid)
                        ?? throw new InvalidOperationException();
-                UpdateBank(pid);
+                UpdateBank(pid, events);
                 var result = DrawCards(racer, DRAW_ON_SKIP);
                 events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
                 _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
-                MoveNextPlayer();
+                MoveNextPlayer(events);
                 return new DrawSkipSuccess(this.Id, pid, result);
             });
         }
@@ -671,7 +661,6 @@ namespace Toko.Models
             int space = racer.HandCapacity - racer.Hand.Count;
             int toDraw = Math.Min(requestedCount, Math.Max(0, space));
             var drawn = DrawCardsInternal(racer, toDraw);
-            _mediator.Publish(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, racer.Id, racer.Hand.Count));
             return drawn;
         }
 
@@ -785,6 +774,5 @@ namespace Toko.Models
 
             return result;
         }
-
     }
 }
