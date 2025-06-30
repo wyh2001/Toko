@@ -65,11 +65,20 @@ namespace Toko.Services
                     {
                         return TurnExecutionResult.PlayerFinished;
                     }
-                    // 下一段
-                    racer.LaneIndex /= (seg.LaneCount / _map.Segments[racer.SegmentIndex + 1].LaneCount);
+                    // Next segment
+                    var nextSeg = _map.Segments[racer.SegmentIndex + 1];
+                    int fromLanes    = seg.LaneCount;
+                    int toLanes      = nextSeg.LaneCount;
+
+
+                    float relPos     = (racer.LaneIndex + 0.5f) / fromLanes;
+                    racer.LaneIndex  = (int)Math.Floor(relPos * toLanes);
+
+                    // Ensure LaneIndex is within bounds
+                    racer.LaneIndex  = Math.Clamp(racer.LaneIndex, 0, toLanes - 1);
+                    
                     racer.SegmentIndex++;
                     racer.CellIndex = 0;
-                    //racer.CellIndex++;
                 }
                 else
                 {
