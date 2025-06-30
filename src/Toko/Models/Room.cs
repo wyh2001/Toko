@@ -300,6 +300,18 @@ namespace Toko.Models
                     return SubmitExecutionParamError.CardNotFound;
 
                 var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
+                
+                // Special case: Repair card with no discarded cards is treated as auto-skip
+                if (card.Type == CardType.Repair && p.DiscardedCardIds.Count == 0)
+                {
+                    UpdateBank(pid, events);
+                    events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
+                    await MoveNextPlayerAsync(events);
+                    // Return success with a no-op instruction
+                    var skipInstruction = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
+                    return new SubmitExecutionParamSuccess(this.Id, pid, skipInstruction);
+                }
+                
                 if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
 
                 UpdateBank(pid, events);
@@ -330,10 +342,14 @@ namespace Toko.Models
                 if (!_discardPending.Contains(pid)) return DiscardCardsError.NotYourTurn;
 
                 var racer = Racers.First(r => r.Id == pid);
-                if (cardIds.Any(cid =>
-                     racer.Hand.All(c => c.Id != cid) ||
-                     racer.Hand.First(c => c.Id == cid).Type == CardType.Junk))
+                
+                // If cardIds is empty, allow it (player chooses not to discard)
+                if (cardIds.Count > 0)
+                {
+                    // Check if all cards exist in hand (but allow any card type to be discarded)
+                    if (cardIds.Any(cid => racer.Hand.All(c => c.Id != cid)))
                     return DiscardCardsError.CardNotFound;
+                }
 
                 _turnExecutor.DiscardCards(racer, cardIds);
                 events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
