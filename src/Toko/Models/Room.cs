@@ -261,7 +261,7 @@ namespace Toko.Models
         #region Collecting Cards
         public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCardAsync(string pid, string cardId)
         {
-            return await WithGateAsync<OneOf<SubmitStepCardSuccess, SubmitStepCardError>>(events =>
+            return await WithGateAsync<OneOf<SubmitStepCardSuccess, SubmitStepCardError>>(async events =>
             {
                 if (_banned.Contains(pid)) return SubmitStepCardError.PlayerBanned;
                 if (_phaseSM.State != Phase.CollectingCards)
@@ -279,7 +279,7 @@ namespace Toko.Models
 
                 _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
                 events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
-                MoveNextPlayer(events);
+                await MoveNextPlayerAsync(events);
                 return new SubmitStepCardSuccess(this.Id, pid, cardId);
             });
         }
@@ -288,7 +288,7 @@ namespace Toko.Models
         #region Collecting Parameters
         public async Task<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>> SubmitExecutionParamAsync(string pid, ExecParameter p)
         {
-            return await WithGateAsync<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>>(events =>
+            return await WithGateAsync<OneOf<SubmitExecutionParamSuccess, SubmitExecutionParamError>>(async events =>
             {
                 if (_banned.Contains(pid)) return SubmitExecutionParamError.PlayerBanned;
                 if (_phaseSM.State != Phase.CollectingParams)
@@ -313,7 +313,7 @@ namespace Toko.Models
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 events.Add(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
-                MoveNextPlayer(events);
+                await MoveNextPlayerAsync(events);
                 return new SubmitExecutionParamSuccess(this.Id, pid, ins);
             });
         }
@@ -482,13 +482,13 @@ namespace Toko.Models
             return new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid);
         }
 
-        void PromptParam(string pid, List<INotification> events)
+        async Task PromptParamAsync(string pid, List<INotification> events)
         {
             //check if draw to skip
             if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId) && cardId == SKIP)
             {
                 events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
-                MoveNextPlayer(events);
+                await MoveNextPlayerAsync(events);
                 return;
             }
             _thinkStart[pid] = DateTime.UtcNow;
@@ -605,7 +605,7 @@ namespace Toko.Models
 
         bool IsAnyActivePlayer() => _order.Any(pid => !_banned.Contains(pid));
 
-        void MoveNextPlayer(List<INotification> events)
+        async Task MoveNextPlayerAsync(List<INotification> events)
         {
             do { _idx++; } while (_idx < _order.Count && _banned.Contains(_order[_idx]));
 
@@ -618,11 +618,11 @@ namespace Toko.Models
                     var nextPhase = _phaseSM.State == Phase.CollectingCards ? "CollectingParams" : "Discarding";
                     events.Add(new StepAdvanced(Id, CurrentRound, _stepInRound, nextPhase));
                     var oldState = _phaseSM.State;
-                    _phaseSM.Fire(trigger);
+                    await _phaseSM.FireAsync(trigger);
                     var newState = _phaseSM.State;
                     if (oldState == Phase.CollectingCards && newState == Phase.CollectingParams)
                     {
-                        PromptParam(_order[0], events);
+                        await PromptParamAsync(_order[0], events);
                     }
                     return;
                 }
@@ -630,7 +630,7 @@ namespace Toko.Models
             }
 
             if (_phaseSM.State == Phase.CollectingCards) events.Add(PromptCard(_order[_idx]));
-            else if (_phaseSM.State == Phase.CollectingParams) PromptParam(_order[_idx], events);
+            else if (_phaseSM.State == Phase.CollectingParams) await PromptParamAsync(_order[_idx], events);
         }
 
         async Task NextStepAsync(CancellationToken ct = default)
@@ -656,7 +656,7 @@ namespace Toko.Models
 
         public async Task<OneOf<DrawSkipSuccess, DrawSkipError>> DrawSkipAsync(string pid)
         {
-            return await WithGateAsync<OneOf<DrawSkipSuccess, DrawSkipError>>(events =>
+            return await WithGateAsync<OneOf<DrawSkipSuccess, DrawSkipError>>(async events =>
             {
                 if (_banned.Contains(pid)) return DrawSkipError.PlayerBanned;
                 if (_phaseSM.State != Phase.CollectingCards)
@@ -669,7 +669,7 @@ namespace Toko.Models
                 var result = DrawCards(racer, DRAW_ON_SKIP);
                 events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
                 _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
-                MoveNextPlayer(events);
+                await MoveNextPlayerAsync(events);
                 return new DrawSkipSuccess(this.Id, pid, result);
             });
         }
@@ -802,6 +802,23 @@ namespace Toko.Models
             try
             {
                 result = body(events);
+            }
+            finally { _gate.Release(); }
+
+            if (events.Any())
+                await PublishEventsAsync(events);
+
+            return result;
+        }
+
+        private async Task<TResult> WithGateAsync<TResult>(Func<List<INotification>, Task<TResult>> body)
+        {
+            await _gate.WaitAsync(_cts.Token);
+            var events = new List<INotification>();
+            TResult result;
+            try
+            {
+                result = await body(events);
             }
             finally { _gate.Release(); }
 
