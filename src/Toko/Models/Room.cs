@@ -752,7 +752,7 @@ namespace Toko.Models
             List<RacerStatus> Racers,
             object Map
         );
-        public record RacerStatus(string Id, string Name, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
+        public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
 
         // Returns a snapshot of the current room status for API
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
@@ -763,6 +763,7 @@ namespace Toko.Models
                 var racers = Racers.Select(r => new RacerStatus(
                     r.Id,
                     r.PlayerName,
+                    r.SegmentIndex,
                     r.LaneIndex,
                     r.CellIndex,
                     _bank.TryGetValue(r.Id, out var bank) ? Math.Round(bank.TotalSeconds, 2) : 0.0,
