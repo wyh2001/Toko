@@ -336,7 +336,7 @@ namespace Toko.Models
         #region Discarding Cards
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> SubmitDiscardAsync(string pid, List<string> cardIds)
         {
-            return await WithGateAsync<OneOf<DiscardCardsSuccess, DiscardCardsError>>(events =>
+            return await WithGateAsync<OneOf<DiscardCardsSuccess, DiscardCardsError>>(async events =>
             {
                 if (_banned.Contains(pid)) return DiscardCardsError.PlayerBanned;
                 if (_phaseSM.State != Phase.Discarding)
@@ -361,7 +361,7 @@ namespace Toko.Models
                 ResetPrompt(pid);
 
                 if (_discardPending.Count == 0)
-                    _phaseSM.Fire(PhaseTrigger.DiscardDone);
+                    await _phaseSM.FireAsync(PhaseTrigger.DiscardDone);
 
                 return new DiscardCardsSuccess(this.Id, pid, cardIds);
             });
