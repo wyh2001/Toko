@@ -396,7 +396,7 @@ namespace Toko.Controllers
                         Cards = success.Hand.Select(c => new
                         {
                             c.Id,
-                            c.Type,
+                            Type = c.Type.ToString(),
                         }).ToList()
                     }
                 )),
