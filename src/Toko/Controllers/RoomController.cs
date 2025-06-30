@@ -255,6 +255,7 @@ namespace Toko.Controllers
                     SubmitStepCardError.CardNotFound => BadRequest("Invalid card ID."),
                     SubmitStepCardError.WrongPhase => BadRequest("Wrong phase."),
                     SubmitStepCardError.PlayerBanned => BadRequest("Player is banned."),
+                    SubmitStepCardError.InvalidCardType => BadRequest("Invalid card type submitted."),
                     _ => StatusCode(StatusCodes.Status500InternalServerError)
                 });
         }

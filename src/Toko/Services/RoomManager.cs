@@ -145,7 +145,7 @@ namespace Toko.Services
         public enum DrawCardsError { RoomNotFound, PlayerNotFound }
 
         public record SubmitStepCardSuccess(string RoomId, string PlayerId, string CardId);
-        public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase, PlayerBanned }
+        public enum SubmitStepCardError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, WrongPhase, PlayerBanned, InvalidCardType }
         public async Task<OneOf<SubmitStepCardSuccess, SubmitStepCardError>> SubmitStepCard(
             string roomId, string playerId, string cardId)
         {

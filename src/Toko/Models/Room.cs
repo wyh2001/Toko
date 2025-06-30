@@ -272,6 +272,8 @@ namespace Toko.Models
                        ?? throw new InvalidOperationException();
                 var cardObj = racer.Hand.FirstOrDefault(c => c.Id == cardId);
                 if (cardObj is null) return SubmitStepCardError.CardNotFound;
+                if (cardObj.Type == CardType.Junk)
+                    return SubmitStepCardError.InvalidCardType;
 
                 UpdateBank(pid, events);
                 racer.Hand.Remove(cardObj);
@@ -348,7 +350,7 @@ namespace Toko.Models
                 {
                     // Check if all cards exist in hand (but allow any card type to be discarded)
                     if (cardIds.Any(cid => racer.Hand.All(c => c.Id != cid)))
-                    return DiscardCardsError.CardNotFound;
+                        return DiscardCardsError.CardNotFound;
                 }
 
                 _turnExecutor.DiscardCards(racer, cardIds);
