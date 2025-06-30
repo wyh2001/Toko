@@ -491,9 +491,14 @@ namespace Toko.Models
                 await MoveNextPlayerAsync(events);
                 return;
             }
+            
+            // Get the card type for the submitted card
+            var racer = Racers.First(r => r.Id == pid);
+            var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
+            
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
-            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid));
+            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid, card.Type));
         }
         #endregion
 
@@ -726,6 +731,7 @@ namespace Toko.Models
             int CurrentRound,
             int CurrentStep,
             string? CurrentTurnPlayerId,
+            string? CurrentTurnCardType, // Add card type for parameter submission
             List<string> DiscardPendingPlayerIds,
             List<RacerStatus> Racers,
             object Map
@@ -758,6 +764,20 @@ namespace Toko.Models
                         LaneCellCounts = seg.LaneCells.Select(lane => lane.Count).ToList()
                     }).ToList()
                 };
+                
+                // Get current turn card type if in CollectingParams phase
+                string? currentTurnCardType = null;
+                var currentTurnPlayerId = _order.ElementAtOrDefault(_idx);
+                if (_phaseSM.State == Phase.CollectingParams && currentTurnPlayerId != null)
+                {
+                    if (_cardNow.TryGetValue((currentTurnPlayerId, CurrentRound, _stepInRound), out var cardId) && cardId != SKIP)
+                    {
+                        var racer = Racers.First(r => r.Id == currentTurnPlayerId);
+                        var card = racer.DiscardPile.Concat(racer.Hand).FirstOrDefault(c => c.Id == cardId);
+                        currentTurnCardType = card?.Type.ToString();
+                    }
+                }
+                
                 return new RoomStatusSnapshot(
                     Id,
                     Name ?? string.Empty, // Ensure Name is not null
@@ -767,7 +787,8 @@ namespace Toko.Models
                     phase,
                     CurrentRound,
                     CurrentStep,
-                    _order.ElementAtOrDefault(_idx), // CurrentTurnPlayerId
+                    currentTurnPlayerId, // CurrentTurnPlayerId
+                    currentTurnCardType, // CurrentTurnCardType
                     _discardPending.ToList(), // DiscardPendingPlayerIds
                     racers,
                     map
