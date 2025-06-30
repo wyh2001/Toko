@@ -476,6 +476,7 @@ namespace Toko.Models
         async Task StartDiscardPhaseAsync()
         {
             _idx = 0;
+            _stepInRound = 0;
             _discardPending = _order.Where(id => !_banned.Contains(id))
                                      .ToHashSet();
 
