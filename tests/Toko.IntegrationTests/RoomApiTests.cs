@@ -538,6 +538,416 @@ namespace Toko.IntegrationTests
             _output.WriteLine("RAW RESPONSE: " + await resp.Content.ReadAsStringAsync());
         }
 
+        [Fact]
+        public async Task CompleteGameFlow_ThreePlayer_ShouldSucceed()
+        {
+            // Create three test game clients to simulate 3 players
+            var player1 = new TestGameClient(factory, _output);
+            var player2 = new TestGameClient(factory, _output);
+            var player3 = new TestGameClient(factory, _output);
+
+            // Step 1: Authenticate all players
+            _output.WriteLine("=== Step 1: Authenticating players ===");
+            await player1.AuthenticateAsync();
+            await player2.AuthenticateAsync();
+            await player3.AuthenticateAsync();
+            _output.WriteLine($"Player1: {player1.PlayerName} ({player1.PlayerId})");
+            _output.WriteLine($"Player2: {player2.PlayerName} ({player2.PlayerId})");
+            _output.WriteLine($"Player3: {player3.PlayerName} ({player3.PlayerId})");
+
+            // Step 2: Create room with 3 rounds, 3 steps each (default game configuration)
+            _output.WriteLine("=== Step 2: Creating room ===");
+            var roomId = await player1.CreateRoomWithSettingsAsync("TestGame", 4, false, new[] { 3, 3, 3 });
+            _output.WriteLine($"Created room: {roomId}");
+
+            // Step 3: Players 2 and 3 join the room
+            _output.WriteLine("=== Step 3: Players joining room ===");
+            await player2.JoinRoomAsync(roomId);
+            await player3.JoinRoomAsync(roomId);
+
+            // Step 4: Check room status
+            _output.WriteLine("=== Step 4: Checking initial room status ===");
+            var status = await player1.GetRoomStatusAsync(roomId);
+            Assert.Equal("Waiting", status.Status);
+            Assert.Equal(3, status.Racers.Count);
+            _output.WriteLine($"Room status: {status.Status}, Players: {status.Racers.Count}");
+
+            // Step 5: All players ready up
+            _output.WriteLine("=== Step 5: Players readying up ===");
+            await player1.SetReadyAsync(roomId, true);
+            await player2.SetReadyAsync(roomId, true);
+            await player3.SetReadyAsync(roomId, true);
+
+            // Step 6: Host starts the game
+            _output.WriteLine("=== Step 6: Starting the game ===");
+            await player1.StartGameAsync(roomId);
+
+            // Wait a bit for game initialization
+            await Task.Delay(100);
+
+            // Step 7: Check game has started
+            status = await player1.GetRoomStatusAsync(roomId);
+            Assert.Equal("Playing", status.Status);
+            Assert.Equal("CollectingCards", status.Phase);
+            Assert.Equal(0, status.CurrentRound); // 0-based indexing
+            Assert.Equal(0, status.CurrentStep);  // 0-based indexing
+            _output.WriteLine($"Game started! Status: {status.Status}, Phase: {status.Phase}, Round: {status.CurrentRound}, Step: {status.CurrentStep}");
+
+            // Step 8: Play through multiple rounds
+            await PlayCompleteGame(player1, player2, player3, roomId);
+
+            _output.WriteLine("=== Game completed successfully! ===");
+        }
+
+        private async Task PlayCompleteGame(TestGameClient player1, TestGameClient player2, TestGameClient player3, string roomId)
+        {
+            var players = new[] { player1, player2, player3 };
+            var random = new Random();
+
+            // Game progress tracking
+            var maxIterations = 100; // Increased limit for complete game
+            var iteration = 0;
+            var lastRound = -1;
+            var lastStep = -1;
+            var roundsCompleted = 0;
+            var expectedTotalRounds = 3; // We set up the game with 3 rounds
+            var stepsPerRound = new[] { 3, 3, 3 }; // 3 steps per round
+            var stuckCounter = 0; // Count consecutive iterations in same state
+            var lastStateKey = "";
+
+            // Track submitted cards for each player, round, and step
+            var submittedCards = new Dictionary<(string playerId, int round, int step), string>();
+
+            _output.WriteLine("\n🎮 === GAME SIMULATION STARTED ===");
+
+            while (iteration < maxIterations)
+            {
+                iteration++;
+
+                // Get current room status
+                var status = await player1.GetRoomStatusAsync(roomId);
+                
+                // Check if we're stuck in the same state
+                var currentStateKey = $"R{status.CurrentRound}S{status.CurrentStep}P{status.Phase}";
+                if (currentStateKey == lastStateKey)
+                {
+                    stuckCounter++;
+                    if (stuckCounter >= 5) // If stuck for 5 iterations - reduced to get debug info faster
+                    {
+                        _output.WriteLine($"⚠️  STUCK WARNING: Game has been in state {currentStateKey} for {stuckCounter} iterations");
+                        if (stuckCounter >= 8) // Fail if stuck too long - reduced to get debug info faster
+                        {
+                            // Print final status for debugging
+                            _output.WriteLine($"🔍 Final Status Debug:");
+                            _output.WriteLine($"   Room ID: {status.RoomId}");
+                            _output.WriteLine($"   Status: {status.Status}");
+                            _output.WriteLine($"   Phase: {status.Phase}");
+                            _output.WriteLine($"   Round: {status.CurrentRound}, Step: {status.CurrentStep}");
+                            _output.WriteLine($"   Current Turn Player: {status.CurrentTurnPlayerId}");
+                            _output.WriteLine($"   Discard Pending: [{string.Join(", ", status.DiscardPendingPlayerIds)}]");
+                            _output.WriteLine($"   Racers:");
+                            foreach (var racer in status.Racers)
+                            {
+                                _output.WriteLine($"     - {racer.Name} (ID: {racer.Id}): Lane {racer.Lane}, Tile {racer.Tile}, Hand {racer.HandCount}, Banned: {racer.IsBanned}");
+                            }
+                            
+                            Assert.Fail($"Game appears to be stuck in state {currentStateKey} for {stuckCounter} iterations");
+                        }
+                    }
+                }
+                else
+                {
+                    stuckCounter = 0;
+                    lastStateKey = currentStateKey;
+                }
+
+                // Track progress changes
+                if (status.CurrentRound != lastRound || status.CurrentStep != lastStep)
+                {
+                    _output.WriteLine($"\n📊 === ROUND {status.CurrentRound + 1} STEP {status.CurrentStep + 1} ===");
+                    _output.WriteLine($"Phase: {status.Phase} | Turn: {status.CurrentTurnPlayerId}");
+                    _output.WriteLine($"Current Status: Round={status.CurrentRound}, Step={status.CurrentStep}, Phase={status.Phase}");
+                    
+                    // Check if we completed a round (moved to next round)
+                    if (status.CurrentRound > lastRound)
+                    {
+                        if (lastRound >= 0) // Not the first round
+                        {
+                            roundsCompleted++;
+                            _output.WriteLine($"🎉 Round {lastRound + 1} completed! ({roundsCompleted}/{expectedTotalRounds} rounds done)");
+                            
+                            // Assert that we're making progress through rounds
+                            Assert.True(roundsCompleted <= expectedTotalRounds, 
+                                       $"Completed more rounds ({roundsCompleted}) than expected ({expectedTotalRounds})");
+                        }
+                    }
+                    
+                    lastRound = status.CurrentRound;
+                    lastStep = status.CurrentStep;
+                }
+
+                // Game finished check
+                if (status.Status == "Finished")
+                {
+                    _output.WriteLine("\n🏁 === GAME FINISHED ===");
+                    
+                    // Assert game completion reason
+                    Assert.True(status.CurrentRound >= expectedTotalRounds || 
+                               status.Racers.Any(r => r.Tile >= 20), // Someone crossed finish line (assuming 20 tile track)
+                               $"Game should finish after {expectedTotalRounds} rounds or when someone crosses finish line. Current round: {status.CurrentRound}, Max player position: {status.Racers.Max(r => r.Tile)}");
+                    
+                    // Display final results
+                    _output.WriteLine("\n🏆 FINAL STANDINGS:");
+                    var sortedRacers = status.Racers.OrderByDescending(r => r.Tile).ThenBy(r => r.Lane).ToList();
+                    for (int i = 0; i < sortedRacers.Count; i++)
+                    {
+                        var racer = sortedRacers[i];
+                        _output.WriteLine($"   {i + 1}. {racer.Name} - Lane {racer.Lane}, Tile {racer.Tile}, Bank: {racer.Bank:F2}");
+                    }
+                    
+                    // Assert that we have a valid winner and game progress
+                    var winner = sortedRacers.First();
+                    Assert.True(winner.Tile > 0, "Winner should have advanced from starting position");
+                    Assert.True(roundsCompleted > 0 || status.CurrentRound > 0, "Game should have made progress through rounds");
+                    _output.WriteLine($"🥇 Winner: {winner.Name} at position {winner.Tile}");
+                    
+                    // Final progress report
+                    _output.WriteLine($"\n📈 GAME STATISTICS:");
+                    _output.WriteLine($"   Total iterations: {iteration}");
+                    _output.WriteLine($"   Rounds completed: {roundsCompleted}");
+                    _output.WriteLine($"   Final round/step: R{status.CurrentRound + 1}S{status.CurrentStep + 1}");
+                    
+                    return; // Successful completion
+                }
+
+                // Assert game is still in valid state
+                Assert.Equal("Playing", status.Status);
+                Assert.True(status.CurrentRound >= 0 && status.CurrentRound < expectedTotalRounds + 1, 
+                           $"Round should be between 0 and {expectedTotalRounds}, actual: {status.CurrentRound}");
+                
+                var maxStepForRound = status.CurrentRound < stepsPerRound.Length ? stepsPerRound[status.CurrentRound] : stepsPerRound.Last();
+                _output.WriteLine($"🔍 Validating step: CurrentRound={status.CurrentRound}, CurrentStep={status.CurrentStep}, MaxStepForRound={maxStepForRound}");
+                Assert.True(status.CurrentStep >= 0 && status.CurrentStep <= maxStepForRound, 
+                           $"Step should be valid for current round. Round: {status.CurrentRound}, Step: {status.CurrentStep}, MaxStep: {maxStepForRound} (steps 0-{maxStepForRound-1} are valid, {maxStepForRound} indicates round transition)");
+
+                // Find whose turn it is
+                var currentPlayer = players.FirstOrDefault(p => p.PlayerId == status.CurrentTurnPlayerId);
+                if (currentPlayer == null)
+                {
+                    _output.WriteLine($"⏳ No current turn player found, waiting... (Turn ID: {status.CurrentTurnPlayerId})");
+                    _output.WriteLine($"   Available players: {string.Join(", ", players.Select(p => $"{p.PlayerName}({p.PlayerId})"))}");
+                    _output.WriteLine($"   Game Phase: {status.Phase}, Round: {status.CurrentRound}, Step: {status.CurrentStep}");
+                    await Task.Delay(200);
+                    continue;
+                }
+
+                _output.WriteLine($"▶️  {currentPlayer.PlayerName}'s turn in {status.Phase} phase");
+
+                try
+                {
+                    if (status.Phase == "CollectingCards")
+                    {
+                        await HandleCardPhase(currentPlayer, roomId, random);
+                    }
+                    else if (status.Phase == "CollectingParams")
+                    {
+                        await HandleParamPhase(currentPlayer, roomId, random);
+                    }
+                    else if (status.Phase == "Discarding")
+                    {
+                        // In discard phase, check if any players need to discard
+                        if (status.DiscardPendingPlayerIds.Count > 0)
+                        {
+                            _output.WriteLine($"   🗑️  Discarding phase: {status.DiscardPendingPlayerIds.Count} players need to discard");
+                            _output.WriteLine($"   📋 Pending players: [{string.Join(", ", status.DiscardPendingPlayerIds)}]");
+                            
+                            // Find the first pending player instead of relying on CurrentTurnPlayerId
+                            var pendingPlayer = players.FirstOrDefault(p => status.DiscardPendingPlayerIds.Contains(p.PlayerId));
+                            if (pendingPlayer != null)
+                            {
+                                await HandleDiscardPhase(pendingPlayer, roomId, random);
+                            }
+                            else
+                            {
+                                _output.WriteLine($"   ❌ No pending discard players found among our test clients");
+                            }
+                        }
+                        else
+                        {
+                            _output.WriteLine($"   ✅ No players need to discard, but phase is still 'Discarding'");
+                        }
+                    }
+                    else
+                    {
+                        _output.WriteLine($"⚠️  Unknown phase: {status.Phase}");
+                        await Task.Delay(200);
+                    }
+
+                    // Small delay between actions
+                    await Task.Delay(50);
+                }
+                catch (Exception ex)
+                {
+                    _output.WriteLine($"❌ Error during {currentPlayer.PlayerName}'s turn in {status.Phase}: {ex.Message}");
+                    _output.WriteLine($"   Full exception: {ex}");
+                    await Task.Delay(200);
+                }
+            }
+
+            // If we reach here, the game didn't finish within the iteration limit
+            Assert.Fail($"Game did not finish within {maxIterations} iterations. Last state: R{lastRound + 1}S{lastStep + 1}");
+        }
+
+        private async Task HandleCardPhase(TestGameClient player, string roomId, Random random)
+        {
+            // Get player's hand
+            var hand = await player.GetHandAsync(roomId);
+            _output.WriteLine($"   📋 {player.PlayerName} has {hand.Cards.Count} cards: [{string.Join(", ", hand.Cards.Select(c => c.Type))}]");
+
+            if (hand.Cards.Count == 0)
+            {
+                _output.WriteLine($"   🎴 {player.PlayerName} has no cards, drawing to skip...");
+                await player.DrawSkipAsync(roomId);
+                return;
+            }
+
+            // Filter out Junk cards since they cannot be submitted
+            var submittableCards = hand.Cards.Where(c => c.Type != "Junk").ToList();
+            _output.WriteLine($"   📋 {player.PlayerName} has {submittableCards.Count} submittable cards (excluding {hand.Cards.Count - submittableCards.Count} Junk cards)");
+
+            // If only Junk cards remain, draw to skip
+            if (submittableCards.Count == 0)
+            {
+                _output.WriteLine($"   🗑️ {player.PlayerName} only has Junk cards, drawing to skip...");
+                await player.DrawSkipAsync(roomId);
+                return;
+            }
+
+            // Randomly decide whether to submit a card or draw to skip (80% submit, 20% skip)
+            if (random.NextDouble() < 0.8)
+            {
+                // Submit a random card from submittable cards
+                var cardToSubmit = submittableCards[random.Next(submittableCards.Count)];
+                _output.WriteLine($"   🃏 {player.PlayerName} submitting {cardToSubmit.Type} card (ID: {cardToSubmit.Id})");
+                await player.SubmitStepCardAsync(roomId, cardToSubmit.Id);
+            }
+            else
+            {
+                _output.WriteLine($"   🎴 {player.PlayerName} choosing to draw and skip...");
+                await player.DrawSkipAsync(roomId);
+            }
+        }
+
+        private async Task HandleParamPhase(TestGameClient player, string roomId, Random random)
+        {
+            _output.WriteLine($"   ⚙️ {player.PlayerName} submitting execution parameters...");
+
+            // Get current room status to find out what card type we need to submit parameters for
+            var status = await player.GetRoomStatusAsync(roomId);
+            
+            if (string.IsNullOrEmpty(status.CurrentTurnCardType))
+            {
+                _output.WriteLine($"   ❌ No card type information available for {player.PlayerName}");
+                return;
+            }
+
+            _output.WriteLine($"   🃏 {player.PlayerName} needs to submit parameters for {status.CurrentTurnCardType} card");
+
+            object? paramToSubmit = null;
+            string paramDesc = "";
+
+            switch (status.CurrentTurnCardType)
+            {
+                case "Move":
+                    // Move cards accept Effect: 1 or 2
+                    var moveEffect = random.Next(1, 3); // 1 or 2
+                    paramToSubmit = new { Effect = moveEffect, DiscardedCardIds = new List<string>() };
+                    paramDesc = $"Move effect={moveEffect}";
+                    break;
+                    
+                case "ChangeLane":
+                    // ChangeLane cards accept Effect: 1 or -1
+                    var laneEffect = random.Next(0, 2) == 0 ? -1 : 1; // -1 or 1
+                    paramToSubmit = new { Effect = laneEffect, DiscardedCardIds = new List<string>() };
+                    paramDesc = $"ChangeLane effect={laneEffect}";
+                    break;
+                    
+                case "Repair":
+                    // Repair cards can only discard Junk cards, or auto-skip if no Junk cards available
+                    var hand = await player.GetHandAsync(roomId);
+                    var junkCards = hand.Cards.Where(c => c.Type == "Junk").ToList();
+                    if (junkCards.Count > 0)
+                    {
+                        // Only discard Junk cards for Repair action
+                        var cardsToDiscard = junkCards.Take(1).Select(c => c.Id).ToList();
+                        paramToSubmit = new { Effect = -1, DiscardedCardIds = cardsToDiscard };
+                        paramDesc = $"Repair effect=-1, discard {cardsToDiscard.Count} Junk cards";
+                    }
+                    else
+                    {
+                        // No Junk cards to discard - this will trigger auto-skip behavior
+                        paramToSubmit = new { Effect = -1, DiscardedCardIds = new List<string>() };
+                        paramDesc = $"Repair effect=-1, no Junk cards to discard (auto-skip)";
+                        _output.WriteLine($"   ⏭️ {player.PlayerName} has no Junk cards to discard for Repair card, using auto-skip");
+                    }
+                    break;
+                    
+                default:
+                    _output.WriteLine($"   ❌ Unknown card type: {status.CurrentTurnCardType}");
+                    return;
+            }
+
+            if (paramToSubmit != null)
+            {
+                try
+                {
+                    _output.WriteLine($"   🔧 {player.PlayerName} submitting: {paramDesc}");
+                    await player.SubmitExecParamAsync(roomId, paramToSubmit);
+                    _output.WriteLine($"   ✅ {player.PlayerName} successfully submitted parameters: {paramDesc}");
+                }
+                catch (HttpRequestException ex)
+                {
+                    _output.WriteLine($"   ❌ {player.PlayerName} failed to submit parameters: {ex.Message}");
+                    throw;
+                }
+            }
+        }
+
+        private async Task HandleDiscardPhase(TestGameClient player, string roomId, Random random)
+        {
+            // Check if this player needs to discard
+            var status = await player.GetRoomStatusAsync(roomId);
+            if (!status.DiscardPendingPlayerIds.Contains(player.PlayerId))
+            {
+                _output.WriteLine($"   ⏭️  {player.PlayerName} is not in discard pending list, skipping...");
+                return;
+            }
+
+            // Get player's hand
+            var hand = await player.GetHandAsync(roomId);
+            if (hand.Cards.Count == 0)
+            {
+                _output.WriteLine($"   🃏 {player.PlayerName} has no cards to discard");
+                await player.DiscardCardsAsync(roomId, new List<string>());
+                return;
+            }
+
+            // Randomly discard 0-2 cards
+            var discardCount = Math.Min(random.Next(0, 3), hand.Cards.Count);
+            if (discardCount > 0)
+            {
+                var cardsToDiscard = hand.Cards.Take(discardCount).Select(c => c.Id).ToList();
+                var cardTypes = hand.Cards.Take(discardCount).Select(c => c.Type);
+                _output.WriteLine($"   🗑️  {player.PlayerName} discarding {discardCount} cards: [{string.Join(", ", cardTypes)}]");
+                await player.DiscardCardsAsync(roomId, cardsToDiscard);
+            }
+            else
+            {
+                _output.WriteLine($"   ✋ {player.PlayerName} choosing not to discard any cards");
+                await player.DiscardCardsAsync(roomId, new List<string>());
+            }
+        }
+
         //[Fact]
     }
 }
