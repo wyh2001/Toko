@@ -539,21 +539,24 @@ namespace Toko.IntegrationTests
         }
 
         [Fact]
-        public async Task CompleteGameFlow_ThreePlayer_ShouldSucceed()
+        public async Task CompleteGameFlowUsingAPI_ShouldSucceed()
         {
             // Create three test game clients to simulate 3 players
             var player1 = new TestGameClient(factory, _output);
             var player2 = new TestGameClient(factory, _output);
             var player3 = new TestGameClient(factory, _output);
+            var player4 = new TestGameClient(factory, _output);
 
             // Step 1: Authenticate all players
             _output.WriteLine("=== Step 1: Authenticating players ===");
             await player1.AuthenticateAsync();
             await player2.AuthenticateAsync();
             await player3.AuthenticateAsync();
+            await player4.AuthenticateAsync();
             _output.WriteLine($"Player1: {player1.PlayerName} ({player1.PlayerId})");
             _output.WriteLine($"Player2: {player2.PlayerName} ({player2.PlayerId})");
             _output.WriteLine($"Player3: {player3.PlayerName} ({player3.PlayerId})");
+            _output.WriteLine($"Player4: {player4.PlayerName} ({player4.PlayerId})");
 
             // Step 2: Create room with 3 rounds, 3 steps each (default game configuration)
             _output.WriteLine("=== Step 2: Creating room ===");
@@ -564,12 +567,13 @@ namespace Toko.IntegrationTests
             _output.WriteLine("=== Step 3: Players joining room ===");
             await player2.JoinRoomAsync(roomId);
             await player3.JoinRoomAsync(roomId);
+            await player4.JoinRoomAsync(roomId);
 
             // Step 4: Check room status
             _output.WriteLine("=== Step 4: Checking initial room status ===");
             var status = await player1.GetRoomStatusAsync(roomId);
             Assert.Equal("Waiting", status.Status);
-            Assert.Equal(3, status.Racers.Count);
+            Assert.Equal(4, status.Racers.Count);
             _output.WriteLine($"Room status: {status.Status}, Players: {status.Racers.Count}");
 
             // Step 5: All players ready up
@@ -577,6 +581,7 @@ namespace Toko.IntegrationTests
             await player1.SetReadyAsync(roomId, true);
             await player2.SetReadyAsync(roomId, true);
             await player3.SetReadyAsync(roomId, true);
+            await player4.SetReadyAsync(roomId, true);
 
             // Step 6: Host starts the game
             _output.WriteLine("=== Step 6: Starting the game ===");
@@ -594,14 +599,14 @@ namespace Toko.IntegrationTests
             _output.WriteLine($"Game started! Status: {status.Status}, Phase: {status.Phase}, Round: {status.CurrentRound}, Step: {status.CurrentStep}");
 
             // Step 8: Play through multiple rounds
-            await PlayCompleteGame(player1, player2, player3, roomId);
+            await PlayCompleteGame(player1, player2, player3, player4, roomId);
 
             _output.WriteLine("=== Game completed successfully! ===");
         }
 
-        private async Task PlayCompleteGame(TestGameClient player1, TestGameClient player2, TestGameClient player3, string roomId)
+        private async Task PlayCompleteGame(TestGameClient player1, TestGameClient player2, TestGameClient player3, TestGameClient player4, string roomId)
         {
-            var players = new[] { player1, player2, player3 };
+            var players = new[] { player1, player2, player3, player4 };
             var random = new Random();
 
             // Game progress tracking
@@ -616,7 +621,8 @@ namespace Toko.IntegrationTests
             var lastStateKey = "";
 
             // Track submitted cards for each player, round, and step
-            var submittedCards = new Dictionary<(string playerId, int round, int step), string>();
+            // (Should not use this since clients only know what they submitted before when they are prompted to submit parameters)
+            //var submittedCards = new Dictionary<(string playerId, int round, int step), string>();
 
             _output.WriteLine("\n🎮 === GAME SIMULATION STARTED ===");
 
