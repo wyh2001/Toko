@@ -778,6 +778,7 @@ namespace Toko.Models
                 )).ToList();
                 var map = new
                 {
+                    TotalCells = Map.TotalCells,            // ← expose track length
                     Segments = Map.Segments.Select(seg => new
                     {
                         Type = seg.Type.ToString(),
