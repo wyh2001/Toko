@@ -77,7 +77,7 @@ namespace Toko.Services
                 IsHost = true,
             };
             InitializeDeck(host);           // 洗牌、填充初始牌堆
-            DrawCardsInternal(host, 3);     // 假设开局抽 3 张卡
+            DrawCardsInternal(host, INITIALDRAW);     // 假设开局抽 3 张卡
 
             room.Racers.Add(host);
             _rooms.TryAdd(roomId, room);

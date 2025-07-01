@@ -68,6 +68,7 @@ namespace Toko.Models
         private const int AUTO_DRAW = 5; // Draw 5 cards automatically
         private const int DRAW_ON_SKIP = 1;
         private const string SKIP = "SKIP";
+        public const int INITIALDRAW = 5; // Initial draw for new players
 
         private bool _disposed;
         private readonly ILogger<Room> _log;
@@ -192,7 +193,7 @@ namespace Toko.Models
                 if (Racers.Any(r => r.Id == playerId)) return JoinRoomError.AlreadyJoined;
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
-                InitializeDeck(racer); DrawCardsInternal(racer, 5);
+                InitializeDeck(racer); DrawCardsInternal(racer, INITIALDRAW);
                 Racers.Add(racer);
                 events.Add(new PlayerJoined(Id, racer.Id, racer.PlayerName));
 
