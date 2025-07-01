@@ -619,6 +619,7 @@ namespace Toko.IntegrationTests
             var stepsPerRound = new[] { 3, 3, 3 }; // 3 steps per round
             var stuckCounter = 0; // Count consecutive iterations in same state
             var lastStateKey = "";
+            var finishLine = 20; // Default value, will be updated
 
             // Track submitted cards for each player, round, and step
             // (Should not use this since clients only know what they submitted before when they are prompted to submit parameters)
@@ -633,6 +634,20 @@ namespace Toko.IntegrationTests
                 // Get current room status
                 var status = await player1.GetRoomStatusAsync(roomId);
                 
+                if (iteration == 1)
+                {
+                    // Extract finish line from map data on first iteration
+                    if (status.Map is JsonElement mapJson && mapJson.TryGetProperty("totalCells", out var totalCellsElement))
+                    {
+                        finishLine = totalCellsElement.GetInt32() - 1;
+                        _output.WriteLine($"🗺️ Finish line is at tile {finishLine}");
+                    }
+                    else
+                    {
+                        _output.WriteLine($"⚠️ Could not determine finish line from map data, using default {finishLine}");
+                    }
+                }
+
                 // Check if we're stuck in the same state
                 var currentStateKey = $"R{status.CurrentRound}S{status.CurrentStep}P{status.Phase}";
                 if (currentStateKey == lastStateKey)
@@ -697,25 +712,41 @@ namespace Toko.IntegrationTests
                 {
                     _output.WriteLine("\n🏁 === GAME FINISHED ===");
                     
-                    // Assert game completion reason
-                    Assert.True(status.CurrentRound >= expectedTotalRounds || 
-                               status.Racers.Any(r => r.Tile >= 20), // Someone crossed finish line (assuming 20 tile track)
-                               $"Game should finish after {expectedTotalRounds} rounds or when someone crosses finish line. Current round: {status.CurrentRound}, Max player position: {status.Racers.Max(r => r.Tile)}");
+                    // Calculate absolute positions for finish line check
+                    var mapJson = (JsonElement)status.Map;
+                    var someoneReachedFinishLine = status.Racers.Any(r => 
+                        CalculateAbsolutePosition(r.Segment, r.Tile, mapJson) >= finishLine);
                     
-                    // Display final results
+                    // Assert game completion reason
+                    Assert.True(status.CurrentRound >= expectedTotalRounds || someoneReachedFinishLine,
+                               $"Game should finish after {expectedTotalRounds} rounds or when someone crosses finish line. " +
+                               $"Current round: {status.CurrentRound}, " +
+                               $"Max absolute position: {status.Racers.Max(r => CalculateAbsolutePosition(r.Segment, r.Tile, mapJson))}");
+                    
+                    // Display final results with absolute positions
                     _output.WriteLine("\n🏆 FINAL STANDINGS:");
-                    var sortedRacers = status.Racers.OrderByDescending(r => r.Tile).ThenBy(r => r.Lane).ToList();
+                    var sortedRacers = status.Racers
+                        .Select(r => new { 
+                            Racer = r, 
+                            AbsolutePosition = CalculateAbsolutePosition(r.Segment, r.Tile, mapJson) 
+                        })
+                        .OrderByDescending(x => x.AbsolutePosition)
+                        .ThenBy(x => x.Racer.Lane)
+                        .ToList();
+                    
                     for (int i = 0; i < sortedRacers.Count; i++)
                     {
-                        var racer = sortedRacers[i];
-                        _output.WriteLine($"   {i + 1}. {racer.Name} - Lane {racer.Lane}, Tile {racer.Tile}, Bank: {racer.Bank:F2}");
+                        var entry = sortedRacers[i];
+                        var racer = entry.Racer;
+                        _output.WriteLine($"   {i + 1}. {racer.Name} - Segment {racer.Segment}, Lane {racer.Lane}, " +
+                                        $"RelativeTile {racer.Tile}, AbsolutePosition {entry.AbsolutePosition}, Bank: {racer.Bank:F2}");
                     }
                     
                     // Assert that we have a valid winner and game progress
                     var winner = sortedRacers.First();
-                    Assert.True(winner.Tile > 0, "Winner should have advanced from starting position");
+                    Assert.True(winner.AbsolutePosition > 0, "Winner should have advanced from starting position");
                     Assert.True(roundsCompleted > 0 || status.CurrentRound > 0, "Game should have made progress through rounds");
-                    _output.WriteLine($"🥇 Winner: {winner.Name} at position {winner.Tile}");
+                    _output.WriteLine($"🥇 Winner: {winner.Racer.Name} at absolute position {winner.AbsolutePosition}");
                     
                     // Final progress report
                     _output.WriteLine($"\n📈 GAME STATISTICS:");
@@ -954,7 +985,44 @@ namespace Toko.IntegrationTests
             }
         }
 
-        //[Fact]
+        // Helper method to calculate absolute cell position from segment and cell indices
+        private static int CalculateAbsolutePosition(int segmentIndex, int cellIndex, JsonElement mapJson)
+        {
+            try
+            {
+                // Get the segments array from map data
+                if (!mapJson.TryGetProperty("segments", out var segmentsElement))
+                    return cellIndex; // Fallback to relative position
+
+                var segments = segmentsElement.EnumerateArray().ToList();
+
+                // Sum the lengths of all previous segments
+                int absolutePosition = 0;
+                for (int i = 0; i < segmentIndex && i < segments.Count; i++)
+                {
+                    var segment = segments[i];
+                    if (segment.TryGetProperty("laneCellCounts", out var laneCellCountsElement))
+                    {
+                        // Get the first lane's cell count (all lanes in a segment should have the same count)
+                        var firstLaneCount = laneCellCountsElement.EnumerateArray().FirstOrDefault();
+                        if (firstLaneCount.ValueKind == JsonValueKind.Number)
+                        {
+                            absolutePosition += firstLaneCount.GetInt32();
+                        }
+                    }
+                }
+
+                // Add the current cell index within the current segment
+                absolutePosition += cellIndex;
+
+                return absolutePosition;
+            }
+            catch (Exception)
+            {
+                // If parsing fails, fallback to relative position
+                return cellIndex;
+            }
+        }
     }
 }
 
