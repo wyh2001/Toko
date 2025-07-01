@@ -117,33 +117,44 @@ namespace Toko.Services
                 return;
             }
 
-            int newLane = racer.LaneIndex + delta;
             var seg = _map.Segments[racer.SegmentIndex];
+            int steps = Math.Abs(delta);
+            int step = Math.Sign(delta);
 
-            // 如果试图越过左右边界，则撞墙
-            if (newLane < 0 || newLane >= seg.LaneCount)
+            // Perform lane change one lane at a time, checking collisions at each step
+            for (int i = 0; i < steps; i++)
             {
-                AddJunk(racer, 1);
-                return;
-            }
-
-            racer.LaneIndex = newLane;
-
-            // 换道后立即做碰撞检测
-            var collided = room.Racers
-                .Where(r => r.Id != racer.Id
-                         && r.SegmentIndex == racer.SegmentIndex
-                         && r.CellIndex == racer.CellIndex
-                         && r.LaneIndex == racer.LaneIndex)
-                .ToList();
-            if (collided.Count != 0)
-            {
-                AddJunk(racer, 1);
-                foreach (var other in collided)
+                int targetLane = racer.LaneIndex + step;
+                // Boundary check: hitting wall
+                if (targetLane < 0 || targetLane >= seg.LaneCount)
                 {
-                    AddJunk(other, 1);
-                    ChangeLane(other, delta, room, depth + 1); // Increment depth
+                    AddJunk(racer, 1);
+                    return;
                 }
+
+                // Check for collision in the target lane at current position
+                var collided = room.Racers
+                    .Where(r => r.Id != racer.Id
+                             && r.SegmentIndex == racer.SegmentIndex
+                             && r.CellIndex    == racer.CellIndex
+                             && r.LaneIndex    == targetLane)
+                    .ToList();
+
+                if (collided.Count != 0)
+                {
+                    // Both initiator and occupied racer get junk
+                    AddJunk(racer, 1);
+                    foreach (var other in collided)
+                    {
+                        AddJunk(other, 1);
+                        // Attempt to push the other racer along the same lane-change direction
+                        ChangeLane(other, delta, room, depth + 1);
+                    }
+                    return; // stop further lane change after collision
+                }
+
+                // Commit the lane change step
+                racer.LaneIndex = targetLane;
             }
         }
 
