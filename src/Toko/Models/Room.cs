@@ -52,7 +52,7 @@ namespace Toko.Models
         private readonly Dictionary<string, TimeSpan> _bank = [];
         private readonly HashSet<string> _banned = [];
         private readonly Dictionary<(string, int, int), (string cardId, CardType cardType)> _cardNow = []; // (pid, round, step) -> (cardId, cardType)
-        private HashSet<string> _discardPending = [];
+        private readonly HashSet<string> _discardPending = [];
 
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _pumpTask;
@@ -81,7 +81,7 @@ namespace Toko.Models
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
-            _steps = stepsPerRound?.Any() == true ? stepsPerRound.ToList() : new() { 5 };
+            _steps = (stepsPerRound != null && stepsPerRound.Any()) ? [.. stepsPerRound] : [5];
             _gameSM = new(RoomStatus.Waiting);
             _phaseSM = new(Phase.CollectingCards);
             _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
@@ -417,7 +417,7 @@ namespace Toko.Models
                 Name = settings.Name ?? Name;
                 MaxPlayers = settings.MaxPlayers ?? MaxPlayers;
                 IsPrivate = settings.IsPrivate ?? IsPrivate;
-                _steps = settings.StepsPerRound ?? _steps;
+                _steps = settings.StepsPerRound != null ? [.. settings.StepsPerRound] : _steps;
                 events.Add(new RoomSettingsUpdated(Id, settings));
                 return new UpdateRoomSettingsSuccess(Id, playerId, settings);
             });
@@ -487,8 +487,8 @@ namespace Toko.Models
         {
             _idx = 0;
             _stepInRound = 0;
-            _discardPending = _order.Where(id => !_banned.Contains(id))
-                                     .ToHashSet();
+            _discardPending.Clear();
+            _discardPending.UnionWith(_order.Where(id => !_banned.Contains(id)));
 
             var eventsToPublish = new List<INotification>();
             foreach (var pid in _discardPending)
