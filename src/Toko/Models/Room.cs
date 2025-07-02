@@ -352,6 +352,11 @@ namespace Toko.Models
                     // Check if all cards exist in hand (but allow any card type to be discarded)
                     if (cardIds.Any(cid => racer.Hand.All(c => c.Id != cid)))
                         return DiscardCardsError.CardNotFound;
+
+                    // Ensure no card is junk
+                    if (cardIds.Any(cid =>
+                        racer.Hand.FirstOrDefault(c => c.Id == cid)?.Type == CardType.Junk))
+                        return DiscardCardsError.InvalidCardType;
                 }
 
                 _turnExecutor.DiscardCards(racer, cardIds);

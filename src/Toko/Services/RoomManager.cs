@@ -217,7 +217,7 @@ namespace Toko.Services
 
 
         public record DiscardCardsSuccess(string RoomId, string PlayerId, List<string> CardIds);
-        public enum DiscardCardsError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, PlayerBanned, WrongPhase, InternalError }
+        public enum DiscardCardsError { RoomNotFound, PlayerNotFound, NotYourTurn, CardNotFound, PlayerBanned, WrongPhase, InternalError, InvalidCardType }
         public async Task<OneOf<DiscardCardsSuccess, DiscardCardsError>> DiscardCards(
             string roomId, string playerId, List<string> cardIds)
         {
