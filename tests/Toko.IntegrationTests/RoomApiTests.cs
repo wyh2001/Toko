@@ -969,12 +969,24 @@ namespace Toko.IntegrationTests
                 return;
             }
 
-            // Randomly discard 0-2 cards
-            var discardCount = Math.Min(random.Next(0, 3), hand.Cards.Count);
+            // Filter out Junk cards since they cannot be discarded in the discarding phase
+            var discardableCards = hand.Cards.Where(c => c.Type != "Junk").ToList();
+            _output.WriteLine($"   📋 {player.PlayerName} has {hand.Cards.Count} total cards, {discardableCards.Count} discardable (excluding {hand.Cards.Count - discardableCards.Count} Junk cards)");
+
+            // If no discardable cards remain, don't discard anything
+            if (discardableCards.Count == 0)
+            {
+                _output.WriteLine($"   🗑️ {player.PlayerName} has no discardable cards (only Junk cards), not discarding anything");
+                await player.DiscardCardsAsync(roomId, new List<string>());
+                return;
+            }
+
+            // Randomly discard 0-2 cards from discardable cards only
+            var discardCount = Math.Min(random.Next(0, 3), discardableCards.Count);
             if (discardCount > 0)
             {
-                var cardsToDiscard = hand.Cards.Take(discardCount).Select(c => c.Id).ToList();
-                var cardTypes = hand.Cards.Take(discardCount).Select(c => c.Type);
+                var cardsToDiscard = discardableCards.Take(discardCount).Select(c => c.Id).ToList();
+                var cardTypes = discardableCards.Take(discardCount).Select(c => c.Type);
                 _output.WriteLine($"   🗑️  {player.PlayerName} discarding {discardCount} cards: [{string.Join(", ", cardTypes)}]");
                 await player.DiscardCardsAsync(roomId, cardsToDiscard);
             }
