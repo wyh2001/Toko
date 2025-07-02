@@ -179,8 +179,25 @@ namespace Toko.Services
                 if (card.Type != CardType.Junk)
                     return; // not junk
             }
-            // discard the junk card the user chose
-            InternalDiscard(racer, discardedCardId);
+            // discard the junk card the user chose, remove directly without adding to discard pile
+            InternalRemove(racer, discardedCardId);
+        }
+
+        private static void InternalRemove(Racer racer, List<string> discardedCardId)
+        {
+            // see if the size is legit
+            if (discardedCardId.Count == 0)
+                return;
+
+            foreach (var cardId in discardedCardId)
+            {
+                var card = racer.Hand
+                    .FirstOrDefault(c => c.Id == cardId);
+                if (card != null)
+                {
+                    racer.Hand.Remove(card);
+                }
+            }
         }
 
         // dicard cards
