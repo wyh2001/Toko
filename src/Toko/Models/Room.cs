@@ -51,7 +51,7 @@ namespace Toko.Models
         private readonly Dictionary<string, DateTime> _thinkStart = [];
         private readonly Dictionary<string, TimeSpan> _bank = [];
         private readonly HashSet<string> _banned = [];
-        private readonly Dictionary<(string, int, int), string> _cardNow = []; // (pid, round, step) -> cardId
+        private readonly Dictionary<(string, int, int), (string cardId, CardType cardType)> _cardNow = []; // (pid, round, step) -> (cardId, cardType)
         private HashSet<string> _discardPending = [];
 
         private readonly CancellationTokenSource _cts = new();
@@ -280,7 +280,7 @@ namespace Toko.Models
                 racer.Hand.Remove(cardObj);
                 racer.DiscardPile.Add(cardObj);
 
-                _cardNow[(pid, CurrentRound, _stepInRound)] = cardId;
+                _cardNow[(pid, CurrentRound, _stepInRound)] = (cardId, cardObj.Type);
                 events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
                 await MoveNextPlayerAsync(events);
                 return new SubmitStepCardSuccess(this.Id, pid, cardId);
@@ -298,28 +298,29 @@ namespace Toko.Models
                     return SubmitExecutionParamError.WrongPhase;
                 if (pid != _order[_idx]) return SubmitExecutionParamError.NotYourTurn;
 
-                var racer = Racers.First(r => r.Id == pid);
-                if (!_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId))
+                var racer = Racers.FirstOrDefault(r => r.Id == pid);
+                if (racer is null) return SubmitExecutionParamError.PlayerNotFound;
+                if (!_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardInfo))
                     return SubmitExecutionParamError.CardNotFound;
 
-                var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
+                var (cardId, cardType) = cardInfo;
                 
                 // Special case: Repair card with no discarded cards is treated as auto-skip
-                if (card.Type == CardType.Repair && p.DiscardedCardIds.Count == 0)
+                if (cardType == CardType.Repair && p.DiscardedCardIds.Count == 0)
                 {
                     UpdateBank(pid, events);
                     events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
                     await MoveNextPlayerAsync(events);
                     // Return success with a no-op instruction
-                    var skipInstruction = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
+                    var skipInstruction = new ConcreteInstruction { Type = cardType, ExecParameter = p };
                     return new SubmitExecutionParamSuccess(this.Id, pid, skipInstruction);
                 }
                 
-                if (!Validate(card.Type, p)) return SubmitExecutionParamError.InvalidExecParameter;
+                if (!Validate(cardType, p)) return SubmitExecutionParamError.InvalidExecParameter;
 
                 UpdateBank(pid, events);
 
-                var ins = new ConcreteInstruction { Type = card.Type, ExecParameter = p };
+                var ins = new ConcreteInstruction { Type = cardType, ExecParameter = p };
                 var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this);
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
@@ -344,8 +345,9 @@ namespace Toko.Models
                     return DiscardCardsError.WrongPhase;
                 if (!_discardPending.Contains(pid)) return DiscardCardsError.NotYourTurn;
 
-                var racer = Racers.First(r => r.Id == pid);
-                
+                var racer = Racers.FirstOrDefault(r => r.Id == pid);
+                if (racer is null) return DiscardCardsError.PlayerNotFound;
+
                 // If cardIds is empty, allow it (player chooses not to discard)
                 if (cardIds.Count > 0)
                 {
@@ -510,20 +512,19 @@ namespace Toko.Models
         async Task PromptParamAsync(string pid, List<INotification> events)
         {
             //check if draw to skip
-            if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardId) && cardId == SKIP)
+            if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardInfo) && cardInfo.cardId == SKIP)
             {
                 events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
                 await MoveNextPlayerAsync(events);
                 return;
             }
             
-            // Get the card type for the submitted card
-            var racer = Racers.First(r => r.Id == pid);
-            var card = racer.DiscardPile.Concat(racer.Hand).First(c => c.Id == cardId);
+            // Get the card type from stored card info
+            var (cardId, cardType) = cardInfo;
             
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
-            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid, card.Type));
+            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid, cardType));
         }
         #endregion
 
@@ -698,7 +699,7 @@ namespace Toko.Models
                 UpdateBank(pid, events);
                 var result = DrawCards(racer, DRAW_ON_SKIP);
                 events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
-                _cardNow[(pid, CurrentRound, _stepInRound)] = SKIP;
+                _cardNow[(pid, CurrentRound, _stepInRound)] = (SKIP, CardType.Move); // Use dummy CardType for skip
                 await MoveNextPlayerAsync(events);
                 return new DrawSkipSuccess(this.Id, pid, result);
             });
@@ -797,11 +798,9 @@ namespace Toko.Models
                 var currentTurnPlayerId = _order.ElementAtOrDefault(_idx);
                 if (_phaseSM.State == Phase.CollectingParams && currentTurnPlayerId != null)
                 {
-                    if (_cardNow.TryGetValue((currentTurnPlayerId, CurrentRound, _stepInRound), out var cardId) && cardId != SKIP)
+                    if (_cardNow.TryGetValue((currentTurnPlayerId, CurrentRound, _stepInRound), out var cardInfo) && cardInfo.cardId != SKIP)
                     {
-                        var racer = Racers.First(r => r.Id == currentTurnPlayerId);
-                        var card = racer.DiscardPile.Concat(racer.Hand).FirstOrDefault(c => c.Id == cardId);
-                        currentTurnCardType = card?.Type.ToString();
+                        currentTurnCardType = cardInfo.cardType.ToString();
                     }
                 }
                 
