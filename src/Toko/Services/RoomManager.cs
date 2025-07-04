@@ -32,12 +32,24 @@ namespace Toko.Services
         private readonly IMemoryCache _cache = cache;
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(30);
         private long _waitingRoomsCount = 0;
+        private long _playingRoomsCount = 0;
+        private long _playingRacersCount = 0;
         private long _normallyCompletedRoomsCount = 0;
 
         /// <summary>
         /// Get the current count of waiting rooms
         /// </summary>
         public long GetWaitingRoomsCount() => Interlocked.Read(ref _waitingRoomsCount);
+
+        /// <summary>
+        /// Get the current count of playing rooms
+        /// </summary>
+        public long GetPlayingRoomsCount() => Interlocked.Read(ref _playingRoomsCount);
+
+        /// <summary>
+        /// Get the current count of racers in playing rooms
+        /// </summary>
+        public long GetPlayingRacersCount() => Interlocked.Read(ref _playingRacersCount);
 
         /// <summary>
         /// Get the count of rooms that completed normally (player crossed the finish line)
@@ -98,6 +110,11 @@ namespace Toko.Services
                     if (rm.Status == RoomStatus.Waiting)
                     {
                         Interlocked.Decrement(ref _waitingRoomsCount);
+                    }
+                    else if (rm.Status == RoomStatus.Playing)
+                    {
+                        Interlocked.Decrement(ref _playingRoomsCount);
+                        Interlocked.Add(ref _playingRacersCount, -rm.Racers.Count);
                     }
                     await rm.DisposeAsync();
                 }
@@ -175,10 +192,12 @@ namespace Toko.Services
 
             var result = await room.StartGameAsync(playerId);
 
-            // If the room was successfully started, decrement the waiting rooms counter
+            // If the room was successfully started, update counters
             if (result.IsT0)
             {
                 Interlocked.Decrement(ref _waitingRoomsCount);
+                Interlocked.Increment(ref _playingRoomsCount);
+                Interlocked.Add(ref _playingRacersCount, room.Racers.Count);
             }
 
             return result;
@@ -192,6 +211,11 @@ namespace Toko.Services
             if (room.Status == RoomStatus.Waiting)
             {
                 Interlocked.Decrement(ref _waitingRoomsCount);
+            }
+            else if (room.Status == RoomStatus.Playing)
+            {
+                Interlocked.Decrement(ref _playingRoomsCount);
+                Interlocked.Add(ref _playingRacersCount, -room.Racers.Count);
             }
 
             if (reason == GameEndReason.FinisherCrossedLine)

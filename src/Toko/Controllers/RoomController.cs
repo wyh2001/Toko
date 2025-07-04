@@ -167,6 +167,27 @@ namespace Toko.Controllers
             ));
         }
 
+        [AllowAnonymous]
+        [HttpGet("room-counts")]
+        [OutputCache(Duration = 60)]
+        public IActionResult GetRoomCounts()
+        {
+            var waitingCount = _roomManager.GetWaitingRoomsCount();
+            var playingCount = _roomManager.GetPlayingRoomsCount();
+            var playingRacersCount = _roomManager.GetPlayingRacersCount();
+            var finishedCount = _roomManager.GetNormallyCompletedRoomsCount();
+            return Ok(new ApiSuccess<object>(
+                "Room counts retrieved successfully",
+                new
+                {
+                    waitingCount,
+                    playingCount,
+                    playingRacersCount,
+                    finishedCount
+                }
+            ));
+        }
+
         [HttpPost("{roomId}/drawSkip")]
         [EnsureRoomStatus(RoomStatus.Playing)]
         public async Task<IActionResult> DrawSkipAsync(string roomId)
