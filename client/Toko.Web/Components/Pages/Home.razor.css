@@ -1,0 +1,444 @@
+﻿* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    background: #ffffff;
+    min-height: 100vh;
+    color: #000000;
+    line-height: 1.4;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 60px 40px;
+    min-height: 100vh;
+}
+
+.header {
+    margin-bottom: 80px;
+    position: relative;
+}
+
+.main-title {
+    font-size: 8rem;
+    font-weight: 900;
+    color: #000000;
+    letter-spacing: -4px;
+    line-height: 0.75;
+    margin-bottom: 0;
+    position: relative;
+}
+
+    .main-title::after {
+        content: '';
+        position: absolute;
+        bottom: -24px;
+        left: 0;
+        width: 240px;
+        height: 12px;
+        background: #000000;
+        clip-path: polygon(0 0, calc(100% - 32px) 0, 100% 100%, 32px 100%);
+    }
+
+.subtitle {
+    font-size: 1.1rem;
+    color: #666666;
+    font-weight: 400;
+    margin-top: 48px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.main-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: repeat(8, 80px);
+    gap: 1px;
+    margin-bottom: 80px;
+    background: #000000;
+}
+
+.tile {
+    background: #ffffff;
+    border: none;
+    padding: 24px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+}
+
+    .tile:hover {
+        background: #f5f5f5;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #000000;
+    }
+
+    .tile:active {
+        transform: translate(0, 0);
+        box-shadow: none;
+    }
+
+/* Primary Action - Create Game */
+.create-tile {
+    grid-column: span 6;
+    grid-row: span 4;
+    background: #000000;
+    color: #ffffff;
+    text-align: left;
+}
+
+    .create-tile:hover {
+        background: #222222;
+        transform: translate(-2px, -2px);
+        box-shadow: 4px 4px 0 #666666;
+    }
+
+.create-number {
+    font-size: 6rem;
+    font-weight: 900;
+    line-height: 0.8;
+    margin-bottom: 16px;
+    letter-spacing: -2px;
+}
+
+.create-text {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+}
+
+.create-subtitle {
+    font-size: 0.9rem;
+    opacity: 0.8;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Data Tiles */
+.data-tile {
+    text-align: left;
+}
+
+.data-number {
+    font-size: 3.2rem;
+    font-weight: 900;
+    line-height: 0.8;
+    margin-bottom: 8px;
+    letter-spacing: -1px;
+}
+
+.data-text {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.data-subtitle {
+    font-size: 0.7rem;
+    color: #666666;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Text Tiles */
+.text-tile {
+    text-align: left;
+}
+
+.text-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.text-subtitle {
+    font-size: 0.75rem;
+    color: #666666;
+    font-weight: 400;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1.3;
+}
+
+/* Specific tile layouts */
+.rooms-tile {
+    grid-column: span 3;
+    grid-row: span 2;
+}
+
+.players-tile {
+    grid-column: span 3;
+    grid-row: span 2;
+}
+
+.guide-tile {
+    grid-column: span 4;
+    grid-row: span 2;
+}
+
+.about-tile {
+    grid-column: span 2;
+    grid-row: span 2;
+}
+
+.games-tile {
+    grid-column: span 4;
+    grid-row: span 2;
+}
+
+.status-tile {
+    grid-column: span 4;
+    grid-row: span 2;
+}
+
+/* Accent for primary action */
+.create-tile .create-number {
+    color: #ffffff;
+}
+
+/* Room List Section */
+.rooms-section {
+    margin-top: 80px;
+}
+
+.section-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 40px;
+    color: #000000;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    position: relative;
+}
+
+    .section-title::before {
+        content: '';
+        position: absolute;
+        left: -32px;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #000000;
+    }
+
+.room-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1px;
+    background: #000000;
+}
+
+.room-card {
+    background: #ffffff;
+    padding: 32px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+    .room-card:hover {
+        background: #f5f5f5;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #000000;
+    }
+
+    .room-card:active {
+        transform: translate(0, 0);
+        box-shadow: none;
+    }
+
+.room-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #000000;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.room-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.room-players {
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: #000000;
+    letter-spacing: -0.02em;
+}
+
+.room-players-label {
+    font-size: 0.7rem;
+    color: #666666;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.room-status {
+    font-size: 0.8rem;
+    color: #000000;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: right;
+}
+
+.room-description {
+    font-size: 0.8rem;
+    color: #666666;
+    line-height: 1.4;
+    font-weight: 400;
+}
+
+/* Loading and Empty State Messages */
+.loading-message,
+.no-rooms-message {
+    background: #ffffff;
+    padding: 48px 32px;
+    text-align: center;
+    border: 1px solid #f5f5f5;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    transition: all 0.15s ease;
+}
+
+.loading-message {
+    color: #666666;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    position: relative;
+}
+
+    .loading-message::after {
+        content: '...';
+        position: absolute;
+        right: -20px;
+        animation: loading-dots 1.5s infinite;
+    }
+
+.no-rooms-message {
+    color: #000000;
+    font-size: 1.2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    position: relative;
+}
+
+    .no-rooms-message::before {
+        content: '—';
+        display: block;
+        font-size: 2rem;
+        font-weight: 900;
+        margin-bottom: 16px;
+        color: #000000;
+        letter-spacing: 0;
+    }
+
+@keyframes loading-dots {
+    0%, 20% {
+        opacity: 0;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .main-grid {
+        grid-template-columns: repeat(8, 1fr);
+    }
+
+    .create-tile {
+        grid-column: span 4;
+    }
+
+    .rooms-tile,
+    .players-tile {
+        grid-column: span 2;
+    }
+
+    .guide-tile,
+    .games-tile,
+    .status-tile {
+        grid-column: span 4;
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 40px 20px;
+    }
+
+    .main-title {
+        font-size: 5rem;
+    }
+
+    .main-grid {
+        grid-template-columns: repeat(4, 1fr);
+        grid-template-rows: repeat(12, 70px);
+    }
+
+    .create-tile {
+        grid-column: span 4;
+        grid-row: span 4;
+    }
+
+    .rooms-tile,
+    .players-tile,
+    .guide-tile,
+    .about-tile,
+    .games-tile,
+    .status-tile {
+        grid-column: span 2;
+        grid-row: span 2;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .create-tile,
+    .guide-tile,
+    .games-tile,
+    .status-tile {
+        grid-column: span 2;
+    }
+
+    .rooms-tile,
+    .players-tile,
+    .about-tile {
+        grid-column: span 1;
+    }
+}

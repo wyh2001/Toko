@@ -1,0 +1,27 @@
+@using Microsoft.AspNetCore.Components
+@using Toko.Shared.Dtos
+
+<div class="room-card" @onclick="HandleClick">
+    <div class="room-name">@Room.Name</div>
+    <div class="room-meta">
+        <div>
+            <div class="room-players">@Room.Racers.Count/@Room.MaxPlayers</div>
+            <div class="room-players-label">Players</div>
+        </div>
+        <div class="room-status">@Room.Status.ToString()</div>
+    </div>
+    @* <div class="room-description">Default map</div> *@
+</div>
+
+@code {
+    [Parameter] public RoomListItemDto Room { get; set; } = null!;
+    [Parameter] public EventCallback<string> OnJoinRoom { get; set; }
+
+    private async Task HandleClick()
+    {
+        if (OnJoinRoom.HasDelegate)
+        {
+            await OnJoinRoom.InvokeAsync(Room.Id);
+        }
+    }
+}

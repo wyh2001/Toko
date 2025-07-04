@@ -1,0 +1,148 @@
+﻿@page "/"
+@using Toko.Shared.Dtos
+@inject IHttpClientFactory HttpClientFactory
+@implements IDisposable 
+@rendermode InteractiveServer
+
+<PageTitle>Toko Toko</PageTitle>
+
+@* <h1>Test the blazor</h1> *@
+<div class="container">
+    <div class="header">
+        <h1 class="main-title">Toko Toko</h1>
+        <p class="subtitle">Strategic Programming Board Game</p>
+    </div>
+
+    <div class="main-grid">
+        <!-- Create Game - Primary Action -->
+        <div class="tile create-tile" onclick="createGame()">
+            <div class="create-number">01</div>
+            <div class="create-text">NEW GAME</div>
+            <div class="create-subtitle">Initialize Racing Session</div>
+        </div>
+
+        <!-- Active Rooms -->
+        <div class="tile data-tile rooms-tile" onclick="showRooms()">
+            <div class="data-number">@(waitingCount?.ToString("D2") ?? "...")</div>
+            <div class="data-text">Active Rooms</div>
+            <div class="data-subtitle">Available Sessions</div>
+        </div>
+
+        <!-- Players Online -->
+        <div class="tile data-tile players-tile">
+            <div class="data-number">@(playingRacersCount?.ToString("D2") ?? "...")</div>
+            <div class="data-text">Online</div>
+            <div class="data-subtitle">Players Racing</div>
+        </div>
+
+        <!-- How to Play -->
+        <div class="tile text-tile guide-tile" onclick="showGuide()">
+            <div class="text-title">How to Play</div>
+            <div class="text-subtitle">Strategic Racing Mechanics and Rules</div>
+        </div>
+
+        <!-- About -->
+        <div class="tile text-tile about-tile" onclick="showAbout()">
+            <div class="text-title">About</div>
+            <div class="text-subtitle">Game Information</div>
+        </div>
+
+        <!-- Recent Games -->
+        <div class="tile data-tile games-tile">
+            <div class="data-number">@(finishedCount?.ToString("D2") ?? "...")</div>
+            <div class="data-text">Games Today</div>
+            <div class="data-subtitle">Completed Sessions</div>
+        </div>
+
+        <!-- System Status -->
+        <div class="tile text-tile status-tile" onclick="showStatus()">
+            <div class="text-title">System Status</div>
+            <div class="text-subtitle">All Racing Servers Operational</div>
+        </div>
+    </div>
+
+    <div class="rooms-section">
+        <h2 class="section-title">Open Rooms</h2>
+        <div class="room-list">
+            @if (rooms == null)
+            {
+                <div class="loading-message">Loading Rooms...</div>
+            }
+            else if (rooms.Count == 0)
+            {
+                <div class="no-rooms-message">No Active Sessions</div>
+            }
+            else
+            {
+                @foreach (var room in rooms)
+                {
+                    <RoomCard Room="room" OnJoinRoom="HandleJoinRoom" />
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code{
+    private Timer? pollingTimer;
+    private long? waitingCount;
+    private long? playingCount;
+    private long? finishedCount;
+    private long? playingRacersCount;
+    private List<RoomListItemDto>? rooms;
+
+    protected override void OnInitialized()
+    {
+        pollingTimer = new Timer(
+            callback: async _ => await FetchData(), // 每次触发时要执行的方法
+            state: null,
+            dueTime: TimeSpan.Zero,      // 👈 立即开始第一次执行
+            period: TimeSpan.FromSeconds(30) // 👈 然后每30秒执行一次
+        );
+    }
+
+    private async Task FetchData()
+    {
+        try
+        {
+            var client = HttpClientFactory.CreateClient("ServerAPI");
+            
+            // Fetch room counts
+            var countsResponse = await client.GetFromJsonAsync<ApiSuccess<RoomCountsDto>>("api/room/room-counts");
+            if (countsResponse is not null && countsResponse.Data is not null)
+            {
+                playingCount = countsResponse.Data.PlayingCount;
+                waitingCount = countsResponse.Data.WaitingCount;
+                playingRacersCount = countsResponse.Data.PlayingRacersCount;
+                finishedCount = countsResponse.Data.FinishedCount;
+            }
+
+            // Fetch room list
+            var roomsResponse = await client.GetFromJsonAsync<ApiSuccess<List<RoomListItemDto>>>("api/room/list");
+            if (roomsResponse is not null && roomsResponse.Data is not null)
+            {
+                rooms = roomsResponse.Data;
+            }
+
+            // 通知 Blazor 重新渲染UI (非常重要!)
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to fetch data: {ex.Message}");
+        }
+    }
+
+    private Task HandleJoinRoom(string roomId)
+    {
+        // TODO: Implement room joining logic
+        Console.WriteLine($"Joining room: {roomId}");
+        // You can navigate to a room page or open a modal here
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        pollingTimer?.Dispose();
+    }
+}

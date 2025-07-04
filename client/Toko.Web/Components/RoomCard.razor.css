@@ -1,0 +1,65 @@
+﻿.room-card {
+    background: #ffffff;
+    padding: 32px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+    .room-card:hover {
+        background: #f5f5f5;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #000000;
+    }
+
+    .room-card:active {
+        transform: translate(0, 0);
+        box-shadow: none;
+    }
+
+.room-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: #000000;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.room-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.room-players {
+    font-size: 1.8rem;
+    font-weight: 900;
+    color: #000000;
+    letter-spacing: -0.02em;
+}
+
+.room-players-label {
+    font-size: 0.7rem;
+    color: #666666;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.room-status {
+    font-size: 0.8rem;
+    color: #000000;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: right;
+}
+
+.room-description {
+    font-size: 0.8rem;
+    color: #666666;
+    line-height: 1.4;
+    font-weight: 400;
+}
