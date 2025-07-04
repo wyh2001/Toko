@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\shared\Toko.Shared\Toko.Shared.csproj" />
     <ProjectReference Include="..\..\src\Toko\Toko.csproj" />
   </ItemGroup>
 

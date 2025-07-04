@@ -7,8 +7,9 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Toko.Shared.Dtos;
 using Xunit.Abstractions;
-using static Toko.Controllers.RoomController;
+//using static Toko.Controllers.RoomController;
 
 namespace Toko.IntegrationTests
 {
@@ -27,6 +28,12 @@ namespace Toko.IntegrationTests
         private record JoinRommDto(string RoomId, string PlayerId, string PlayerName);
         private record AuthDto(string PlayerName, string PlayerId);
 
+        // Response DTOs
+        //public record CreateRoomDto(string RoomId, string PlayerId, string PlayerName);
+        //public record JoinRommDto(string RoomId, string PlayerId, string PlayerName);
+        //public record AuthDto(string PlayerName, string PlayerId);
+        //public record WaitingCountDto(long Count);
+        
         // Game DTOs
         public record RoomStatusSnapshot(
             string RoomId,
