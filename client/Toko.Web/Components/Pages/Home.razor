@@ -22,7 +22,7 @@
         </div>
 
         <!-- Active Rooms -->
-        <div class="tile data-tile rooms-tile" onclick="showRooms()">
+        <div class="tile data-tile rooms-tile" onclick="location.href='#rooms-section'">
             <div class="data-number">@(waitingCount?.ToString("D2") ?? "...")</div>
             <div class="data-text">Active Rooms</div>
             <div class="data-subtitle">Available Sessions</div>
@@ -61,7 +61,7 @@
         </div>
     </div>
 
-    <div class="rooms-section">
+    <div class="rooms-section" id="rooms-section">
         <h2 class="section-title">Open Rooms</h2>
         <div class="room-list">
             @if (rooms == null)
