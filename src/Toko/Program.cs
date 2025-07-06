@@ -156,7 +156,7 @@ app.UseOutputCache();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-
+app.UseOutputCache();
 
 
 app.MapControllers();
