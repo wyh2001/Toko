@@ -152,7 +152,6 @@ if (app.Environment.IsDevelopment())
 }
 
 //app.UseHttpsRedirection();
-app.UseOutputCache();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
