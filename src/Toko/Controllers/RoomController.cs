@@ -87,14 +87,15 @@ namespace Toko.Controllers
                         new
                         {
                             Id = snapshot.RoomId,
-                            // Room.Name and IsPrivate are not in the snapshot, so return null or remove if not needed
-                            Name = (string?)null,
-                            MaxPlayers = 0, // Not available in snapshot, set to 0 or remove if not needed
-                            IsPrivate = false, // Not available in snapshot, set to false or remove if not needed
+                            Name = snapshot.Name,
+                            MaxPlayers = snapshot.MaxPlayers,
+                            IsPrivate = snapshot.IsPrivate,
                             Racers = snapshot.Racers.Select(r => new
                             {
                                 r.Id,
-                                Name = r.Name
+                                Name = r.Name,
+                                r.IsHost,
+                                r.IsReady
                             }).ToList(),
                             Map = snapshot.Map?.ToString(),
                             Status = snapshot.Status
@@ -124,10 +125,12 @@ namespace Toko.Controllers
                         r.Name,
                         r.MaxPlayers,
                         r.IsPrivate,
-                        Racers = r.Racers.Select(r => new
+                        Racers = r.Racers.Select(racer => new
                         {
-                            r.Id,
-                            r.PlayerName
+                            racer.Id,
+                            Name = racer.PlayerName,
+                            racer.IsHost,
+                            racer.IsReady
                         }).ToList(),
                         //Map = r.Map?.ToString(),
                         //r.CurrentRound
