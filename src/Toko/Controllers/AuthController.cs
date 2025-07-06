@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using OneOf.Types;
 using System;
@@ -18,9 +19,19 @@ namespace Toko.Controllers
         [HttpGet("anon")]
         public IActionResult IssueAnonymous()
         {
-            // if user is already authenticated, return 204 No Content
+            // if user is already authenticated, return their existing player info
             if (User?.Identity?.IsAuthenticated == true)
-                return NoContent();
+            {
+                var existingPlayerId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(existingPlayerId))
+                {
+                    return Ok(new ApiSuccess<object?>("Already authenticated", new
+                    {
+                        playerName = (string?)null, // Client should use their stored name
+                        playerId = existingPlayerId
+                    }));
+                }
+            }
 
             // generate playerId and display name
             var playerId = Guid.NewGuid().ToString("N");
@@ -47,19 +58,10 @@ namespace Toko.Controllers
                 HttpOnly = true,
                 SameSite = SameSiteMode.Lax,
                 Secure = Request.IsHttps,
-                //Secure = true,
+                Path = "/",
                 Expires = DateTimeOffset.UtcNow.AddDays(30)
             });
 
-            //return Ok(new
-            //{
-            //    message = "Anonymous identity issued",
-            //    data = new
-            //    {
-            //        playerName = display,
-            //        playerId
-            //    }
-            //});
             return Ok(new ApiSuccess<object?>("Anonymous identity issued", new
             {
                 playerName = display,
