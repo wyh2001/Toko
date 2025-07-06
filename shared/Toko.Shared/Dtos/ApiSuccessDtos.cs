@@ -8,7 +8,7 @@
     public record WaitingCountDto(long Count);
     public record CompletedCountDto(long Count);
     public record RoomCountsDto(long WaitingCount, long PlayingCount, long PlayingRacersCount, long FinishedCount);
-    public record RacerDto(string Id, string Name);
+    public record RacerDto(string Id, string Name, bool IsHost, bool IsReady);
     public record RoomDto(string Id, string? Name, int MaxPlayers, bool IsPrivate, List<RacerDto> Racers, string? Map, string Status);
     public record RoomListItemDto(string Id, string Name, int MaxPlayers, bool IsPrivate, List<RacerDto> Racers, string Status);
     public record DrawSkipDto(string RoomId, string PlayerId, List<CardDto> DrawnCards);
