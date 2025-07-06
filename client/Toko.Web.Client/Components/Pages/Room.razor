@@ -1,0 +1,366 @@
+@page "/room/{roomId}"
+@using Toko.Shared.Dtos
+@using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.AspNetCore.Components
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject Toko.Web.Client.Services.IAuthenticationService AuthService
+@inject Toko.Web.Client.Services.IPlayerNameService PlayerNameService
+@implements IAsyncDisposable
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+<PageTitle>Room @roomName - Toko Toko</PageTitle>
+
+<div class="room-container">
+    <div class="room-header">
+        <h1 class="room-title">@roomName</h1>
+        <div class="room-subtitle">@currentStatus Racing Session</div>
+        <button class="back-button" @onclick="GoHome">← Back to Home</button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-section">
+            <div class="loading-message">Connecting to Room...</div>
+        </div>
+    }
+    else if (roomData == null)
+    {
+        <div class="error-section">
+            <div class="error-message">Room Not Found</div>
+            <div class="error-subtitle">The room may have been deleted or does not exist</div>
+            <button class="action-button primary" @onclick="GoHome">Return Home</button>
+        </div>
+    }
+    else
+    {
+        <div class="room-main">
+            <!-- Room Status Grid -->
+            <div class="status-grid">
+                <!-- Players Count -->
+                <div class="status-tile players-count">
+                    <div class="status-number">@(roomData.Racers.Count)/@roomData.MaxPlayers</div>
+                    <div class="status-text">Players</div>
+                    <div class="status-subtitle">Currently in Room</div>
+                </div>
+
+                <!-- Room Status -->
+                <div class="status-tile room-status">
+                    <div class="status-text">@currentStatus</div>
+                    <div class="status-subtitle">Room Status</div>
+                </div>
+
+                <!-- Host Controls -->
+                @if (isHost)
+                {
+                    <div class="status-tile host-controls">
+                        <div class="host-badge">HOST</div>
+                        @if (currentStatus == "Waiting" && allPlayersReady && roomData.Racers.Count >= 2)
+                        {
+                            <button class="action-button primary" @onclick="StartGame">START GAME</button>
+                        }
+                        else if (currentStatus == "Waiting")
+                        {
+                            <button class="action-button disabled" disabled>
+                                @if (roomData.Racers.Count < 2)
+                                {
+                                    <span>Need More Players</span>
+                                }
+                                else
+                                {
+                                    <span>Waiting for Ready</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- Players List -->
+            <div class="players-section">
+                <h2 class="section-title">Players</h2>
+                <div class="players-grid">
+                    @foreach (var player in roomData.Racers)
+                    {
+                        <div class="player-card @(player.Id == AuthService.PlayerId ? "current-player" : "")">
+                            <div class="player-info">
+                                <div class="player-name">@player.Name</div>
+                                @if (player.IsHost)
+                                {
+                                    <div class="player-role">HOST</div>
+                                }
+                                @if (player.IsReady)
+                                {
+                                    <div class="player-status ready">READY</div>
+                                }
+                                else if (currentStatus == "Waiting")
+                                {
+                                    <div class="player-status waiting">WAITING</div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Action Panel -->
+            <div class="action-panel">
+                @if (isInRoom)
+                {
+                    @if (currentStatus == "Waiting")
+                    {
+                        <div class="ready-controls">
+                            @if (isReady)
+                            {
+                                <button class="action-button secondary" @onclick="ToggleReady">CANCEL READY</button>
+                            }
+                            else
+                            {
+                                <button class="action-button primary" @onclick="ToggleReady">READY UP</button>
+                            }
+                        </div>
+                    }
+                    <button class="action-button danger" @onclick="LeaveRoom">LEAVE ROOM</button>
+                }
+                else
+                {
+                    @if (currentStatus == "Waiting" && roomData.Racers.Count < roomData.MaxPlayers)
+                    {
+                        <button class="action-button primary" @onclick="JoinRoom">JOIN ROOM</button>
+                    }
+                    else if (currentStatus == "Waiting")
+                    {
+                        <button class="action-button disabled" disabled>ROOM FULL</button>
+                    }
+                    else
+                    {
+                        <button class="action-button disabled" disabled>GAME IN PROGRESS</button>
+                    }
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string RoomId { get; set; } = string.Empty;
+
+    private HubConnection? hubConnection;
+    private Timer? pollingTimer;
+    
+    private bool isLoading = true;
+    private RoomDto? roomData;
+    private string roomName = "";
+    private string currentStatus = "Loading";
+    private string? hostPlayerId;
+    private bool isHost = false;
+    private bool isInRoom = false;
+    private bool isReady = false;
+    private bool allPlayersReady = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.EnsureAuthenticatedAsync();
+        await InitializeSignalR();
+        await LoadRoomData();
+        
+        // Start polling for room updates
+        pollingTimer = new Timer(
+            callback: async _ => await LoadRoomData(),
+            state: null,
+            dueTime: TimeSpan.Zero,
+            period: TimeSpan.FromSeconds(5)
+        );
+    }
+
+    private async Task InitializeSignalR()
+    {
+        try
+        {
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/racehub"))
+                .Build();
+
+            hubConnection.On<string>("PlayerJoined", (playerId) =>
+            {
+                Console.WriteLine($"Player joined: {playerId}");
+                InvokeAsync(async () => {
+                    await LoadRoomData();
+                    StateHasChanged();
+                });
+            });
+
+            hubConnection.On<string>("PlayerLeft", (playerId) =>
+            {
+                Console.WriteLine($"Player left: {playerId}");
+                InvokeAsync(async () => {
+                    await LoadRoomData();
+                    StateHasChanged();
+                });
+            });
+
+            hubConnection.On<string, bool>("PlayerReadyToggled", (playerId, ready) =>
+            {
+                Console.WriteLine($"Player ready toggled: {playerId} = {ready}");
+                InvokeAsync(async () => {
+                    await LoadRoomData();
+                    StateHasChanged();
+                });
+            });
+
+            hubConnection.On<string>("GameStarted", (roomId) =>
+            {
+                Console.WriteLine($"Game started for room: {roomId}");
+                InvokeAsync(async () => {
+                    await LoadRoomData();
+                    StateHasChanged();
+                });
+            });
+
+            await hubConnection.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection failed: {ex.Message}");
+        }
+    }
+
+    private async Task LoadRoomData()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<ApiSuccess<RoomDto>>($"/api/room/{RoomId}");
+            
+            if (response?.Data != null)
+            {
+                roomData = response.Data;
+                roomName = roomData.Name ?? $"Room {RoomId[..8]}";
+                currentStatus = roomData.Status;
+                
+                // Determine host (player with IsHost = true)
+                var host = roomData.Racers.FirstOrDefault(r => r.IsHost);
+                hostPlayerId = host?.Id;
+                isHost = AuthService.PlayerId == hostPlayerId;
+                isInRoom = roomData.Racers.Any(r => r.Id == AuthService.PlayerId);
+                
+                // Get current player's ready status from the API data
+                var currentPlayer = roomData.Racers.FirstOrDefault(r => r.Id == AuthService.PlayerId);
+                isReady = currentPlayer?.IsReady ?? false;
+                
+                // Check if all players are ready
+                allPlayersReady = roomData.Racers.Count >= 2 && roomData.Racers.All(r => r.IsReady);
+                
+                isLoading = false;
+            }
+            else
+            {
+                roomData = null;
+                isLoading = false;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load room data: {ex.Message}");
+            roomData = null;
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task JoinRoom()
+    {
+        if (!AuthService.IsAuthenticated) return;
+
+        try
+        {
+            var playerName = await PlayerNameService.GetPlayerNameAsync();
+            var response = await Http.PostAsJsonAsync($"/api/room/{RoomId}/join", 
+                new { PlayerName = playerName });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadRoomData();
+                
+                // Join SignalR group
+                if (hubConnection?.State == HubConnectionState.Connected)
+                {
+                    await hubConnection.InvokeAsync("JoinRoom", RoomId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to join room: {ex.Message}");
+        }
+    }
+
+    private async Task LeaveRoom()
+    {
+        try
+        {
+            await Http.PostAsync($"/api/room/{RoomId}/leave", null);
+            
+            // Leave SignalR group
+            if (hubConnection?.State == HubConnectionState.Connected)
+            {
+                await hubConnection.InvokeAsync("LeaveRoom", RoomId);
+            }
+            
+            GoHome();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to leave room: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleReady()
+    {
+        try
+        {
+            var newReadyState = !isReady;
+            await Http.PostAsJsonAsync($"/api/room/{RoomId}/ready", 
+                new { IsReady = newReadyState });
+            
+            // The ready state will be updated when LoadRoomData is called next
+            await LoadRoomData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to toggle ready: {ex.Message}");
+        }
+    }
+
+    private async Task StartGame()
+    {
+        if (!isHost) return;
+
+        try
+        {
+            await Http.PostAsync($"/api/room/{RoomId}/start", null);
+            
+            await LoadRoomData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to start game: {ex.Message}");
+        }
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        pollingTimer?.Dispose();
+        
+        if (hubConnection != null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

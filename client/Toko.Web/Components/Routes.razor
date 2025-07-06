@@ -1,4 +1,5 @@
-﻿<Router AppAssembly="typeof(Program).Assembly">
+﻿@using Toko.Web.Client.Components.Pages
+<Router AppAssembly="typeof(Program).Assembly" AdditionalAssemblies="new[] { typeof(Home).Assembly }">
     <Found Context="routeData">
         @* <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" /> *@
         <RouteView RouteData="routeData"/>

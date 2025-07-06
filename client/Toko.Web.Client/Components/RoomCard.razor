@@ -1,5 +1,6 @@
 @using Microsoft.AspNetCore.Components
 @using Toko.Shared.Dtos
+@inject NavigationManager Navigation
 
 <div class="room-card" @onclick="HandleClick">
     <div class="room-name">@Room.Name</div>
@@ -15,13 +16,9 @@
 
 @code {
     [Parameter] public RoomListItemDto Room { get; set; } = null!;
-    [Parameter] public EventCallback<string> OnJoinRoom { get; set; }
 
-    private async Task HandleClick()
+    private void HandleClick()
     {
-        if (OnJoinRoom.HasDelegate)
-        {
-            await OnJoinRoom.InvokeAsync(Room.Id);
-        }
+        Navigation.NavigateTo($"/room/{Room.Id}");
     }
 }

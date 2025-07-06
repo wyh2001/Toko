@@ -1,8 +1,13 @@
 ﻿@page "/"
 @using Toko.Shared.Dtos
-@inject IHttpClientFactory HttpClientFactory
-@implements IDisposable 
-@rendermode InteractiveServer
+@using System.Linq
+@using Toko.Web.Client.Components
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject Toko.Web.Client.Services.IAuthenticationService AuthService
+@inject Toko.Web.Client.Services.IPlayerNameService PlayerNameService
+@implements IDisposable
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
 <PageTitle>Toko Toko</PageTitle>
 
@@ -15,16 +20,16 @@
 
     <div class="main-grid">
         <!-- Create Game - Primary Action -->
-        <div class="tile create-tile" onclick="createGame()">
+        <div class="tile create-tile" @onclick="CreateGame">
             <div class="create-number">01</div>
             <div class="create-text">NEW GAME</div>
             <div class="create-subtitle">Initialize Racing Session</div>
         </div>
 
-        <!-- Active Rooms -->
+        <!-- Open Rooms -->
         <div class="tile data-tile rooms-tile" onclick="location.href='#rooms-section'">
             <div class="data-number">@(waitingCount?.ToString("D2") ?? "...")</div>
-            <div class="data-text">Active Rooms</div>
+            <div class="data-text">Open Rooms</div>
             <div class="data-subtitle">Available Sessions</div>
         </div>
 
@@ -73,15 +78,19 @@
                 <div class="no-rooms-message">No Active Sessions</div>
             }
             else
+            {            @foreach (var room in rooms)
             {
-                @foreach (var room in rooms)
-                {
-                    <RoomCard Room="room" OnJoinRoom="HandleJoinRoom" />
-                }
+                <RoomCard Room="room" />
+            }
             }
         </div>
     </div>
 </div>
+
+<CreateGameModal IsVisible="showCreateGameModal" 
+                 OnClose="CloseCreateGameModal" 
+                 OnGameCreated="HandleGameCreated"
+                 PlayerNameService="PlayerNameService" />
 
 @code{
     private Timer? pollingTimer;
@@ -90,29 +99,56 @@
     private long? finishedCount;
     private long? playingRacersCount;
     private List<RoomListItemDto>? rooms;
+    
+    private bool showCreateGameModal = false;
 
     protected override void OnInitialized()
     {
         pollingTimer = new Timer(
-            callback: async _ => await FetchData(), // 每次触发时要执行的方法
+            callback: async _ => await FetchData(),
             state: null,
-            dueTime: TimeSpan.Zero,      // 👈 立即开始第一次执行
-            period: TimeSpan.FromSeconds(30) // 👈 然后每30秒执行一次
+            dueTime: TimeSpan.Zero,
+            period: TimeSpan.FromSeconds(30)
         );
+    }
+
+    private async Task CreateGame()
+    {
+        // Ensure we're authenticated before allowing game creation
+        var isAuthenticated = await AuthService.EnsureAuthenticatedAsync();
+        if (isAuthenticated)
+        {
+            showCreateGameModal = true;
+        }
+        else
+        {
+            Console.WriteLine("Cannot create game - authentication failed");
+        }
+    }
+
+    private void CloseCreateGameModal()
+    {
+        showCreateGameModal = false;
+    }
+
+    private void HandleGameCreated(CreateRoomDto gameData)
+    {
+        Console.WriteLine($"Game created: {gameData.RoomId}");
+        // Navigate to the created room
+        Navigation.NavigateTo($"/room/{gameData.RoomId}");
     }
 
     private async Task FetchData()
     {
         try
         {
-            var client = HttpClientFactory.CreateClient("ServerAPI");
+            var client = Http;
             
             // Fetch room counts
             var countsResponse = await client.GetFromJsonAsync<ApiSuccess<RoomCountsDto>>("api/room/room-counts");
             if (countsResponse is not null && countsResponse.Data is not null)
             {
                 playingCount = countsResponse.Data.PlayingCount;
-                waitingCount = countsResponse.Data.WaitingCount;
                 playingRacersCount = countsResponse.Data.PlayingRacersCount;
                 finishedCount = countsResponse.Data.FinishedCount;
             }
@@ -122,23 +158,16 @@
             if (roomsResponse is not null && roomsResponse.Data is not null)
             {
                 rooms = roomsResponse.Data;
+                waitingCount = rooms.Count(r => !r.IsPrivate && r.Status == "Waiting");
             }
 
-            // 通知 Blazor 重新渲染UI (非常重要!)
+            // Notify the UI to update
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to fetch data: {ex.Message}");
         }
-    }
-
-    private Task HandleJoinRoom(string roomId)
-    {
-        // TODO: Implement room joining logic
-        Console.WriteLine($"Joining room: {roomId}");
-        // You can navigate to a room page or open a modal here
-        return Task.CompletedTask;
     }
 
     public void Dispose()

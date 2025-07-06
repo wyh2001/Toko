@@ -1,15 +1,36 @@
 using Toko.Web.Components;
+using Toko.Web.Client.Components.Pages;
+using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-builder.Services.AddHttpClient("ServerAPI", client =>
-{
-    //client.BaseAddress = new Uri(builder.Configuration["ServerAPI:BaseUrl"]);
-    client.BaseAddress = new Uri("https://localhost:7057");
-});
+    //.AddInteractiveServerComponents()
+    .AddInteractiveWebAssemblyComponents();
+
+builder.Services.AddReverseProxy()
+    .LoadFromMemory(
+        new[]
+        {
+            new RouteConfig
+            {
+                RouteId  = "apiRoute",
+                ClusterId = "apiCluster",
+                Match = new RouteMatch { Path = "/api/{**catch-all}" }
+            }
+        },
+        new[]
+        {
+            new ClusterConfig
+            {
+                ClusterId = "apiCluster",
+                Destinations = new Dictionary<string, DestinationConfig>
+                {
+                    ["d1"] = new() { Address = "https://localhost:7057/" }
+                }
+            }
+        });
 
 var app = builder.Build();
 
@@ -23,11 +44,18 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+//app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
+//app.UseRouting();
 
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+app.MapReverseProxy();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    //.AddInteractiveServerRenderMode();
+    .AddInteractiveWebAssemblyRenderMode()
+    .AddAdditionalAssemblies(typeof(Home).Assembly);
 
 app.Run();

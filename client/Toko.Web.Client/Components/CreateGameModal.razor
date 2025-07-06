@@ -1,0 +1,190 @@
+@using Toko.Shared.Dtos
+@inject HttpClient Http
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="HandleOverlayClick">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">Create New Game</h2>
+                <button class="modal-close" @onclick="OnClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+                    <div class="form-group">
+                        <label for="playerName" class="form-label">Your Name</label>
+                        <input id="playerName" type="text" @bind="createRoomRequest.PlayerName" 
+                               @onblur="SavePlayerName"
+                               class="form-input" placeholder="Enter your player name" maxlength="50" required />
+                        <small class="form-help">Your name will be saved for future games</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="roomName" class="form-label">Room Name (Optional)</label>
+                        <input id="roomName" type="text" @bind="createRoomRequest.RoomName" 
+                               class="form-input" placeholder="Leave empty for auto-generated name" maxlength="100" />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="maxPlayers" class="form-label">Max Players</label>
+                        <select id="maxPlayers" @bind="createRoomRequest.MaxPlayers" class="form-select">
+                            <option value="4">4 Players</option>
+                            <option value="5">5 Players</option>
+                            <option value="6">6 Players</option>
+                            <option value="7">7 Players</option>
+                            <option value="8">8 Players</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-checkbox-wrapper">
+                            <input type="checkbox" @bind="createRoomRequest.IsPrivate" class="form-checkbox" />
+                            <span class="form-checkbox-label">Private Room</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Steps Per Round</label>
+                        <div class="steps-config">
+                            @for (int i = 0; i < createRoomRequest.StepsPerRound.Count; i++)
+                            {
+                                var index = i;
+                                <div class="step-input-group">
+                                    <label class="step-label">Round @(index + 1)</label>
+                                    <input type="number" min="1" max="10" 
+                                           @bind="createRoomRequest.StepsPerRound[index]" 
+                                           class="step-input" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" @onclick="OnClose">
+                            Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary" disabled="@IsCreating">
+                            @if (IsCreating)
+                            {
+                                <span class="btn-spinner"></span>
+                                <span>Creating...</span>
+                            }
+                            else
+                            {
+                                <span>Create Game</span>
+                            }
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<CreateRoomDto> OnGameCreated { get; set; }
+    [Parameter] public Toko.Web.Client.Services.IPlayerNameService? PlayerNameService { get; set; }
+    
+    private bool IsCreating { get; set; } = false;
+    private CreateRoomRequest createRoomRequest = new();
+
+    public class CreateRoomRequest
+    {
+        public string PlayerName { get; set; } = "";
+        public string? RoomName { get; set; }
+        public int MaxPlayers { get; set; } = 8;
+        public bool IsPrivate { get; set; } = false;
+        public List<int> StepsPerRound { get; set; } = [3, 3, 3];
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Load player name when modal is opened
+        if (IsVisible && string.IsNullOrEmpty(createRoomRequest.PlayerName) && PlayerNameService != null)
+        {
+            await LoadPlayerName();
+        }
+    }
+
+    private async Task LoadPlayerName()
+    {
+        if (PlayerNameService != null)
+        {
+            var playerName = await PlayerNameService.GetPlayerNameAsync();
+            createRoomRequest.PlayerName = playerName;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SavePlayerName()
+    {
+        if (PlayerNameService != null && !string.IsNullOrWhiteSpace(createRoomRequest.PlayerName))
+        {
+            await PlayerNameService.SetPlayerNameAsync(createRoomRequest.PlayerName);
+        }
+    }
+
+    private void ResetForm()
+    {
+        createRoomRequest = new CreateRoomRequest
+        {
+            PlayerName = createRoomRequest.PlayerName, // Keep the current player name
+            MaxPlayers = 8,
+            StepsPerRound = [3, 3, 3]
+        };
+    }
+
+    private async Task HandleOverlayClick()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(createRoomRequest.PlayerName))
+        {
+            return;
+        }
+
+        // Save player name before creating room
+        await SavePlayerName();
+
+        IsCreating = true;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/room/create", createRoomRequest);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ApiSuccess<CreateRoomDto>>();
+                if (result?.Data != null)
+                {
+                    await OnGameCreated.InvokeAsync(result.Data);
+                    await OnClose.InvokeAsync();
+                    Console.WriteLine($"Room created: {result.Data.RoomId}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"Failed to create room: {response.StatusCode}");
+                // TODO: Show error message
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error details: {errorContent}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating room: {ex.Message}");
+            // TODO: Show error message
+        }
+        finally
+        {
+            IsCreating = false;
+            StateHasChanged();
+        }
+    }
+}
