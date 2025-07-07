@@ -21,6 +21,7 @@ namespace Toko.Models
         public string? Name { get; set; }
         public int MaxPlayers { get; set; } = 8;
         public bool IsPrivate { get; set; }
+        public bool IsAbandoned { get; private set; }
         public RaceMap Map { get; set; } = RaceMapFactory.CreateDefaultMap();
         public List<Racer> Racers { get; } = [];
         public int CurrentRound { get; private set; }
@@ -189,6 +190,8 @@ namespace Toko.Models
         {
             return await WithGateAsync<OneOf<JoinRoomSuccess, JoinRoomError>>(events =>
             {
+                // prevent from joining if room is abandoned
+                if (IsAbandoned) return JoinRoomError.RoomNotFound;
                 // prevent from joining if already joined
                 if (Racers.Any(r => r.Id == playerId)) return JoinRoomError.AlreadyJoined;
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
@@ -229,6 +232,14 @@ namespace Toko.Models
                         }
                         string playerName = racer.PlayerName;
                         Racers.Remove(racer);
+
+                        // If this was the last player leaving a waiting room, mark it as abandoned
+                        if (Racers.Count == 0)
+                        {
+                            IsAbandoned = true;
+                            _log.LogInformation("Room {RoomId} marked as abandoned after last player left", Id);
+                        }
+
                         events.Add(new PlayerLeft(Id, pid, playerName));
                         return new LeaveRoomSuccess(this.Id, pid);
 
@@ -304,7 +315,7 @@ namespace Toko.Models
                     return SubmitExecutionParamError.CardNotFound;
 
                 var (cardId, cardType) = cardInfo;
-                
+
                 // Special case: Repair card with no discarded cards is treated as auto-skip
                 if (cardType == CardType.Repair && p.DiscardedCardIds.Count == 0)
                 {
@@ -315,7 +326,7 @@ namespace Toko.Models
                     var skipInstruction = new ConcreteInstruction { Type = cardType, ExecParameter = p };
                     return new SubmitExecutionParamSuccess(this.Id, pid, skipInstruction);
                 }
-                
+
                 if (!Validate(cardType, p)) return SubmitExecutionParamError.InvalidExecParameter;
 
                 UpdateBank(pid, events);
@@ -518,10 +529,10 @@ namespace Toko.Models
                 await MoveNextPlayerAsync(events);
                 return;
             }
-            
+
             // Get the card type from stored card info
             var (cardId, cardType) = cardInfo;
-            
+
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
             events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid, cardType));
@@ -792,7 +803,7 @@ namespace Toko.Models
                         LaneCellCounts = seg.LaneCells.Select(lane => lane.Count).ToList()
                     }).ToList()
                 };
-                
+
                 // Get current turn card type if in CollectingParams phase
                 string? currentTurnCardType = null;
                 var currentTurnPlayerId = _order.ElementAtOrDefault(_idx);
@@ -803,7 +814,7 @@ namespace Toko.Models
                         currentTurnCardType = cardInfo.cardType.ToString();
                     }
                 }
-                
+
                 return new RoomStatusSnapshot(
                     Id,
                     Name ?? string.Empty, // Ensure Name is not null

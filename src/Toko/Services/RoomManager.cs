@@ -136,6 +136,10 @@ namespace Toko.Services
                 _rooms.TryRemove(roomId, out _);
                 return null;
             }
+            if (room is not null && room.IsAbandoned)
+            {
+                return null;
+            }
             return room;
         }
 
@@ -176,7 +180,7 @@ namespace Toko.Services
         /// 获取所有房间（用于大厅列表）
         /// </summary>
         public List<Room> GetAllRooms() =>
-            _rooms.Values.ToList();
+            _rooms.Values.Where(room => !room.IsAbandoned).ToList();
 
         // … 其他如 SetMap/GetMap/ExecuteTurn 等方法按需保留 …
 
@@ -187,8 +191,8 @@ namespace Toko.Services
         public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost, NotAllReady, NotInTheRoom }
         public async Task<OneOf<StartRoomSuccess, StartRoomError>> StartRoom(string roomId, string playerId)
         {
-            if (!_rooms.TryGetValue(roomId, out var room))
-                return StartRoomError.RoomNotFound;
+            var room = GetRoomInternal(roomId);
+            if (room is null) return StartRoomError.RoomNotFound;
 
             var result = await room.StartGameAsync(playerId);
 
