@@ -146,7 +146,6 @@
     [Parameter] public string RoomId { get; set; } = string.Empty;
 
     private HubConnection? hubConnection;
-    private Timer? pollingTimer;
     
     private bool isLoading = true;
     private RoomDto? roomData;
@@ -163,14 +162,11 @@
         await AuthService.EnsureAuthenticatedAsync();
         await InitializeSignalR();
         await LoadRoomData();
-        
-        // Start polling for room updates
-        pollingTimer = new Timer(
-            callback: async _ => await LoadRoomData(),
-            state: null,
-            dueTime: TimeSpan.Zero,
-            period: TimeSpan.FromSeconds(5)
-        );
+
+        if (isInRoom && hubConnection?.State == HubConnectionState.Connected)
+        {
+            await hubConnection.InvokeAsync("JoinRoom", RoomId);
+        }
     }
 
     private async Task InitializeSignalR()
@@ -179,42 +175,36 @@
         {
             hubConnection = new HubConnectionBuilder()
                 .WithUrl(Navigation.ToAbsoluteUri("/racehub"))
+                .WithAutomaticReconnect()
                 .Build();
 
-            hubConnection.On<string>("PlayerJoined", (playerId) =>
-            {
-                Console.WriteLine($"Player joined: {playerId}");
-                InvokeAsync(async () => {
-                    await LoadRoomData();
-                    StateHasChanged();
-                });
-            });
+            Console.WriteLine("Connecting to SignalR hub...");
 
-            hubConnection.On<string>("PlayerLeft", (playerId) =>
+            // 监听统一的房间事件
+            hubConnection.On<string, object>("OnRoomEvent", (eventName, eventData) =>
             {
-                Console.WriteLine($"Player left: {playerId}");
-                InvokeAsync(async () => {
-                    await LoadRoomData();
-                    StateHasChanged();
-                });
-            });
-
-            hubConnection.On<string, bool>("PlayerReadyToggled", (playerId, ready) =>
-            {
-                Console.WriteLine($"Player ready toggled: {playerId} = {ready}");
-                InvokeAsync(async () => {
-                    await LoadRoomData();
-                    StateHasChanged();
-                });
-            });
-
-            hubConnection.On<string>("GameStarted", (roomId) =>
-            {
-                Console.WriteLine($"Game started for room: {roomId}");
-                InvokeAsync(async () => {
-                    await LoadRoomData();
-                    StateHasChanged();
-                });
+                Console.WriteLine($"Room event received: {eventName}");
+                
+                switch (eventName)
+                {
+                    case "PlayerJoined":
+                    case "PlayerLeft":
+                    case "PlayerReadyToggled":
+                        InvokeAsync(async () => {
+                            await LoadRoomData();
+                            StateHasChanged();
+                        });
+                        break;
+                        
+                    case "RoomStarted":
+                        Console.WriteLine($"Game started for room: {RoomId}");
+                        InvokeAsync(() => {
+                            // Navigate to game page when game starts
+                            Navigation.NavigateTo($"/game/{RoomId}");
+                            return Task.CompletedTask;
+                        });
+                        break;
+                }
             });
 
             await hubConnection.StartAsync();
@@ -356,8 +346,6 @@
 
     public async ValueTask DisposeAsync()
     {
-        pollingTimer?.Dispose();
-        
         if (hubConnection != null)
         {
             await hubConnection.DisposeAsync();
