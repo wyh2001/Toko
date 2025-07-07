@@ -18,6 +18,12 @@ builder.Services.AddReverseProxy()
                 RouteId  = "apiRoute",
                 ClusterId = "apiCluster",
                 Match = new RouteMatch { Path = "/api/{**catch-all}" }
+            },
+            new RouteConfig
+            {
+                RouteId  = "hubRoute",
+                ClusterId= "apiCluster",
+                Match    = new RouteMatch { Path = "/racehub/{**catch-all}" }
             }
         },
         new[]
