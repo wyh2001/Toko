@@ -1,6 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using Toko.Shared.Dtos;
+using Toko.Shared.Models;
 
 namespace Toko.Web.Client.Services
 {

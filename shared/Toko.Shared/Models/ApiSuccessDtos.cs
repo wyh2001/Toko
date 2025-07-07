@@ -1,4 +1,4 @@
-﻿namespace Toko.Shared.Dtos
+﻿namespace Toko.Shared.Models
 {
     public record ApiSuccess<T>(string Message, T? Data);
     // Response DTOs
