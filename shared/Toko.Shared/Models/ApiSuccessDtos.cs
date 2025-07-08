@@ -8,9 +8,23 @@
     public record WaitingCountDto(long Count);
     public record CompletedCountDto(long Count);
     public record RoomCountsDto(long WaitingCount, long PlayingCount, long PlayingRacersCount, long FinishedCount);
-    public record RacerDto(string Id, string Name, bool IsHost, bool IsReady);
-    public record RoomDto(string Id, string? Name, int MaxPlayers, bool IsPrivate, List<RacerDto> Racers, string? Map, string Status);
-    public record RoomListItemDto(string Id, string Name, int MaxPlayers, bool IsPrivate, List<RacerDto> Racers, string Status);
+    public record RoomStatusSnapshot(
+    string RoomId,
+    string Name,
+    int MaxPlayers,
+    bool IsPrivate,
+    string Status,
+    string Phase,
+    int CurrentRound,
+    int CurrentStep,
+    string? CurrentTurnPlayerId,
+    string? CurrentTurnCardType, // Add card type for parameter submission
+    List<string> DiscardPendingPlayerIds,
+    List<RacerStatus> Racers,
+    object Map
+        );
+    public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
+    public record RoomListItemDto(string Id, string Name, int MaxPlayers, bool IsPrivate, List<RacerStatus> Racers, string Status);
     public record DrawSkipDto(string RoomId, string PlayerId, List<CardDto> DrawnCards);
     public record CardDto(string Id, string Type);
     public record SubmitStepCardDto(string RoomId, string PlayerId, string CardId);

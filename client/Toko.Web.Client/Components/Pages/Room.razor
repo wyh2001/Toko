@@ -148,7 +148,7 @@
     private HubConnection? hubConnection;
     
     private bool isLoading = true;
-    private RoomDto? roomData;
+    private RoomStatusSnapshot? roomData;
     private string roomName = "";
     private string currentStatus = "Loading";
     private string? hostPlayerId;
@@ -180,7 +180,6 @@
 
             Console.WriteLine("Connecting to SignalR hub...");
 
-            // 监听统一的房间事件
             hubConnection.On<string, object>("OnRoomEvent", (eventName, eventData) =>
             {
                 Console.WriteLine($"Room event received: {eventName}");
@@ -219,7 +218,7 @@
     {
         try
         {
-            var response = await Http.GetFromJsonAsync<ApiSuccess<RoomDto>>($"/api/room/{RoomId}");
+            var response = await Http.GetFromJsonAsync<ApiSuccess<RoomStatusSnapshot>>($"/api/room/{RoomId}");
             
             if (response?.Data != null)
             {

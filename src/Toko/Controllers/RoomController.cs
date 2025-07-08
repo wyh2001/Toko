@@ -81,25 +81,9 @@ namespace Toko.Controllers
             return result.Match<IActionResult>(
                 success =>
                 {
-                    var snapshot = success.Snapshot;
                     return Ok(new ApiSuccess<object>(
                         "Room details retrieved successfully",
-                        new
-                        {
-                            Id = snapshot.RoomId,
-                            Name = snapshot.Name,
-                            MaxPlayers = snapshot.MaxPlayers,
-                            IsPrivate = snapshot.IsPrivate,
-                            Racers = snapshot.Racers.Select(r => new
-                            {
-                                r.Id,
-                                Name = r.Name,
-                                r.IsHost,
-                                r.IsReady
-                            }).ToList(),
-                            Map = snapshot.Map?.ToString(),
-                            Status = snapshot.Status
-                        }
+                        success.Snapshot
                     ));
                 },
                 error => error switch
@@ -124,13 +108,10 @@ namespace Toko.Controllers
                         r.Id,
                         r.Name,
                         r.MaxPlayers,
-                        r.IsPrivate,
                         Racers = r.Racers.Select(racer => new
                         {
                             racer.Id,
                             Name = racer.PlayerName,
-                            racer.IsHost,
-                            racer.IsReady
                         }).ToList(),
                         //Map = r.Map?.ToString(),
                         //r.CurrentRound
