@@ -17,11 +17,14 @@
     string Phase,
     int CurrentRound,
     int CurrentStep,
+    int TotalRounds,
+    int TotalSteps,
     string? CurrentTurnPlayerId,
     string? CurrentTurnCardType, // Add card type for parameter submission
     List<string> DiscardPendingPlayerIds,
     List<RacerStatus> Racers,
-    object Map
+    object Map,
+    List<PlayerResult>? Results
         );
     public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
     public record RoomListItemDto(string Id, string Name, int MaxPlayers, bool IsPrivate, List<RacerStatus> Racers, string Status);

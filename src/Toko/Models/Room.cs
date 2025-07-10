@@ -54,6 +54,7 @@ namespace Toko.Models
         private readonly HashSet<string> _banned = [];
         private readonly Dictionary<(string, int, int), (string cardId, CardType cardType)> _cardNow = []; // (pid, round, step) -> (cardId, cardType)
         private readonly HashSet<string> _discardPending = [];
+        private List<PlayerResult>? _gameResults = null; // Cached game results
 
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _pumpTask;
@@ -182,8 +183,8 @@ namespace Toko.Models
         private List<PlayerResult> EndGame(GameEndReason reason)
         {
             _gameSM.Fire(GameTrigger.GameOver);
-            List<PlayerResult> results = CollectGameResults();
-            return results;
+            _gameResults ??= CollectGameResults();
+            return _gameResults;
         }
 
         public async Task<OneOf<JoinRoomSuccess, JoinRoomError>> JoinRoomAsync(string playerId, string playerName)
@@ -767,11 +768,14 @@ namespace Toko.Models
             string Phase,
             int CurrentRound,
             int CurrentStep,
+            int TotalRounds,
+            int TotalSteps,
             string? CurrentTurnPlayerId,
             string? CurrentTurnCardType, // Add card type for parameter submission
             List<string> DiscardPendingPlayerIds,
             List<RacerStatus> Racers,
-            object Map
+            object Map,
+            List<PlayerResult>? Results
         );
         public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
 
@@ -815,6 +819,9 @@ namespace Toko.Models
                     }
                 }
 
+                // Fix array bounds issue when game ends due to turn limit
+                var totalSteps = CurrentRound < _steps.Count ? _steps[CurrentRound] : _steps.Last();
+                
                 return new RoomStatusSnapshot(
                     Id,
                     Name ?? string.Empty, // Ensure Name is not null
@@ -824,11 +831,14 @@ namespace Toko.Models
                     phase,
                     CurrentRound,
                     CurrentStep,
+                    _steps.Count, // TotalRounds
+                    totalSteps, // TotalSteps - safely handle out of bounds
                     currentTurnPlayerId, // CurrentTurnPlayerId
                     currentTurnCardType, // CurrentTurnCardType
                     _discardPending.ToList(), // DiscardPendingPlayerIds
                     racers,
-                    map
+                    map,
+                    _gameResults
                 );
             });
         }
