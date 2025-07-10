@@ -1,5 +1,7 @@
-using Toko.Web.Components;
 using Toko.Web.Client.Components.Pages;
+using Toko.Web.Client.Services;
+using Toko.Web.Components;
+using Toko.Web.Services;
 using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,6 +39,10 @@ builder.Services.AddReverseProxy()
                 }
             }
         });
+
+//builder.Services.AddScoped<IPlayerNameService, PlayerNameServerStub>();
+//builder.Services.AddScoped<IAuthenticationService, AuthenticationServiceStub>();
+//builder.Services.AddHttpClient(); // stub
 
 var app = builder.Build();
 
