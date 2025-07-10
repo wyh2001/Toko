@@ -1,0 +1,64 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Toko API (HTTPS)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-api",
+            "program": "dotnet",
+            "args": [
+                "run",
+                "--launch-profile",
+                "https",
+                "--project",
+                "${workspaceFolder}/src/Toko/Toko.csproj"
+            ],
+            "cwd": "${workspaceFolder}/src/Toko",
+            "stopAtEntry": false,
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
+        },
+        {
+            "name": "Toko Web (HTTPS)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-web",
+            "program": "dotnet",
+            "args": [
+                "run",
+                "--launch-profile",
+                "https",
+                "--project",
+                "${workspaceFolder}/client/Toko.Web/Toko.Web.csproj"
+            ],
+            "cwd": "${workspaceFolder}/client/Toko.Web",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https://\\S+)",
+                "uriFormat": "%s/"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/Views"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Toko & Web (HTTPS)",
+            "configurations": [
+                "Toko API (HTTPS)",
+                "Toko Web (HTTPS)"
+            ],
+            "stopAll": true
+        }
+    ]
+}
