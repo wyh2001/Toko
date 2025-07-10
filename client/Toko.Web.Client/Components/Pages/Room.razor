@@ -57,7 +57,7 @@
                         <div class="host-badge">HOST</div>
                         @if (currentStatus == "Waiting" && allPlayersReady && roomData.Racers.Count >= 2)
                         {
-                            <button class="action-button primary" @onclick="StartGame">START GAME</button>
+                            <button class="action-button primary ready-to-start" @onclick="StartGame">START GAME</button>
                         }
                         else if (currentStatus == "Waiting")
                         {
@@ -119,6 +119,19 @@
                                 <button class="action-button primary" @onclick="ToggleReady">READY UP</button>
                             }
                         </div>
+                    }
+                    else if (currentStatus == "Playing" || currentStatus == "Finished")
+                    {
+                        <button class="action-button primary" @onclick="EnterGame">
+                            @if (currentStatus == "Playing")
+                            {
+                                <span>Enter Game</span>
+                            }
+                            else
+                            {
+                                <span>View Game Results</span>
+                            }
+                        </button>
                     }
                     <button class="action-button danger" @onclick="LeaveRoom">LEAVE ROOM</button>
                 }
@@ -336,6 +349,11 @@
         {
             Console.WriteLine($"Failed to start game: {ex.Message}");
         }
+    }
+
+    private void EnterGame()
+    {
+        Navigation.NavigateTo($"/game/{RoomId}");
     }
 
     private void GoHome()

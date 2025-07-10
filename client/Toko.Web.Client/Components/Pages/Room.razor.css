@@ -425,3 +425,40 @@ body {
         font-size: 2.5rem;
     }
 }
+
+/* Ready to Start Button Animation */
+.action-button.ready-to-start {
+    background: linear-gradient(135deg, #ff6600, #ff8800);
+    border: 2px solid #ff6600;
+    color: white;
+    font-weight: bold;
+    font-size: 1.1rem;
+    padding: 12px 24px;
+    box-shadow: 0 4px 8px rgba(255, 102, 0, 0.3);
+    animation: pulse-ready 2s infinite;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.action-button.ready-to-start:hover {
+    background: linear-gradient(135deg, #ff5500, #ff7700);
+    box-shadow: 0 6px 12px rgba(255, 102, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.action-button.ready-to-start:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(255, 102, 0, 0.3);
+}
+
+@keyframes pulse-ready {
+    0% {
+        box-shadow: 0 4px 8px rgba(255, 102, 0, 0.3);
+    }
+    50% {
+        box-shadow: 0 4px 8px rgba(255, 102, 0, 0.6), 0 0 0 4px rgba(255, 102, 0, 0.2);
+    }
+    100% {
+        box-shadow: 0 4px 8px rgba(255, 102, 0, 0.3);
+    }
+}
