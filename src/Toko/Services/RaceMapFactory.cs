@@ -12,10 +12,10 @@ namespace Toko.Services
         {
             var segments = new List<TrackSegment>();
 
-            segments.Add(CreateNormalSegment(TileType.Road, 4, 5));
-            segments.Add(CreateNormalSegment(TileType.CornerRight, 2, 5));
-            segments.Add(CreateNormalSegment(TileType.Road, 4, 5));
-            segments.Add(CreateNormalSegment(TileType.CornerLeft, 2, 5));
+            segments.Add(CreateNormalSegment(TileType.Road, 2, 3));
+            segments.Add(CreateNormalSegment(TileType.CornerRight, 1, 7));
+            segments.Add(CreateNormalSegment(TileType.Road, 2, 3));
+            segments.Add(CreateNormalSegment(TileType.CornerLeft, 1, 7));
 
             //// 1) 第一段：水平直道，4 道车道，长度 5
             ////    Cells 按 (x, laneIndex) 展开
