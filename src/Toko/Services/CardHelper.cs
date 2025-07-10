@@ -21,9 +21,9 @@ namespace Toko.Services
                     racer.Deck.Enqueue(new Card { Type = type });
             }
 
-            Add(CardType.Move, 9);
-            Add(CardType.ChangeLane, 9);
-            Add(CardType.Repair, 4);
+            Add(CardType.Move, 4);
+            Add(CardType.ChangeLane, 1);
+            Add(CardType.Repair, 1);
 
             // 最后随机洗牌
             // Fisher–Yates shuffle
