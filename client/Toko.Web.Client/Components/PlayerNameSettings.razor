@@ -1,0 +1,140 @@
+@inject Toko.Web.Client.Services.IPlayerNameService PlayerNameService
+
+<div class="player-name-settings">
+    <div class="player-name-display">
+        <span class="player-name-label">Playing as:</span>
+        <span class="player-name-value">@currentPlayerName</span>
+        <button class="player-name-edit-btn" @onclick="ToggleEdit">??</button>
+    </div>
+    
+    @if (isEditing)
+    {
+        <div class="player-name-edit">
+            <input type="text" @bind="editPlayerName" @onkeypress="HandleKeyPress" 
+                   placeholder="Enter your name" maxlength="50" class="player-name-input" />
+            <button class="save-btn" @onclick="SavePlayerName">Save</button>
+            <button class="cancel-btn" @onclick="CancelEdit">Cancel</button>
+        </div>
+    }
+</div>
+
+@code {
+    private string currentPlayerName = "";
+    private string editPlayerName = "";
+    private bool isEditing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentPlayerName = await PlayerNameService.GetPlayerNameAsync();
+        editPlayerName = currentPlayerName;
+    }
+
+    private void ToggleEdit()
+    {
+        if (isEditing)
+        {
+            CancelEdit();
+        }
+        else
+        {
+            editPlayerName = currentPlayerName;
+            isEditing = true;
+        }
+    }
+
+    private async Task SavePlayerName()
+    {
+        if (!string.IsNullOrWhiteSpace(editPlayerName))
+        {
+            await PlayerNameService.SetPlayerNameAsync(editPlayerName.Trim());
+            currentPlayerName = editPlayerName.Trim();
+        }
+        isEditing = false;
+    }
+
+    private void CancelEdit()
+    {
+        editPlayerName = currentPlayerName;
+        isEditing = false;
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SavePlayerName();
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelEdit();
+        }
+    }
+}
+
+<style>
+    .player-name-settings {
+        display: inline-block;
+        padding: 0.5rem;
+    }
+
+    .player-name-display {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .player-name-label {
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+
+    .player-name-value {
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .player-name-edit-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+    }
+
+    .player-name-edit-btn:hover {
+        opacity: 1;
+    }
+
+    .player-name-edit {
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .player-name-input {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+    }
+
+    .save-btn, .cancel-btn {
+        padding: 0.25rem 0.5rem;
+        border: none;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .save-btn {
+        background-color: #10b981;
+        color: white;
+    }
+
+    .cancel-btn {
+        background-color: #6b7280;
+        color: white;
+    }
+</style>
