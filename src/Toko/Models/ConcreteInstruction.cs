@@ -1,4 +1,6 @@
-﻿namespace Toko.Models
+﻿using Toko.Shared.Models;
+
+namespace Toko.Models
 {
     public class ConcreteInstruction
     {

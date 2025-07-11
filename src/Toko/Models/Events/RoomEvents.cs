@@ -1,4 +1,5 @@
 ﻿using Toko.Services;
+using Toko.Shared.Models;
 using static Toko.Models.Room;
 namespace Toko.Models.Events
 {
@@ -22,7 +23,7 @@ namespace Toko.Models.Events
     public record PlayerStepExecuted(string RoomId, int Round, int Step) : IRoomEvent;
     public record PlayerTimeoutElapsed(string RoomId, string PlayerId) : IRoomEvent;
     public record RoomEnded(string RoomId, GameEndReason Reason, List<PlayerResult> Results) : IRoomEvent;
-    public record RoomSettingsUpdated(string RoomId, RoomManager.RoomSettings Settings) : IRoomEvent;
+    public record RoomSettingsUpdated(string RoomId, RoomSettings Settings) : IRoomEvent;
     public record RoomStarted(string RoomId, List<string> Order) : IRoomEvent;
     public record RoundAdvanced(string RoomId, int Round) : IRoomEvent;
     public record StepAdvanced(string RoomId, int Round, int Step, string? NextPhase = null) : IRoomEvent;

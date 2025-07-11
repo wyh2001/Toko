@@ -12,6 +12,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Toko.Models;
+using Toko.Shared.Models;
+using Toko.Shared.Services;
 using static Toko.Models.Room;
 using static Toko.Services.CardHelper;
 
@@ -323,7 +325,7 @@ namespace Toko.Services
         public enum UpdateRoomSettingsError { RoomNotFound, NotHost, InternalError, WrongPhase, PlayerNotFound }
         public record UpdateRoomSettingsSuccess(string RoomId, string PlayerId, RoomSettings Settings);
         //public record RoomSettings(string? Name, int MaxPlayers, bool IsPrivate, List<int> StepsPerRound, RaceMap Map);
-        public record RoomSettings(string? Name, int? MaxPlayers, bool? IsPrivate, List<int>? StepsPerRound); // at this time, no map for simplicity
+        //public record RoomSettings(string? Name, int? MaxPlayers, bool? IsPrivate, List<int>? StepsPerRound); // at this time, no map for simplicity
         public async Task<OneOf<UpdateRoomSettingsSuccess, UpdateRoomSettingsError>> UpdateRoomSettings(
             string roomId, string playerId, RoomSettings settings)
         {

@@ -11,6 +11,8 @@ using Toko.Services;
 using static Toko.Services.RoomManager;
 using static Toko.Services.CardHelper;
 using System.Threading.Tasks;
+using Toko.Shared.Models;
+using Toko.Shared.Services;
 
 namespace Toko.Models
 {
@@ -30,7 +32,7 @@ namespace Toko.Models
         #endregion
 
         #region ▶ FSM
-        public enum Phase { CollectingCards, CollectingParams, Discarding }
+        //public enum Phase { CollectingCards, CollectingParams, Discarding }
         public enum RoomStatus { Waiting, Playing, Finished }
         private enum GameTrigger { Start, GameOver }
         private enum PhaseTrigger { CardsReady, ParamsDone, DiscardDone }
@@ -122,13 +124,13 @@ namespace Toko.Models
             });
         }
 
-        public enum GameEndReason
-        {
-            FinisherCrossedLine,
-            NoActivePlayersLeft,
-            TurnLimitReached,
-        }
-        public record PlayerResult(string PlayerId, int Rank, int Score);
+        //public enum GameEndReason
+        //{
+        //    FinisherCrossedLine,
+        //    NoActivePlayersLeft,
+        //    TurnLimitReached,
+        //}
+        //public record PlayerResult(string PlayerId, int Rank, int Score);
 
         // Collects and returns the game results, ranking players by progress and assigning scores (total cells passed)
         private List<PlayerResult> CollectGameResults()
@@ -778,6 +780,8 @@ namespace Toko.Models
             List<PlayerResult>? Results
         );
         public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
+        //public record MapSnapshot(int TotalCells, List<MapSegmentSnapshot> Segments);
+        //public record MapSegmentSnapshot(string Type, int LaneCount, int CellCount, string Direction, bool IsIntermediate);
 
         // Returns a snapshot of the current room status for API
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
@@ -802,9 +806,12 @@ namespace Toko.Models
                     TotalCells = Map.TotalCells,            // ← expose track length
                     Segments = Map.Segments.Select(seg => new
                     {
-                        Type = seg.Type.ToString(),
-                        LaneCount = seg.LaneCount,
-                        LaneCellCounts = seg.LaneCells.Select(lane => lane.Count).ToList()
+                        Type = seg.DefaultType.ToString(),
+                        seg.LaneCount,
+                        seg.CellCount,
+                        //LaneCellCounts = seg.LaneCells.Select(lane => lane.Count).ToList(),
+                        Direction = seg.Direction.ToString(),
+                        seg.IsIntermediate,
                     }).ToList()
                 };
 

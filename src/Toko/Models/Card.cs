@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualBasic;
+using Toko.Shared.Models;
 
 namespace Toko.Models
 {

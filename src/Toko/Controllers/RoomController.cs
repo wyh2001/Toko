@@ -11,6 +11,7 @@ using Toko.Filters;
 using Toko.Hubs;
 using Toko.Models.Requests;
 using Toko.Services;
+using Toko.Shared.Models;
 using static Toko.Controllers.RoomController;
 using static Toko.Models.Room;
 using static Toko.Services.RoomManager;
