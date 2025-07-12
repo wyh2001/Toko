@@ -1,4 +1,5 @@
 ﻿using Toko.Models;
+using Toko.Shared.Models;
 
 namespace Toko.Services
 {
