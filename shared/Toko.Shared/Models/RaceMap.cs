@@ -11,7 +11,7 @@ namespace Toko.Shared.Models
 
         public class TrackSegment
         {
-            public TileType DefaultType { get; set; }
+            public CellType DefaultType { get; set; }
             public SegmentDirection Direction { get; set; }
             public required List<List<Cell>> LaneCells { get; set; } // LaneCells[i] is all cells in lane i of this segment
             public int LaneCount => LaneCells.Count;
@@ -36,8 +36,39 @@ namespace Toko.Shared.Models
         LeftDown,
     }
     // road: normal, grass: slow, boost: fast, obstacle: stop, cornerLeft: turn left, cornerRight: turn right
-    public enum TileType { Road, Grass, Boost, Obstacle, CornerLeft, CornerRight }
+    public enum CellType { Road, Grass, Boost, Obstacle, CornerLeft, CornerRight }
+    public enum MapRenderingType {
+        BothEdges,
+        SingleEdge, 
+        Plain,
+        CornerEdge,
+        RightSingleEdgeLowerLeftCornerEdge,
+        RightSingleEdgeUpperLeftCornerEdge,
+        CurveSmall,
+        CurveSmallCornerEdge,
+        CurveLargeSeg1,
+        CurveLargeSeg2,
+        CurveLargeSeg3
+    }
+    public enum MapRenderingRotation
+    {
+        Original = 0,
+        Rotate90 = 90,
+        Rotate180 = 180,
+        Rotate270 = 270
+    }
+    public record Grid(MapRenderingType RenderingType, MapRenderingRotation Rotation);
     public record MapSnapshot(int TotalCells, List<MapSegmentSnapshot> Segments);
     public record MapSegmentSnapshot(string Type, int LaneCount, int CellCount, string Direction, bool IsIntermediate);
-    public record Cell(Point Position, TileType Type);
+    public record Cell(Point Position, CellType Type, Grid? Grid)
+    {
+        public Cell WithPosition(Point newPosition)
+        {
+            return this with { Position = newPosition };
+        }
+        public Cell WithGrid(Grid? newGird)
+        {
+            return this with { Grid = newGird };
+        }
+    };
 }

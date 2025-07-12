@@ -11,10 +11,10 @@ namespace Toko.Shared.Services
         {
             var segments = new List<TrackSegment>
             {
-                CreateNormalSegment(TileType.Road, 2, 3, SegmentDirection.Right),
-                CreateNormalSegment(TileType.Road, 1, 7, SegmentDirection.Down),
-                CreateNormalSegment(TileType.Road, 2, 3, SegmentDirection.Left),
-                CreateNormalSegment(TileType.Road, 1, 7, SegmentDirection.Up)
+                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 1, 7, SegmentDirection.Down),
+                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Left),
+                CreateNormalSegment(CellType.Road, 1, 7, SegmentDirection.Up)
             };
             return GenerateFinalMapWithIntermediate(segments);
         }
@@ -23,7 +23,7 @@ namespace Toko.Shared.Services
         {
             var segments = SegmentSnapshots.Where(s => !s.IsIntermediate).Select(snapshot =>
                 CreateNormalSegment(
-                    Enum.Parse<TileType>(snapshot.Type),
+                    Enum.Parse<CellType>(snapshot.Type),
                     snapshot.LaneCount,
                     snapshot.CellCount,
                     Enum.Parse<SegmentDirection>(snapshot.Direction),
@@ -39,6 +39,7 @@ namespace Toko.Shared.Services
                 throw new ArgumentException("Segments cannot be null or empty");
             if (segments.Count is 1)
             {
+                ReAssignPositionToCells(segments, new Point(0, 0));
                 return new RaceMap { Segments = segments }; // circle track
             }
             else
@@ -55,6 +56,35 @@ namespace Toko.Shared.Services
                     if (intermediate is not null)
                         result.AddRange(intermediate);
                 }
+                ReAssignPositionToCells(result, new Point(0, 0));
+                return new RaceMap { Segments = result };
+            }
+        }
+
+        public static RaceMap GenerateFinalMapWithIntermediate(List<TrackSegment> segments, Point startPoint)
+        {
+            if (segments is null || segments.Count is 0)
+                throw new ArgumentException("Segments cannot be null or empty");
+            if (segments.Count is 1)
+            {
+                ReAssignPositionToCells(segments, startPoint);
+                return new RaceMap { Segments = segments }; // circle track
+            }
+            else
+            {
+                var result = new List<TrackSegment>(segments.Count * 3); // extra space
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    var current = segments[i];
+                    var next = segments[(i + 1) % segments.Count];
+
+                    result.Add(current);
+                    //result.Add(CreateIntermediateSegment(current, next));
+                    var intermediate = CreateIntermediateSegment(current, next);
+                    if (intermediate is not null)
+                        result.AddRange(intermediate);
+                }
+                ReAssignPositionToCells(result, startPoint);
                 return new RaceMap { Segments = result };
             }
         }
@@ -87,8 +117,9 @@ namespace Toko.Shared.Services
             {
                 intermediate =
                 [
-                    CreateNormalSegment(current.DefaultType, current.LaneCount, next.LaneCount - 1, direction, true),
-                    CreateNormalSegment(current.DefaultType, current.LaneCount - 1, 1, direction, true)
+                    //CreateNormalSegment(current.DefaultType, current.LaneCount, next.LaneCount - 1, direction, true),
+                    //CreateNormalSegment(current.DefaultType, current.LaneCount - 1, 1, direction, true)
+                    CreateNormalSegment(current.DefaultType, current.LaneCount, Math.Max(next.LaneCount,2), direction, true)
                 ];
             }
             return intermediate;
@@ -125,7 +156,7 @@ namespace Toko.Shared.Services
             };
         }
 
-        public static TrackSegment CreateNormalSegment(TileType type, int laneCount, int cellCount, SegmentDirection direction)
+        public static TrackSegment CreateNormalSegment(CellType type, int laneCount, int cellCount, SegmentDirection direction)
         {
             //var segments = new List<TrackSegment>();
             var seg = new TrackSegment
@@ -142,12 +173,12 @@ namespace Toko.Shared.Services
 
             for (int x = 0; x < cellCount; x++)
                 for (int lane = 0; lane < laneCount; lane++)
-                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type));
+                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type, null));
 
             return seg;
         }
 
-        public static TrackSegment CreateNormalSegment(TileType type, int laneCount, int cellCount, SegmentDirection direction, bool IsIntermediate)
+        public static TrackSegment CreateNormalSegment(CellType type, int laneCount, int cellCount, SegmentDirection direction, bool IsIntermediate)
         {
             //var segments = new List<TrackSegment>();
             var seg = new TrackSegment
@@ -164,9 +195,232 @@ namespace Toko.Shared.Services
 
             for (int x = 0; x < cellCount; x++)
                 for (int lane = 0; lane < laneCount; lane++)
-                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type));
+                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type, null));
 
             return seg;
+        }
+
+        private static readonly IReadOnlyDictionary<SegmentDirection, int> DirFactor = new Dictionary<SegmentDirection, int>
+        {
+            { SegmentDirection.Left, 1 },
+            { SegmentDirection.Right, 1 },
+            { SegmentDirection.Up, 0 },
+            { SegmentDirection.Down, 0 },
+            { SegmentDirection.LeftUp, 0 },
+            { SegmentDirection.LeftDown, 1 },
+            { SegmentDirection.RightUp, 0 },
+            { SegmentDirection.RightDown, 3 },
+            { SegmentDirection.UpLeft, 1 },
+            { SegmentDirection.UpRight, 0 },
+            { SegmentDirection.DownLeft, 3 },
+            { SegmentDirection.DownRight, 0 }
+        };
+
+        private static MapRenderingRotation ToRotation(int deg)
+        {
+            deg = ((deg % 360) + 360) % 360;
+            return deg switch
+            {
+                0 => MapRenderingRotation.Original,
+                90 => MapRenderingRotation.Rotate90,
+                180 => MapRenderingRotation.Rotate180,
+                270 => MapRenderingRotation.Rotate270,
+                _ => throw new ArgumentOutOfRangeException(nameof(deg),
+                         $"Rotation must be a multiple of 90°, got {deg}")
+            };
+        }
+
+        private static (MapRenderingType type, MapRenderingRotation rot)
+    ResolveBasicGrid(SegmentDirection dir, int lane, int laneCount)
+        {
+            var f = DirFactor[dir];
+            if (laneCount == 1)
+            {
+                int deg = f * 90;
+                return (MapRenderingType.BothEdges, ToRotation(deg));
+            }
+
+            bool isSideLane = lane == 0 || lane == laneCount - 1;
+
+            if (isSideLane)
+            {
+                int deg = f * 270;
+                if (lane == laneCount - 1) deg += 180;
+                return (MapRenderingType.SingleEdge, ToRotation(deg));
+            }
+
+            return (MapRenderingType.Plain, MapRenderingRotation.Original);
+        }
+
+    //    private static (MapRenderingType type, MapRenderingRotation rot)
+    //ResolveIntermediateGrid(SegmentDirection dir, int lane, int laneCount, int nextLaneCount)
+    //    {
+    //        var f = DirFactor[dir];
+    //        if (laneCount == 1 && nextLaneCount == 1)
+    //        {
+    //            int deg = f * 90;
+    //            return (MapRenderingType.CurveSmallCornerEdge, ToRotation(deg));
+    //        }
+    //        else if (laneCount*nextLaneCount == 2)
+    //        {
+    //            // deal with the gird that has smallest x and largest y, others use
+    //        }
+    //        else
+    //        {
+    //        }
+    //    }
+
+        public static void ReAssignPositionToCells(List<TrackSegment> segs, Point startPoint)
+        {
+            Point pre = startPoint;
+            Grid currentGrid;
+            for (int i = 0; i < segs.Count; i++)
+            {
+                var segment = segs[i];
+                var direction = segment.Direction;
+                //int rotationFactor = DirectionToRotationFactor[direction];
+                bool isBasic = IsBasic(direction);
+                //bool isSingleLane = segment.LaneCount == 1;
+                //bool isDoubleLane = segment.LaneCount == 2;
+                for (int lane = 0; lane < segment.LaneCount; lane++)
+                {
+                    if (isBasic)
+                    {
+                        (var gridType, var rotation) = ResolveBasicGrid(direction, lane, segment.LaneCount);
+                        currentGrid = new Grid(gridType, rotation);
+                        //if (isSingleLane)
+                        //{
+                        //    currentGrid = new Grid(MapRenderingType.BothEdges, MapRenderingRotation.Original + 90 * rotationFactor);
+                        //}
+                        //else if (isDoubleLane)
+                        //{
+                        //    if (lane == 0)
+                        //    {
+                        //        currentGrid = new Grid(MapRenderingType.SingleEdge, MapRenderingRotation.Original + 270 * rotationFactor);
+                        //    } else
+                        //    {
+                        //        currentGrid = new Grid(MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180 + 270 * rotationFactor);
+                        //    }
+                        //}
+                        //else
+                        //{
+                        //    if (lane == 0)
+                        //    {
+                        //        currentGrid = new Grid(MapRenderingType.SingleEdge, MapRenderingRotation.Original + 270 * rotationFactor);
+                        //    }
+                        //    else if (lane == segment.LaneCount - 1)
+                        //    {
+                        //        currentGrid = new Grid(MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180 + 270 * rotationFactor);
+                        //    }
+                        //    else
+                        //    {
+                        //        currentGrid = new Grid(MapRenderingType.Plain, MapRenderingRotation.Original);
+                        //    }
+                        //}
+                    }
+                    else
+                    {
+                        //if (i != segs.Count - 1)
+                        //{
+                        //    var nextLaneCount = segs[i + 1].LaneCount;
+                        //}
+                        throw new NotImplementedException(
+                            "Intermediate segments with non-basic directions are not implemented yet");
+                    }
+                        for (int cellIndex = 0; cellIndex < segment.CellCount; cellIndex++)
+                        {
+                            var cell = segment.LaneCells[lane][cellIndex];
+                            // Reassign position based on direction
+                            switch (direction)
+                            {
+                                case SegmentDirection.Left:
+                                case SegmentDirection.LeftUp:
+                                case SegmentDirection.LeftDown:
+                                    cell.WithPosition(new Point(pre.X - cellIndex, pre.Y + lane));
+                                    cell.WithGrid(currentGrid);
+                                    break;
+                                case SegmentDirection.Right:
+                                case SegmentDirection.RightUp:
+                                case SegmentDirection.RightDown:
+                                    cell.WithPosition(new Point(pre.X + cellIndex, pre.Y + lane));
+                                    cell.WithGrid(currentGrid);
+                                    break;
+                                case SegmentDirection.Up:
+                                case SegmentDirection.UpRight:
+                                case SegmentDirection.UpLeft:
+                                    cell.WithPosition(new Point(pre.X + lane, pre.Y + cellIndex));
+                                    cell.WithGrid(currentGrid);
+                                    break;
+                                case SegmentDirection.Down:
+                                case SegmentDirection.DownRight:
+                                case SegmentDirection.DownLeft:
+                                    cell.WithPosition(new Point(pre.X + lane, pre.Y - cellIndex));
+                                    cell.WithGrid(currentGrid);
+                                    break;
+                                default:
+                                    throw new ArgumentException($"Unsupported direction: {direction}");
+                            }
+                        }
+                }
+                // Update pre to the last cell of the first lane of current segment
+                if(i != segs.Count - 1) // not the last segment
+                {
+                    //var lastCell = segment.LaneCells[0][segment.CellCount - 1];
+                    var nextDirection = segs[i + 1].Direction;
+                    Cell lastCell = GetBoundaryCell(segment, nextDirection);
+                    switch (nextDirection)
+                    {
+                        case SegmentDirection.Left:
+                        case SegmentDirection.LeftUp:
+                        case SegmentDirection.LeftDown:
+                            pre = new Point(lastCell.Position.X - 1, lastCell.Position.Y);
+                            break;
+                        case SegmentDirection.Right:
+                        case SegmentDirection.RightUp:
+                        case SegmentDirection.RightDown:
+                            pre = new Point(lastCell.Position.X + 1, lastCell.Position.Y);
+                            break;
+                        case SegmentDirection.Up:
+                        case SegmentDirection.UpRight:
+                        case SegmentDirection.UpLeft:
+                            pre = new Point(lastCell.Position.X, lastCell.Position.Y + 1);
+                            break;
+                        case SegmentDirection.Down:
+                        case SegmentDirection.DownRight:
+                        case SegmentDirection.DownLeft:
+                            pre = new Point(lastCell.Position.X, lastCell.Position.Y - 1);
+                            break;
+                        default:
+                            throw new ArgumentException($"Unsupported direction: {nextDirection}");
+                    }
+                }
+            }
+        }
+
+        private static Cell GetBoundaryCell(RaceMap.TrackSegment segment,SegmentDirection nextDir)
+        {
+            var cells = segment.LaneCells.SelectMany(l => l);
+
+            return nextDir switch
+            {
+                SegmentDirection.Right or SegmentDirection.RightUp or SegmentDirection.RightDown
+                    // Need largest X and, when equal, smallest Y
+                    => cells.MaxBy(c => (c.Position.X, -c.Position.Y))!,
+
+                SegmentDirection.Left or SegmentDirection.LeftUp or SegmentDirection.LeftDown
+                    // Need smallest X and Y -> negate both to turn “smallest” into “largest”
+                    => cells.MaxBy(c => (-c.Position.X, -c.Position.Y))!,
+
+                SegmentDirection.Up or SegmentDirection.UpRight or SegmentDirection.UpLeft
+                    // Need smallest X, largest Y -> negate X only
+                    => cells.MaxBy(c => (-c.Position.X, c.Position.Y))!,
+
+                SegmentDirection.Down or    SegmentDirection.DownRight or SegmentDirection.DownLeft
+                    // Same rule as “Left” (min X, min Y)
+                    => cells.MaxBy(c => (-c.Position.X, -c.Position.Y))!,
+
+                _ => throw new ArgumentException($"Unsupported direction: {nextDir}")
+            };
         }
     }
 }
