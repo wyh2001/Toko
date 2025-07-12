@@ -1,0 +1,103 @@
+﻿@using System.Collections.Generic
+@using System.Drawing
+@using System.Linq
+@using Microsoft.AspNetCore.Components
+@using Toko.Shared.Models
+@using Toko.Shared.Services
+
+@if (_raceMap is null || _gridWidth <= 0 || _gridHeight <= 0)
+{
+    <div class="track-grid-empty">No map data to display.</div>
+}
+else
+{
+    <div class="track-grid"
+         style="display:grid;
+                    grid-template-columns:repeat(@_gridWidth, @TileSizepx);
+                    grid-auto-rows:@TileSizepx;
+                    image-rendering:pixelated;
+                    background-color:#5c9e3a;">
+        @for (int y = _minY; y <= _maxY; y++)
+        {
+            @for (int x = _minX; x <= _maxX; x++)
+            {
+                var (path, rot) = ResolveTile(x, y);
+                <img src="@path"
+                     alt="@($"Tile ({x}, {y})")"
+                     style="@($"grid-column:{x - _minX + 1};grid-row:{_maxY - y + 1};transform:rotate({rot}deg);")" />
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public MapSnapshot? MapSnapshot { get; set; }
+    [Parameter] public int TileSize { get; set; } = 128; // px
+
+    private const string ImageBasePath = "/kenney_racing/PNG/Tiles/Asphalt Road/";
+    private const string GrassTilePath = "/kenney_racing/PNG/Tiles/Grass/land_grass04.png";
+
+    private RaceMap? _raceMap;
+    private readonly Dictionary<Point, Cell> _cellLookup = new();
+    private readonly Dictionary<MapRenderingType, string> _imageLookup = new()
+    {
+        { MapRenderingType.BothEdges, "BothEdges.png" },
+        { MapRenderingType.SingleEdge, "SingleEdge.png" },
+        { MapRenderingType.Plain, "Plain.png" },
+
+        { MapRenderingType.CurveSmall, "CurveSmall.png" },
+        { MapRenderingType.CurveSmallCornerEdge, "CurveSmallCornerEdge.png" },
+
+        { MapRenderingType.RightSingleEdgeUpperLeftCornerEdge, "RightSingleEdgeUpperLeftCornerEdge.png" },
+        { MapRenderingType.RightSingleEdgeLowerLeftCornerEdge, "RightSingleEdgeLowerLeftCornerEdge.png" },
+
+        { MapRenderingType.CurveLargeSeg1, "CurveLargeSeg1.png" },
+        { MapRenderingType.CurveLargeSeg2, "CurveLargeSeg2.png" },
+        { MapRenderingType.CurveLargeSeg3, "CurveLargeSeg3.png" },
+
+        { MapRenderingType.CornerEdge, "CornerEdge.png" }
+    };
+
+    private int _minX, _minY, _maxX, _maxY;
+    private int _gridWidth => _maxX - _minX + 1;
+    private int _gridHeight => _maxY - _minY + 1;
+    private string TileSizepx => $"{TileSize}px";
+
+    protected override void OnParametersSet()
+    {
+        _cellLookup.Clear();
+        if (MapSnapshot?.Segments is null || MapSnapshot.Segments.Count == 0)
+        {
+            _raceMap = null;
+            return;
+        }
+
+        _raceMap = RaceMapFactory.CreateMap(MapSnapshot.Segments);
+
+        var allCells = _raceMap.Segments.SelectMany(s => s.LaneCells.SelectMany(c => c)).ToList();
+        if (allCells.Count == 0)
+        {
+            _raceMap = null;
+            return;
+        }
+
+        foreach (var cell in allCells)
+            _cellLookup[cell.Position] = cell;
+
+        _minX = allCells.Min(c => c.Position.X);
+        _maxX = allCells.Max(c => c.Position.X);
+        _minY = allCells.Min(c => c.Position.Y);
+        _maxY = allCells.Max(c => c.Position.Y);
+    }
+
+    private (string path, int rot) ResolveTile(int x, int y)
+    {
+        if (!_cellLookup.TryGetValue(new Point(x, y), out var cell) || cell.Grid is null)
+            return (GrassTilePath, 0);
+
+        if (!_imageLookup.TryGetValue(cell.Grid.RenderingType, out var fileName))
+            fileName = "road_asphalt22.png"; // fallback
+
+        return ($"{ImageBasePath}{fileName}", (int)cell.Grid.Rotation);
+    }
+}
