@@ -23,7 +23,7 @@
     string? CurrentTurnCardType, // Add card type for parameter submission
     List<string> DiscardPendingPlayerIds,
     List<RacerStatus> Racers,
-    object Map,
+    MapSnapshot Map,
     List<PlayerResult>? Results
         );
     public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
