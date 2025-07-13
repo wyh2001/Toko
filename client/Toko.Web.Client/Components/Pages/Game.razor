@@ -163,21 +163,15 @@
             <div class="center-panel">
                 <div class="board-section">
                     <h3 class="panel-title">Race Track</h3>
-                    <div class="race-board">
-                        @for (int i = 0; i < 20; i++)
-                        {
-                            <div class="track-segment @(i == 0 ? "start" : "") @(i == 19 ? "finish" : "")">
-                                <div class="segment-number">@i</div>
-                                <div class="segment-racers">
-                                    @foreach (var player in GetPlayersAtPosition(i))
-                                    {
-                                        <div class="racer-token @GetPlayerColorClass(player.Id)">
-                                            @GetPlayerInitials(player.Name)
-                                        </div>
-                                    }
-                                </div>
-                            </div>
-                        }
+                    <div class="race-board">  
+                        @if (gameData?.Map != null)  
+                        {  
+                            <RaceBoard MapSnapshot="@gameData.Map" TileSize="128"></RaceBoard>  
+                        }  
+                        else  
+                        {  
+                            <div class="error-message">Map data is not available.</div>  
+                        }  
                     </div>
                 </div>
             </div>
