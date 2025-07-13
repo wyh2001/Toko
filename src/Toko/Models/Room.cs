@@ -761,25 +761,25 @@ namespace Toko.Models
 
         #region Snapshot for API
         // Snapshot DTO for API
-        public record RoomStatusSnapshot(
-            string RoomId,
-            string Name,
-            int MaxPlayers,
-            bool IsPrivate,
-            string Status,
-            string Phase,
-            int CurrentRound,
-            int CurrentStep,
-            int TotalRounds,
-            int TotalSteps,
-            string? CurrentTurnPlayerId,
-            string? CurrentTurnCardType, // Add card type for parameter submission
-            List<string> DiscardPendingPlayerIds,
-            List<RacerStatus> Racers,
-            object Map,
-            List<PlayerResult>? Results
-        );
-        public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
+        //public record RoomStatusSnapshot(
+        //    string RoomId,
+        //    string Name,
+        //    int MaxPlayers,
+        //    bool IsPrivate,
+        //    string Status,
+        //    string Phase,
+        //    int CurrentRound,
+        //    int CurrentStep,
+        //    int TotalRounds,
+        //    int TotalSteps,
+        //    string? CurrentTurnPlayerId,
+        //    string? CurrentTurnCardType, // Add card type for parameter submission
+        //    List<string> DiscardPendingPlayerIds,
+        //    List<RacerStatus> Racers,
+        //    object Map,
+        //    List<PlayerResult>? Results
+        //);
+        //public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
         //public record MapSnapshot(int TotalCells, List<MapSegmentSnapshot> Segments);
         //public record MapSegmentSnapshot(string Type, int LaneCount, int CellCount, string Direction, bool IsIntermediate);
 
@@ -801,19 +801,16 @@ namespace Toko.Models
                     r.Hand.Count,
                     _banned.Contains(r.Id)
                 )).ToList();
-                var map = new
-                {
-                    TotalCells = Map.TotalCells,            // ← expose track length
-                    Segments = Map.Segments.Select(seg => new
-                    {
-                        Type = seg.DefaultType.ToString(),
+                var map = new MapSnapshot(
+                    Map.TotalCells,
+                    Map.Segments.Select(seg => new MapSegmentSnapshot(
+                        seg.DefaultType.ToString(),
                         seg.LaneCount,
                         seg.CellCount,
-                        //LaneCellCounts = seg.LaneCells.Select(lane => lane.Count).ToList(),
-                        Direction = seg.Direction.ToString(),
-                        seg.IsIntermediate,
-                    }).ToList()
-                };
+                        seg.Direction.ToString(),
+                        seg.IsIntermediate
+                    )).ToList()
+                );
 
                 // Get current turn card type if in CollectingParams phase
                 string? currentTurnCardType = null;
@@ -828,7 +825,21 @@ namespace Toko.Models
 
                 // Fix array bounds issue when game ends due to turn limit
                 var totalSteps = CurrentRound < _steps.Count ? _steps[CurrentRound] : _steps.Last();
-                
+
+                var racerStatuses = Racers.Select(r => new RacerStatus(
+                    r.Id,
+                    r.PlayerName,
+                    r.SegmentIndex,
+                    r.LaneIndex,
+                    r.CellIndex,
+                    _bank.TryGetValue(r.Id, out var bank) ? Math.Round(bank.TotalSeconds, 2) : 0.0,
+                    r.IsHost,
+                    r.IsReady,
+                    r.Hand.Count,
+                    _banned.Contains(r.Id)
+                )).ToList();
+
+
                 return new RoomStatusSnapshot(
                     Id,
                     Name ?? string.Empty, // Ensure Name is not null
@@ -843,7 +854,7 @@ namespace Toko.Models
                     currentTurnPlayerId, // CurrentTurnPlayerId
                     currentTurnCardType, // CurrentTurnCardType
                     _discardPending.ToList(), // DiscardPendingPlayerIds
-                    racers,
+                    racerStatuses,
                     map,
                     _gameResults
                 );

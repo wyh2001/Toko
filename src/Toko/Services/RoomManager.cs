@@ -302,7 +302,7 @@ namespace Toko.Services
             return await room.GetHandAsync(playerId);
         }
 
-        public record GetRoomStatusSuccess(Room.RoomStatusSnapshot Snapshot);
+        public record GetRoomStatusSuccess(RoomStatusSnapshot Snapshot);
         public enum GetRoomStatusError { RoomNotFound }
 
         public async Task<OneOf<GetRoomStatusSuccess, GetRoomStatusError>> GetRoomStatusAsync(string roomId)
