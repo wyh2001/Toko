@@ -68,7 +68,8 @@ namespace Toko.Services
             bool isPrivate,
             string playerName,
             //int totalRounds,
-            List<int> stepsPerRound)
+            List<int> stepsPerRound,
+            CustomMapRequest? customMap = null)
         {
             //var roomId = Guid.NewGuid().ToString();
             // iloggerFactory 
@@ -79,7 +80,7 @@ namespace Toko.Services
                 Name = roomName ?? $"Room-{Random.Shared.Next(1000, 9999)}",
                 MaxPlayers = maxPlayers,
                 IsPrivate = isPrivate,
-                Map = RaceMapFactory.CreateDefaultMap()
+                Map = customMap != null ? RaceMapFactory.CreateMap(customMap.Segments) : RaceMapFactory.CreateDefaultMap()
             };
             var roomId = room.Id;
 

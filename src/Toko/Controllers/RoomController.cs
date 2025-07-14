@@ -36,7 +36,7 @@ namespace Toko.Controllers
         {
             var playerId = GetPlayerId();
             var (roomId, hostRacer) = _roomManager.CreateRoom(
-                playerId, req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.StepsPerRound);
+                playerId, req.RoomName, req.MaxPlayers, req.IsPrivate, req.PlayerName, req.StepsPerRound, req.CustomMap);
 
             return Ok(new ApiSuccess<object>(
                 "Room created successfully",

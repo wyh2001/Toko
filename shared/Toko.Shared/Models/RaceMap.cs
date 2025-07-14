@@ -57,8 +57,9 @@ namespace Toko.Shared.Models
         Rotate180 = 180,
         Rotate270 = 270
     }
-    public record Grid(MapRenderingType RenderingType, MapRenderingRotation Rotation);
+    public record Grid(MapRenderingType RenderingType, MapRenderingRotation Rotation, bool IsFlipped = false);
     public record MapSnapshot(int TotalCells, List<MapSegmentSnapshot> Segments);
+    public record CustomMapRequest(List<MapSegmentSnapshot> Segments);
     public record MapSegmentSnapshot(string Type, int LaneCount, int CellCount, string Direction, bool IsIntermediate);
     public record Cell(Point Position, CellType Type, Grid? Grid)
     {
