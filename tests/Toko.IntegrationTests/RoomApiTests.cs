@@ -1,16 +1,19 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Toko.Shared.Models;
+using Toko.Shared.Services;
 using Xunit;
 using Xunit.Abstractions;
-using static Toko.Controllers.RoomController;
 using static Toko.IntegrationTests.TestGameClient;
 
 namespace Toko.IntegrationTests
@@ -21,7 +24,7 @@ namespace Toko.IntegrationTests
         private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
         private readonly ITestOutputHelper _output = output;
         private record CreateRoomDto(string RoomId, string PlayerId, string PlayerName);
-        private record AuthDto(string PlayerName, string PlayerId);
+        // private record AuthDto(string? PlayerName, string PlayerId);
 
         [Fact]
         public async Task Authenticate_ShouldReturnSuccess()
@@ -31,12 +34,17 @@ namespace Toko.IntegrationTests
         }
 
         [Fact]
-        public async Task AuthenticateTwice_ShouldReturnNoContent()
+        public async Task AuthenticateTwice_ShouldReturnSuccessWithOnlyPlayerId()
         {
             var resp = await _client.GetAsync("/api/auth/anon");
             resp.EnsureSuccessStatusCode();
             var resp2 = await _client.GetAsync("/api/auth/anon");
-            Assert.Equal(HttpStatusCode.NoContent, resp2.StatusCode);
+            resp2.EnsureSuccessStatusCode();
+            var authDto = await resp2.Content.ReadFromJsonAsync<ApiSuccess<AuthDto>>(_json);
+            Assert.NotNull(authDto);
+            Assert.NotNull(authDto.Data);
+            Assert.NotNull(authDto.Data.PlayerId);
+            Assert.Null(authDto.Data.PlayerName); // PlayerName should not be returned on subsequent calls
         }
 
         [Fact]
@@ -698,7 +706,7 @@ namespace Toko.IntegrationTests
                             _output.WriteLine($"🎉 Round {lastRound + 1} completed! ({roundsCompleted}/{expectedTotalRounds} rounds done)");
                             
                             // Assert that we're making progress through rounds
-                            Assert.True(roundsCompleted <= expectedTotalRounds, 
+                            Assert.True(roundsCompleted <= expectedTotalRounds,
                                        $"Completed more rounds ({roundsCompleted}) than expected ({expectedTotalRounds})");
                         }
                     }
@@ -726,9 +734,10 @@ namespace Toko.IntegrationTests
                     // Display final results with absolute positions
                     _output.WriteLine("\n🏆 FINAL STANDINGS:");
                     var sortedRacers = status.Racers
-                        .Select(r => new { 
-                            Racer = r, 
-                            AbsolutePosition = CalculateAbsolutePosition(r.Segment, r.Tile, mapJson) 
+                        .Select(r => new
+                        {
+                            Racer = r,
+                            AbsolutePosition = CalculateAbsolutePosition(r.Segment, r.Tile, mapJson)
                         })
                         .OrderByDescending(x => x.AbsolutePosition)
                         .ThenBy(x => x.Racer.Lane)
@@ -928,7 +937,7 @@ namespace Toko.IntegrationTests
                         _output.WriteLine($"   ⏭️ {player.PlayerName} has no Junk cards to discard for Repair card, using auto-skip");
                     }
                     break;
-                    
+
                 default:
                     _output.WriteLine($"   ❌ Unknown card type: {status.CurrentTurnCardType}");
                     return;
@@ -1035,6 +1044,246 @@ namespace Toko.IntegrationTests
                 return cellIndex;
             }
         }
+
+        [Fact]
+        public async Task CreateDefaultMapAndVerifyTileProperties_ShouldMatchExpectedValues()
+        {
+            // Load test data from JSON
+            var testCases = LoadMapTestCases();
+            
+            foreach (var testCase in testCases)
+            {
+                var player = new TestGameClient(factory, _output);
+                await player.AuthenticateAsync();
+
+                _output.WriteLine($"=== Testing Map: {testCase.MapName} ===");
+
+                // Create room with custom map
+                var roomId = await player.CreateRoomWithCustomMapAsync(
+                    testCase.MapName, 4, false, new[] { 1 }, testCase.CustomMapRequest);
+
+                // Get room status and recreate map
+                var status = await player.GetRoomStatusAsync(roomId);
+                var mapJson = (JsonElement)status.Map;
+                var segmentsJson = mapJson.GetProperty("segments").EnumerateArray();
+
+                var actualSegments = segmentsJson.Select(segJson => new MapSegmentSnapshot(
+                    segJson.GetProperty("type").GetString()!,
+                    segJson.GetProperty("laneCount").GetInt32(),
+                    segJson.GetProperty("cellCount").GetInt32(),
+                    segJson.GetProperty("direction").GetString()!,
+                    segJson.GetProperty("isIntermediate").GetBoolean()
+                )).ToList();
+
+                var map = RaceMapFactory.CreateMap(actualSegments);
+
+                // Create position lookup dictionary (like frontend)
+                var cellLookup = new Dictionary<(int x, int y), Cell>();
+                foreach (var segment in map.Segments)
+                {
+                    foreach (var lane in segment.LaneCells)
+                    {
+                        foreach (var cell in lane)
+                        {
+                            cellLookup[(cell.Position.X, cell.Position.Y)] = cell;
+                        }
+                    }
+                }
+
+                _output.WriteLine($"Map has {cellLookup.Count} total cells");
+
+                // Test expected cells from JSON
+                foreach (var expectedCell in testCase.ExpectedCells)
+                {
+                    // Find cell by coordinate using lookup dictionary
+                    if (cellLookup.TryGetValue((expectedCell.X, expectedCell.Y), out var cell))
+                    {
+                        // Verify cell type
+                        try
+                        {
+                            Assert.Equal(expectedCell.ExpectedCellType, cell.Type);
+                        }
+                        catch (Exception)
+                        {
+                            _output.WriteLine($"❌ Cell type mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedCellType}, Got {cell.Type}");
+                            throw;
+                        }
+                        
+                        // Verify grid properties
+                        if (expectedCell.ExpectedGrid != null)
+                        {
+                            try
+                            {
+                                Assert.NotNull(cell.Grid);
+                                Assert.Equal(expectedCell.ExpectedGrid.RenderingType, cell.Grid.RenderingType);
+                                Assert.Equal(expectedCell.ExpectedGrid.Rotation, cell.Grid.Rotation);
+                                Assert.Equal(expectedCell.ExpectedGrid.IsFlipped, cell.Grid.IsFlipped);
+                            }
+                            catch (Exception)
+                            {
+                                _output.WriteLine($"❌ Grid mismatch at ({expectedCell.X}, {expectedCell.Y}):");
+                                _output.WriteLine($"   Expected: {expectedCell.ExpectedGrid.RenderingType}, {expectedCell.ExpectedGrid.Rotation}, Flipped={expectedCell.ExpectedGrid.IsFlipped}");
+                                if (cell.Grid != null)
+                                {
+                                    _output.WriteLine($"   Got: {cell.Grid.RenderingType}, {cell.Grid.Rotation}, Flipped={cell.Grid.IsFlipped}");
+                                }
+                                else
+                                {
+                                    _output.WriteLine($"   Got: null");
+                                }
+                                throw;
+                            }
+                        }
+                        else
+                        {
+                            try
+                            {
+                                Assert.Null(cell.Grid);
+                            }
+                            catch (Exception)
+                            {
+                                _output.WriteLine($"❌ Grid should be null at ({expectedCell.X}, {expectedCell.Y}), but got: {cell.Grid?.RenderingType}, {cell.Grid?.Rotation}, Flipped={cell.Grid?.IsFlipped}");
+                                throw;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        _output.WriteLine($"❌ No cell found at coordinate ({expectedCell.X}, {expectedCell.Y})");
+                        _output.WriteLine($"   Available coordinates: {string.Join(", ", cellLookup.Keys.Take(10).Select(k => $"({k.x},{k.y})"))}...");
+                        Assert.Fail($"No cell found at coordinate ({expectedCell.X}, {expectedCell.Y})");
+                    }
+                }
+
+                _output.WriteLine($"\n✅ Map '{testCase.MapName}' - All {testCase.ExpectedCells.Count} cells verified successfully");
+            }
+        }
+
+        private List<MapTestCase> LoadMapTestCases()
+        {
+            // Try multiple possible paths for the JSON file
+            var possiblePaths = new[]
+            {
+                Path.Combine(AppContext.BaseDirectory, "MapTestData.json"),
+                Path.Combine(Directory.GetCurrentDirectory(), "MapTestData.json"),
+                Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "MapTestData.json"),
+                "MapTestData.json"
+            };
+
+            string? jsonPath = null;
+            foreach (var path in possiblePaths)
+            {
+                if (File.Exists(path))
+                {
+                    jsonPath = path;
+                    break;
+                }
+            }
+
+            if (jsonPath == null)
+            {
+                var searchedPaths = string.Join("\n  - ", possiblePaths);
+                throw new FileNotFoundException($"MapTestData.json not found. Searched paths:\n  - {searchedPaths}");
+            }
+
+            var jsonContent = File.ReadAllText(jsonPath);
+            var testData = JsonSerializer.Deserialize<MapTestData>(jsonContent, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (testData?.TestCases == null)
+            {
+                throw new InvalidOperationException("No test cases found in MapTestData.json");
+            }
+
+            return testData.TestCases.Select(tc => new MapTestCase
+            {
+                MapName = tc.MapName,
+                CustomMapRequest = new CustomMapRequest(
+                    tc.MapSnapshot.Segments.Select(s => new MapSegmentSnapshot(
+                        s.Type, s.LaneCount, s.CellCount, s.Direction, false // isIntermediate is always false for user-defined segments
+                    )).ToList()
+                ),
+                ExpectedCells = tc.ExpectedCells.Select(ec => new ExpectedCellData
+                {
+                    X = ec.X,
+                    Y = ec.Y,
+                    SegmentIndex = ec.SegmentIndex,
+                    LaneIndex = ec.LaneIndex,
+                    CellIndex = ec.CellIndex,
+                    ExpectedCellType = Enum.Parse<CellType>(ec.ExpectedCellType),
+                    ExpectedGrid = ec.ExpectedGrid != null ? new Grid(
+                        Enum.Parse<MapRenderingType>(ec.ExpectedGrid.RenderingType),
+                        Enum.Parse<MapRenderingRotation>(ec.ExpectedGrid.Rotation),
+                        ec.ExpectedGrid.IsFlipped
+                    ) : null
+                }).ToList()
+            }).ToList();
+        }
+
+        // Data models for JSON test data
+        public class MapTestData
+        {
+            public List<MapTestCaseJson> TestCases { get; set; } = new();
+        }
+
+        public class MapTestCaseJson
+        {
+            public string MapName { get; set; } = "";
+            public MapSnapshotJson MapSnapshot { get; set; } = new();
+            public List<ExpectedCellDataJson> ExpectedCells { get; set; } = new();
+        }
+
+        public class MapSnapshotJson
+        {
+            public int TotalCells { get; set; }
+            public List<MapSegmentSnapshotJson> Segments { get; set; } = new();
+        }
+
+        public class MapSegmentSnapshotJson
+        {
+            public string Type { get; set; } = "";
+            public int LaneCount { get; set; }
+            public int CellCount { get; set; }
+            public string Direction { get; set; } = "";
+        }
+
+        public class ExpectedCellDataJson
+        {
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int SegmentIndex { get; set; }
+            public int LaneIndex { get; set; }
+            public int CellIndex { get; set; }
+            public string ExpectedCellType { get; set; } = "";
+            public GridJson? ExpectedGrid { get; set; }
+        }
+
+        public class GridJson
+        {
+            public string RenderingType { get; set; } = "";
+            public string Rotation { get; set; } = "";
+            public bool IsFlipped { get; set; }
+        }
+
+        // Test execution models
+        public class MapTestCase
+        {
+            public string MapName { get; set; } = "";
+            public CustomMapRequest CustomMapRequest { get; set; } = new(new List<MapSegmentSnapshot>());
+            public List<ExpectedCellData> ExpectedCells { get; set; } = new();
+        }
+
+        public class ExpectedCellData
+        {
+            public int X { get; set; }
+            public int Y { get; set; }
+            public int SegmentIndex { get; set; }
+            public int LaneIndex { get; set; }
+            public int CellIndex { get; set; }
+            public CellType ExpectedCellType { get; set; }
+            public Grid? ExpectedGrid { get; set; }
+        }
     }
 }
-

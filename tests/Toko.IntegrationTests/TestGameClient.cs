@@ -200,6 +200,30 @@ namespace Toko.IntegrationTests
             return wrapper.Data.RoomId;
         }
 
+        // Enhanced room creation with settings and custom map
+        public async Task<string> CreateRoomWithCustomMapAsync(string roomName, int maxPlayers, bool isPrivate, int[] stepsPerRound, CustomMapRequest? customMap = null)
+        {
+            var resp = await Client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = PlayerName,
+                roomName,
+                maxPlayers,
+                isPrivate,
+                stepsPerRound,
+                customMap
+            });
+            resp.EnsureSuccessStatusCode();
+            var raw = await resp.Content.ReadAsStringAsync();
+            _output.WriteLine($"Create room response: {raw}");
+            var wrapper = await resp.Content.ReadFromJsonAsync<ApiSuccess<CreateRoomDto>>(Json);
+            Assert.NotNull(wrapper);
+            Assert.NotNull(wrapper.Data);
+            Assert.NotNull(wrapper.Data.RoomId);
+            Assert.True(Guid.TryParse(wrapper.Data.RoomId, out _), "RoomId must be a valid UUID.");
+            Assert.Equal(PlayerId, wrapper.Data.PlayerId);
+            return wrapper.Data.RoomId;
+        }
+
         // Room status
         public async Task<RoomStatusSnapshot> GetRoomStatusAsync(string roomId)
         {
