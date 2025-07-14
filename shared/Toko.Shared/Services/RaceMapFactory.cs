@@ -11,10 +11,18 @@ namespace Toko.Shared.Services
         {
             var segments = new List<TrackSegment>
             {
-                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Right),
-                CreateNormalSegment(CellType.Road, 2, 7, SegmentDirection.Down),
-                CreateNormalSegment(CellType.Road, 5, 3, SegmentDirection.Left),
-                CreateNormalSegment(CellType.Road, 1, 7, SegmentDirection.Up)
+                CreateNormalSegment(CellType.Road, 2, 6, SegmentDirection.Up),
+                CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Down),
+                CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Up),
+                CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 2, 6, SegmentDirection.Down),
+                CreateNormalSegment(CellType.Road, 2, 7, SegmentDirection.Left),
+                // CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Up),
+                // CreateNormalSegment(CellType.Road, 1, 3, SegmentDirection.Right),
+                // CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Down),
+                // CreateNormalSegment(CellType.Road, 1, 3, SegmentDirection.Left),
             };
             return GenerateFinalMapWithIntermediate(segments);
         }
@@ -200,63 +208,45 @@ namespace Toko.Shared.Services
             return seg;
         }
 
-        private static readonly IReadOnlyDictionary<SegmentDirection, int> DirFactor = new Dictionary<SegmentDirection, int>
-        {
-            { SegmentDirection.Left, 1 },
-            { SegmentDirection.Right, 1 },
-            { SegmentDirection.Up, 0 },
-            { SegmentDirection.Down, 0 },
-            { SegmentDirection.LeftUp, 1 },
-            { SegmentDirection.LeftDown, 1 },
-            { SegmentDirection.RightUp, 0 },
-            { SegmentDirection.RightDown, 3 },
-            { SegmentDirection.UpLeft, 1 },
-            { SegmentDirection.UpRight, 0 },
-            { SegmentDirection.DownLeft, 2 },
-            { SegmentDirection.DownRight, 0 }
-        };
-
-        private static MapRenderingRotation ToRotation(int deg)
-        {
-            deg = ((deg % 360) + 360) % 360;
-            return deg switch
-            {
-                0 => MapRenderingRotation.Original,
-                90 => MapRenderingRotation.Rotate90,
-                180 => MapRenderingRotation.Rotate180,
-                270 => MapRenderingRotation.Rotate270,
-                _ => throw new ArgumentOutOfRangeException(nameof(deg),
-                         $"Rotation must be a multiple of 90°, got {deg}")
-            };
-        }
-
-        private static (MapRenderingType type, MapRenderingRotation rot) ResolveBasicGrid(SegmentDirection dir, int lane, int laneCount)
+        private static (MapRenderingType type, MapRenderingRotation rot, bool isFlipped) ResolveBasicGrid(SegmentDirection dir, int lane, int laneCount)
         {
             bool isBasic = IsBasic(dir);
             bool isSingleLane = laneCount == 1;
             bool isSideLane = lane == 0 || lane == laneCount - 1;
-            //bool isNextFirstLaneCurve = IsFirstLaneCurve(nextDir);
-            var f = DirFactor[dir];
+            
             if (isBasic)
             {
                 if (isSingleLane)
                 {
-                    //if (laneCount > 2 && nextCellCount == 1 && ((isNextFirstLaneCurve&&laneIndex==0)||(!isNextFirstLaneCurve&&laneCount==)))
-                    //{
-
-                    //}
-                    int deg = f * 90;
-                    return (MapRenderingType.BothEdges, ToRotation(deg));
+                    return dir switch
+                    {
+                        SegmentDirection.Left or SegmentDirection.Right => (MapRenderingType.BothEdges, MapRenderingRotation.Rotate90, false),
+                        SegmentDirection.Up or SegmentDirection.Down => (MapRenderingType.BothEdges, MapRenderingRotation.Original, false),
+                        _ => throw new ArgumentException($"Unexpected basic direction: {dir}")
+                    };
                 }
 
                 if (isSideLane)
                 {
-                    int deg = f * 270;
-                    if (lane == laneCount - 1) deg += 180;
-                    return (MapRenderingType.SingleEdge, ToRotation(deg));
+                    return dir switch
+                    {
+                        SegmentDirection.Left => lane == laneCount - 1 
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate90, false) 
+                            : (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate270, false),
+                        SegmentDirection.Right => lane == laneCount - 1 
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate90, false) 
+                            : (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate270, false),
+                        SegmentDirection.Up => lane == laneCount - 1 
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180, false) 
+                            : (MapRenderingType.SingleEdge, MapRenderingRotation.Original, false),
+                        SegmentDirection.Down => lane == laneCount - 1 
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180, false) 
+                            : (MapRenderingType.SingleEdge, MapRenderingRotation.Original, false),
+                        _ => throw new ArgumentException($"Unexpected basic direction: {dir}")
+                    };
                 }
 
-                return (MapRenderingType.Plain, MapRenderingRotation.Original);
+                return (MapRenderingType.Plain, MapRenderingRotation.Original, false);
             }
             else
             {
@@ -264,31 +254,39 @@ namespace Toko.Shared.Services
             }
         }
 
-        private static (MapRenderingType type, MapRenderingRotation rot)
+        private static (MapRenderingType type, MapRenderingRotation rot, bool isFlipped)
     ResolveGrid(SegmentDirection dir, int laneIndex, int laneCount, int nextLaneCount, int cellIndex, int cellLength, TrackSegment lastSeg, TrackSegment seg)
         {
             bool isBasic = IsBasic(dir);
             bool isSingleLane = laneCount == 1;
             bool isSideLane = laneIndex == 0 || laneIndex == laneCount - 1;
-            var f = DirFactor[dir];
+            
             if (isBasic)
             {
                 if (lastSeg.LaneCount == 1 && (laneCount * lastSeg.LaneCount) > 2)
                 {
-                    //var cell = GetSpecialCurveCell(seg, lastSeg.Direction).WithGrid(new Grid(MapRenderingType.CurveLargeSeg3, ToRotation(f*90)));
                     if ((!IsFirstLaneCurve(lastSeg.Direction) && laneIndex == laneCount - 1 && cellIndex == 0) ||
                         (IsFirstLaneCurve(lastSeg.Direction) && laneIndex == 0 && cellIndex == 0))
                     {
-                        return (MapRenderingType.CurveLargeSeg3, ToRotation(DirFactor[lastSeg.Direction] * 270));
+                        var (shouldBeFlipped, _) = CalculateCornerEdgeFlipAndRotation(lastSeg.Direction);
+                        var rotation = lastSeg.Direction switch
+                        {
+                            SegmentDirection.Left or SegmentDirection.Right or SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270,
+                            SegmentDirection.Up or SegmentDirection.Down or SegmentDirection.RightUp or SegmentDirection.UpRight or SegmentDirection.DownRight => MapRenderingRotation.Original,
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 270 % 360 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate270,
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 270 % 360 = 180
+                            _ => throw new ArgumentException($"Unexpected direction: {lastSeg.Direction}")
+                        };
+                        return (MapRenderingType.CurveLargeSeg3, rotation, shouldBeFlipped);
                     }
-
                 }
                 return ResolveBasicGrid(dir, laneIndex, laneCount);
             }
             if (isSingleLane && cellLength == 1)
             {
-                int deg = f * 90;
-                return (MapRenderingType.CurveSmallCornerEdge, ToRotation(deg));
+                var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                return (MapRenderingType.CurveSmallCornerEdge, rotation, shouldBeFlipped);
             }
             var product = laneCount * nextLaneCount;
             var isFirstLaneCurve = IsFirstLaneCurve(dir);
@@ -298,13 +296,32 @@ namespace Toko.Shared.Services
                 {
                     if ((laneIndex is 0 && isFirstLaneCurve) || (laneIndex is 1 && !isFirstLaneCurve))
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CurveSmall, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 270
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 270
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 270 % 360 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 270
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 270 % 360 = 180
+                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 270
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        var (shouldBeFlipped, _) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveSmall, rotation, shouldBeFlipped);
                     }
                     else
                     {
-                        int deg = f * 270 + 270;
-                        return (MapRenderingType.RightSingleEdgeLowerLeftCornerEdge, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate180, // (1 * 270 + 270) % 360 = 180
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Rotate270, // (0 * 270 + 270) % 360 = 270
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate180, // (3 * 270 + 270) % 360 = 180
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate180, // (1 * 270 + 270) % 360 = 180
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate90, // (2 * 270 + 270) % 360 = 90
+                            SegmentDirection.DownRight => MapRenderingRotation.Rotate270, // (0 * 270 + 270) % 360 = 270
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.RightSingleEdgeLowerLeftCornerEdge, rotation, false);
                     }
                 }
                 else
@@ -312,22 +329,40 @@ namespace Toko.Shared.Services
                     // The first cell of the transition (index 0) is the inner corner tile.
                     bool isInnerCornerTile = (cellIndex == 0);
 
-                    int deg = (f * 270) % 360;
+                    var baseRotation = dir switch
+                    {
+                        SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 270
+                        SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 270
+                        SegmentDirection.RightDown => MapRenderingRotation.Rotate90, // Fixed: was Rotate270, now Rotate90
+                        SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 270
+                        SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 270 % 360 = 180
+                        SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 270
+                        _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                    };
 
                     // The inner corner tile ALWAYS needs a 180-degree rotation correction.
+                    var finalRotation = baseRotation;
                     if (isInnerCornerTile)
                     {
-                        deg = (deg + 180) % 360;
+                        finalRotation = baseRotation switch
+                        {
+                            MapRenderingRotation.Original => MapRenderingRotation.Rotate180,
+                            MapRenderingRotation.Rotate90 => MapRenderingRotation.Rotate270,
+                            MapRenderingRotation.Rotate180 => MapRenderingRotation.Original,
+                            MapRenderingRotation.Rotate270 => MapRenderingRotation.Rotate90,
+                            _ => throw new ArgumentException($"Unexpected rotation: {baseRotation}")
+                        };
                     }
 
                     // Return the correct type and the final, correct rotation.
                     if (isInnerCornerTile)
                     {
-                        return (MapRenderingType.RightSingleEdgeUpperLeftCornerEdge, ToRotation(deg));
+                        return (MapRenderingType.RightSingleEdgeUpperLeftCornerEdge, finalRotation, false);
                     }
                     else
                     {
-                        return (MapRenderingType.CurveSmall, ToRotation(deg));
+                        var (shouldBeFlipped, _) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveSmall, finalRotation, shouldBeFlipped);
                     }
                 }
             }
@@ -335,49 +370,89 @@ namespace Toko.Shared.Services
             {
                 if (cellLength is 1)
                 {
-                    var lastF = DirFactor[dir];
-                    int lastDeg = lastF * 270;
-                    var lastBoundaryCell = GetSpecialCurveCell(lastSeg, dir).WithGrid(new Grid(MapRenderingType.CurveLargeSeg1, ToRotation(lastDeg)));
+                    var lastRotation = dir switch
+                    {
+                        SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 270
+                        SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 270
+                        SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 270 % 360 = 270
+                        SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 270
+                        SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 270 % 360 = 180
+                        SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 270
+                        _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                    };
+                    var (lastShouldBeFlipped, _) = CalculateCornerEdgeFlipAndRotation(dir);
+                    var lastBoundaryCell = GetSpecialCurveCell(lastSeg, dir).WithGrid(new Grid(MapRenderingType.CurveLargeSeg1, lastRotation, lastShouldBeFlipped));
                     var laneIndexToUpdate = IsFirstLaneCurve(dir) ? 0 : lastSeg.LaneCount - 1;
                     lastSeg.LaneCells[laneIndexToUpdate][lastSeg.CellCount - 1] = lastBoundaryCell;
                     if ((laneIndex is 0 && isFirstLaneCurve) || (laneIndex == (laneCount - 1) && !isFirstLaneCurve))
                     {
                         // since there is only one cell per line
-                        int deg = f * 270;
-                        return (MapRenderingType.CurveLargeSeg2, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 270
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 270
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 270 % 360 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 270
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 270 % 360 = 180
+                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 270
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        var (shouldBeFlipped, _) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveLargeSeg2, rotation, shouldBeFlipped);
                     }
                     else if ((laneIndex is 1 && isFirstLaneCurve) || (laneIndex == (laneCount - 2) && !isFirstLaneCurve))
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CurveLargeSeg3, ToRotation(deg));
+                        var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveLargeSeg3, rotation, shouldBeFlipped);
                     }
                     else
                     {
-                        int deg = 0;
-                        if (laneIndex == 0 || (!isFirstLaneCurve && laneIndex == laneCount - 1))
+                        if (isSideLane)
                         {
-                            deg += 180;
+                            var rotation = dir switch
+                            {
+                                SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate180, // (1 * 270 + 270) % 360 = 180
+                                SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Rotate270, // (0 * 270 + 270) % 360 = 270
+                                SegmentDirection.RightDown => MapRenderingRotation.Rotate180, // (3 * 270 + 270) % 360 = 180
+                                SegmentDirection.UpLeft => MapRenderingRotation.Rotate180, // (1 * 270 + 270) % 360 = 180
+                                SegmentDirection.DownLeft => MapRenderingRotation.Rotate90, // (2 * 270 + 270) % 360 = 90
+                                SegmentDirection.DownRight => MapRenderingRotation.Rotate270, // (0 * 270 + 270) % 360 = 270
+                                _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                            };
+                            return (MapRenderingType.RightSingleEdgeLowerLeftCornerEdge, rotation, false);
                         }
-                        return (MapRenderingType.SingleEdge, ToRotation(deg));
+                        else
+                        {
+                            return (MapRenderingType.SingleEdge, MapRenderingRotation.Original, false);
+                        }
                     }
                 }
                 if ((laneIndex is 0 && isFirstLaneCurve) || (laneIndex == (laneCount - 1) && !isFirstLaneCurve))
                 {
                     if (cellIndex == cellLength - 2) // seg1
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CurveLargeSeg1, ToRotation(deg));
+                        var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveLargeSeg1, rotation, shouldBeFlipped);
 
                     }
                     else if (cellIndex == cellLength - 1) // seg2
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CurveLargeSeg2, ToRotation(deg));
+                        var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveLargeSeg2, rotation, shouldBeFlipped);
                     }
                     else
                     {
-                        int deg = f * 90;
-                        return (MapRenderingType.SingleEdge, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
+                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.SingleEdge, rotation, false);
                     }
 
                 }
@@ -385,49 +460,94 @@ namespace Toko.Shared.Services
                 {
                     if (cellIndex == cellLength - 1) // seg3
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CurveLargeSeg3, ToRotation(deg));
+                        var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CurveLargeSeg3, rotation, shouldBeFlipped);
                     }
                     else if (cellIndex == 0)
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CornerEdge, ToRotation(deg));
+                        var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CornerEdge, rotation, shouldBeFlipped);
                     }
                     else
                     {
-                        int deg = f * 90;
-                        return (MapRenderingType.Plain, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
+                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.Plain, rotation, false);
                     }
                 }
                 else if (isSideLane)
                 {
                     if (cellIndex == 0)
                     {
-                        int deg = f * 270;
-                        return (MapRenderingType.CornerEdge, ToRotation(deg));
+                        var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
+                        return (MapRenderingType.CornerEdge, rotation, shouldBeFlipped);
                     }
                     else if (cellIndex == cellLength - 1)
                     {
-                        int deg = f * 90;
-                        return (MapRenderingType.SingleEdge, ToRotation(deg + 180));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate90, // (3 * 90 + 180) % 360 = 90
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
+                            SegmentDirection.DownLeft => MapRenderingRotation.Original, // (2 * 90 + 180) % 360 = 0
+                            SegmentDirection.DownRight => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.SingleEdge, rotation, false);
                     }
                     else
                     {
-                        int deg = f * 90;
-                        return (MapRenderingType.Plain, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
+                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.Plain, rotation, false);
                     }
                 }
                 else
                 {
                     if (cellIndex == cellLength - 1)
                     {
-                        int deg = f * 90;
-                        return (MapRenderingType.SingleEdge, ToRotation(deg + 180));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate90, // (3 * 90 + 180) % 360 = 90
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
+                            SegmentDirection.DownLeft => MapRenderingRotation.Original, // (2 * 90 + 180) % 360 = 0
+                            SegmentDirection.DownRight => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.SingleEdge, rotation, false);
                     }
                     else
                     {
-                        int deg = f * 90;
-                        return (MapRenderingType.Plain, ToRotation(deg));
+                        var rotation = dir switch
+                        {
+                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
+                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
+                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
+                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
+                        };
+                        return (MapRenderingType.Plain, rotation, false);
                     }
                 }
             }
@@ -456,13 +576,13 @@ namespace Toko.Shared.Services
                             {
                                 throw new InvalidOperationException("It is not expected to have no previous segment for a non-basic one");
                             }
-                            (var gridType, var rotation) = ResolveGrid(direction, lane, segment.LaneCount, segs[(i + 1) % segs.Count].LaneCount, cellIndex, segment.CellCount, segs[i - 1], segment);
-                            currentGrid = new Grid(gridType, rotation);
+                            (var gridType, var rotation, var isFlipped) = ResolveGrid(direction, lane, segment.LaneCount, segs[(i + 1) % segs.Count].LaneCount, cellIndex, segment.CellCount, segs[i - 1], segment);
+                            currentGrid = new Grid(gridType, rotation, isFlipped);
                         }
                         else
                         {
-                            (var gridType, var rotation) = ResolveGrid(direction, lane, segment.LaneCount, segs[(i + 1) % segs.Count].LaneCount, cellIndex, segment.CellCount, segs[((i - 1) + segs.Count) % segs.Count], segment);
-                            currentGrid = new Grid(gridType, rotation);
+                            (var gridType, var rotation, var isFlipped) = ResolveGrid(direction, lane, segment.LaneCount, segs[(i + 1) % segs.Count].LaneCount, cellIndex, segment.CellCount, segs[((i - 1) + segs.Count) % segs.Count], segment);
+                            currentGrid = new Grid(gridType, rotation, isFlipped);
                         }
                         // Reassign position based on direction
                         switch (direction)
@@ -623,6 +743,27 @@ namespace Toko.Shared.Services
                     _ => throw new ArgumentException($"Unsupported direction: {dir}")
                 };
             }
+        }
+
+        private static (bool shouldBeFlipped, MapRenderingRotation rotation) CalculateCornerEdgeFlipAndRotation(SegmentDirection dir)
+        {
+            bool shouldBeFlipped = dir switch
+            {
+                SegmentDirection.DownRight => true,
+                SegmentDirection.RightUp => true,
+                _ => false
+            };
+
+            MapRenderingRotation rotation = dir switch
+            {
+                SegmentDirection.RightDown => MapRenderingRotation.Rotate90,
+                SegmentDirection.DownLeft => MapRenderingRotation.Rotate180,
+                SegmentDirection.LeftUp => MapRenderingRotation.Rotate270,
+                SegmentDirection.RightUp => MapRenderingRotation.Rotate270,
+                _ => MapRenderingRotation.Original
+            };
+
+            return (shouldBeFlipped, rotation);
         }
     }
 }
