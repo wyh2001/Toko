@@ -163,11 +163,10 @@
             <div class="center-panel">
                 <div class="board-section">
                     <h3 class="panel-title">Race Track</h3>
-                    <div class="race-board">  
-                        @if (gameData?.Map != null)  
-                        {  
-                            <RaceBoard MapSnapshot="@gameData.Map" TileSize="128"></RaceBoard>  
-                        }  
+                    <div class="race-board">                        @if (gameData?.Map != null)  
+                        {
+                            <RaceBoard MapSnapshot="@gameData.Map" RoomStatus="@gameData" TileSize="128"></RaceBoard>  
+                        }
                         else  
                         {  
                             <div class="error-message">Map data is not available.</div>  

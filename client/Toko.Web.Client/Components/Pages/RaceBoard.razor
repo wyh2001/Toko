@@ -21,10 +21,34 @@ else
         {
             @for (int x = _minX; x <= _maxX; x++)
             {
-                var (path, rot) = ResolveTile(x, y);
-                <img src="@path"
-                     alt="@($"Tile ({x}, {y})")"
-                     style="@($"grid-column:{x - _minX + 1};grid-row:{_maxY - y + 1};transform:rotate({rot}deg);")" />
+                var (path, rot, isFlipped) = ResolveTile(x, y);
+                var racersAtPosition = GetRacersAtPosition(x, y);
+                var transformStyle = $"transform: rotate({rot}deg)";
+                if (isFlipped)
+                {
+                    transformStyle += " rotateX(180deg)";
+                }
+                
+                <div style="@($"grid-column:{x - _minX + 1};grid-row:{_maxY - y + 1};position:relative;")">
+                    <img src="@path"
+                         alt="@($"Tile ({x}, {y})")"
+                         style="@($"width:{TileSize}px;height:{TileSize}px;{transformStyle};")" />
+                    
+                    @if (racersAtPosition.Any())
+                    {
+                        @for (int i = 0; i < racersAtPosition.Count; i++)
+                        {
+                            var racer = racersAtPosition[i];
+                            var carImagePath = GetCarImage(racer, i);
+                            var carPosition = GetCarPositionOffset(i, racersAtPosition.Count);
+                            var carRotation = GetCarRotation(racer);
+                            var (carWidth, carHeight) = racersAtPosition.Count == 1 ? (71, 131) : (35, 65); // Use actual 71x131 size
+                            <img src="@carImagePath"
+                                 alt="@($"Racer {racer.Name}")"
+                                 style="@($"position:absolute;top:{carPosition.top};left:{carPosition.left};width:{carWidth}px;height:{carHeight}px;transform:rotate({carRotation}deg);z-index:10;")" />
+                        }
+                    }
+                </div>
             }
         }
     </div>
@@ -32,10 +56,12 @@ else
 
 @code {
     [Parameter] public MapSnapshot? MapSnapshot { get; set; }
+    [Parameter] public RoomStatusSnapshot? RoomStatus { get; set; }
     [Parameter] public int TileSize { get; set; } = 128; // px
 
     private const string ImageBasePath = "/kenney_racing/PNG/Tiles/Asphalt Road/";
     private const string GrassTilePath = "/kenney_racing/PNG/Tiles/Grass/land_grass04.png";
+    private const string CarsBasePath = "/kenney_racing/PNG/Cars/";
 
     private RaceMap? _raceMap;
     private readonly Dictionary<Point, Cell> _cellLookup = new();
@@ -90,14 +116,99 @@ else
         _maxY = allCells.Max(c => c.Position.Y);
     }
 
-    private (string path, int rot) ResolveTile(int x, int y)
+    private (string path, int rot, bool isFlipped) ResolveTile(int x, int y)
     {
         if (!_cellLookup.TryGetValue(new Point(x, y), out var cell) || cell.Grid is null)
-            return (GrassTilePath, 0);
+            return (GrassTilePath, 0, false);
 
         if (!_imageLookup.TryGetValue(cell.Grid.RenderingType, out var fileName))
             fileName = "road_asphalt22.png"; // fallback
 
-        return ($"{ImageBasePath}{fileName}", (int)cell.Grid.Rotation);
+        return ($"{ImageBasePath}{fileName}", (int)cell.Grid.Rotation, cell.Grid.IsFlipped);
+    }
+
+    private List<RacerStatus> GetRacersAtPosition(int x, int y)
+    {
+        if (RoomStatus?.Racers == null || _raceMap == null)
+            return new List<RacerStatus>();
+
+        return RoomStatus.Racers.Where(racer =>
+        {
+            // Get the cell position for this racer
+            if (racer.Segment >= 0 && racer.Segment < _raceMap.Segments.Count)
+            {
+                var segment = _raceMap.Segments[racer.Segment];
+                if (racer.Lane >= 0 && racer.Lane < segment.LaneCells.Count &&
+                    racer.Tile >= 0 && racer.Tile < segment.LaneCells[racer.Lane].Count)
+                {
+                    var cell = segment.LaneCells[racer.Lane][racer.Tile];
+                    return cell.Position.X == x && cell.Position.Y == y;
+                }
+            }
+            return false;
+        }).ToList();
+    }
+
+    private string GetCarImage(RacerStatus racer, int index)
+    {
+        // Use a stable hash based on racer ID to ensure consistent colors across refreshes
+        var colors = new[] { "red", "blue", "green", "yellow", "black" };
+        
+        // Create a stable hash from the racer ID string
+        int stableHash = 0;
+        foreach (char c in racer.Id)
+        {
+            stableHash = stableHash * 31 + c;
+        }
+        var colorIndex = Math.Abs(stableHash) % colors.Length;
+        var color = colors[colorIndex];
+        return $"{CarsBasePath}car_{color}_1.png"; // Use normal size version
+    }
+
+    private int GetCarRotation(RacerStatus racer)
+    {
+        // Get the segment direction to determine car rotation
+        if (_raceMap != null && racer.Segment >= 0 && racer.Segment < _raceMap.Segments.Count)
+        {
+            var segment = _raceMap.Segments[racer.Segment];
+            return segment.Direction switch
+            {
+                SegmentDirection.Up => 0,          // Default direction (up)
+                SegmentDirection.Right => 90,      // Turn right
+                SegmentDirection.Down => 180,      // Turn down
+                SegmentDirection.Left => 270,      // Turn left
+                SegmentDirection.UpRight => 45,    // Diagonal up-right
+                SegmentDirection.DownRight => 135, // Diagonal down-right
+                SegmentDirection.DownLeft => 225,  // Diagonal down-left
+                SegmentDirection.UpLeft => 315,    // Diagonal up-left
+                SegmentDirection.RightUp => 45,    // Same as UpRight
+                SegmentDirection.RightDown => 135, // Same as DownRight
+                SegmentDirection.LeftDown => 225,  // Same as DownLeft
+                SegmentDirection.LeftUp => 315,    // Same as UpLeft
+                _ => 0 // Default to up
+            };
+        }
+        return 0; // Default rotation
+    }
+
+    private (string top, string left) GetCarPositionOffset(int index, int totalCount)
+    {
+        // If only one car, center it (car is 71x131)
+        if (totalCount == 1)
+            return ("calc(50% - 65px)", "calc(50% - 35px)"); // Center for 71x131 car
+
+        // For multiple cars (35x65), position them around the tile
+        return index switch
+        {
+            0 => ("5px", "5px"),                        // top-left
+            1 => ("5px", "calc(100% - 40px)"),          // top-right (35px + 5px)
+            2 => ("calc(100% - 70px)", "5px"),          // bottom-left (65px + 5px)
+            3 => ("calc(100% - 70px)", "calc(100% - 40px)"), // bottom-right
+            4 => ("5px", "calc(50% - 17px)"),           // top-center (35px/2 = 17px)
+            5 => ("calc(100% - 70px)", "calc(50% - 17px)"),  // bottom-center
+            6 => ("calc(50% - 32px)", "5px"),           // middle-left (65px/2 = 32px)
+            7 => ("calc(50% - 32px)", "calc(100% - 40px)"),  // middle-right
+            _ => ("calc(50% - 32px)", "calc(50% - 17px)")     // center for more than 8 cars
+        };
     }
 }
