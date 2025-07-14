@@ -4,7 +4,7 @@
     // Response DTOs
     public record CreateRoomDto(string RoomId, string PlayerId, string PlayerName);
     public record JoinRoomDto(string RoomId, string PlayerId, string PlayerName);
-    public record AuthDto(string PlayerName, string PlayerId);
+    public record AuthDto(string? PlayerName, string PlayerId);
     public record WaitingCountDto(long Count);
     public record CompletedCountDto(long Count);
     public record RoomCountsDto(long WaitingCount, long PlayingCount, long PlayingRacersCount, long FinishedCount);
