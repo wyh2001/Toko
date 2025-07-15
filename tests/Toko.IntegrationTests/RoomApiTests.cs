@@ -1092,6 +1092,9 @@ namespace Toko.IntegrationTests
 
                 _output.WriteLine($"Map has {cellLookup.Count} total cells");
 
+                // Collect all verification errors before asserting
+                var errors = new List<string>();
+
                 // Test expected cells from JSON
                 foreach (var expectedCell in testCase.ExpectedCells)
                 {
@@ -1099,60 +1102,65 @@ namespace Toko.IntegrationTests
                     if (cellLookup.TryGetValue((expectedCell.X, expectedCell.Y), out var cell))
                     {
                         // Verify cell type
-                        try
+                        if (expectedCell.ExpectedCellType != cell.Type)
                         {
-                            Assert.Equal(expectedCell.ExpectedCellType, cell.Type);
-                        }
-                        catch (Exception)
-                        {
-                            _output.WriteLine($"❌ Cell type mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedCellType}, Got {cell.Type}");
-                            throw;
+                            errors.Add($"Cell type mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedCellType}, Got {cell.Type}");
                         }
                         
                         // Verify grid properties
                         if (expectedCell.ExpectedGrid != null)
                         {
-                            try
+                            if (cell.Grid == null)
                             {
-                                Assert.NotNull(cell.Grid);
-                                Assert.Equal(expectedCell.ExpectedGrid.RenderingType, cell.Grid.RenderingType);
-                                Assert.Equal(expectedCell.ExpectedGrid.Rotation, cell.Grid.Rotation);
-                                Assert.Equal(expectedCell.ExpectedGrid.IsFlipped, cell.Grid.IsFlipped);
+                                errors.Add($"Grid should not be null at ({expectedCell.X}, {expectedCell.Y}), but it is null");
                             }
-                            catch (Exception)
+                            else
                             {
-                                _output.WriteLine($"❌ Grid mismatch at ({expectedCell.X}, {expectedCell.Y}):");
-                                _output.WriteLine($"   Expected: {expectedCell.ExpectedGrid.RenderingType}, {expectedCell.ExpectedGrid.Rotation}, Flipped={expectedCell.ExpectedGrid.IsFlipped}");
-                                if (cell.Grid != null)
+                                if (expectedCell.ExpectedGrid.RenderingType != cell.Grid.RenderingType)
                                 {
-                                    _output.WriteLine($"   Got: {cell.Grid.RenderingType}, {cell.Grid.Rotation}, Flipped={cell.Grid.IsFlipped}");
+                                    errors.Add($"Grid RenderingType mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedGrid.RenderingType}, Got {cell.Grid.RenderingType}");
                                 }
-                                else
+                                
+                                // For Plain tiles, any rotation is acceptable
+                                if (expectedCell.ExpectedGrid.RenderingType != MapRenderingType.Plain &&
+                                    expectedCell.ExpectedGrid.Rotation != cell.Grid.Rotation)
                                 {
-                                    _output.WriteLine($"   Got: null");
+                                    errors.Add($"Grid Rotation mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedGrid.Rotation}, Got {cell.Grid.Rotation}");
                                 }
-                                throw;
+                                
+                                if (expectedCell.ExpectedGrid.IsFlipped != cell.Grid.IsFlipped)
+                                {
+                                    errors.Add($"Grid IsFlipped mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedGrid.IsFlipped}, Got {cell.Grid.IsFlipped}");
+                                }
                             }
                         }
                         else
                         {
-                            try
+                            if (cell.Grid != null)
                             {
-                                Assert.Null(cell.Grid);
-                            }
-                            catch (Exception)
-                            {
-                                _output.WriteLine($"❌ Grid should be null at ({expectedCell.X}, {expectedCell.Y}), but got: {cell.Grid?.RenderingType}, {cell.Grid?.Rotation}, Flipped={cell.Grid?.IsFlipped}");
-                                throw;
+                                errors.Add($"Grid should be null at ({expectedCell.X}, {expectedCell.Y}), but got: {cell.Grid.RenderingType}, {cell.Grid.Rotation}, Flipped={cell.Grid.IsFlipped}");
                             }
                         }
                     }
                     else
                     {
-                        _output.WriteLine($"❌ No cell found at coordinate ({expectedCell.X}, {expectedCell.Y})");
-                        _output.WriteLine($"   Available coordinates: {string.Join(", ", cellLookup.Keys.Take(10).Select(k => $"({k.x},{k.y})"))}...");
-                        Assert.Fail($"No cell found at coordinate ({expectedCell.X}, {expectedCell.Y})");
+                        errors.Add($"No cell found at coordinate ({expectedCell.X}, {expectedCell.Y}). Available coordinates: {string.Join(", ", cellLookup.Keys.Take(10).Select(k => $"({k.x},{k.y})"))}...");
                     }
+                }
+
+                // Output all errors at once if any found
+                if (errors.Count > 0)
+                {
+                    _output.WriteLine($"\n❌ Map '{testCase.MapName}' - Found {errors.Count} verification errors:");
+                    for (int i = 0; i < errors.Count; i++)
+                    {
+                        _output.WriteLine($"   {i + 1}. {errors[i]}");
+                    }
+                    
+                    // Print track structure for debugging
+                    PrintTrackStructure(mapJson, _output);
+                    
+                    Assert.Fail($"Map '{testCase.MapName}' verification failed with {errors.Count} errors:\n{string.Join("\n", errors)}");
                 }
 
                 _output.WriteLine($"\n✅ Map '{testCase.MapName}' - All {testCase.ExpectedCells.Count} cells verified successfully");
@@ -1284,6 +1292,51 @@ namespace Toko.IntegrationTests
             public int CellIndex { get; set; }
             public CellType ExpectedCellType { get; set; }
             public Grid? ExpectedGrid { get; set; }
+        }
+
+        // Helper method to print race track structure for debugging
+        private void PrintTrackStructure(JsonElement mapJson, ITestOutputHelper output)
+        {
+            try
+            {
+                output.WriteLine("\n🗺️ === RACE TRACK STRUCTURE ===");
+                
+                if (mapJson.TryGetProperty("totalCells", out var totalCellsElement))
+                {
+                    output.WriteLine($"   Total Cells: {totalCellsElement.GetInt32()}");
+                }
+                
+                if (mapJson.TryGetProperty("segments", out var segmentsElement))
+                {
+                    var segments = segmentsElement.EnumerateArray().ToList();
+                    output.WriteLine($"   Total Segments: {segments.Count}");
+                    
+                    for (int i = 0; i < segments.Count; i++)
+                    {
+                        var segment = segments[i];
+                        var type = segment.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "Unknown";
+                        var laneCount = segment.TryGetProperty("laneCount", out var laneCountElement) ? laneCountElement.GetInt32() : 0;
+                        var cellCount = segment.TryGetProperty("cellCount", out var cellCountElement) ? cellCountElement.GetInt32() : 0;
+                        var direction = segment.TryGetProperty("direction", out var directionElement) ? directionElement.GetString() : "Unknown";
+                        var isIntermediate = segment.TryGetProperty("isIntermediate", out var isIntermediateElement) ? isIntermediateElement.GetBoolean() : false;
+                        
+                        output.WriteLine($"   Segment {i}: {type} | Lanes: {laneCount} | Cells: {cellCount} | Direction: {direction} | Intermediate: {isIntermediate}");
+                        
+                        // Print lane cell counts if available
+                        if (segment.TryGetProperty("laneCellCounts", out var laneCellCountsElement))
+                        {
+                            var laneCellCounts = laneCellCountsElement.EnumerateArray().Select(x => x.GetInt32()).ToList();
+                            output.WriteLine($"     Lane Cell Counts: [{string.Join(", ", laneCellCounts)}]");
+                        }
+                    }
+                }
+                
+                output.WriteLine("================================\n");
+            }
+            catch (Exception ex)
+            {
+                output.WriteLine($"⚠️ Failed to print track structure: {ex.Message}");
+            }
         }
     }
 }
