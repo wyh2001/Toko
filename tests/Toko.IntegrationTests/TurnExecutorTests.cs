@@ -6,6 +6,7 @@ using Toko.Services;
 using Toko.Shared.Models;
 using Toko.Shared.Services;
 using Xunit;
+using Xunit.Abstractions;
 using static Toko.Shared.Models.RaceMap;
 using static Toko.Shared.Services.RaceMapFactory;
 
@@ -13,22 +14,36 @@ namespace Toko.IntegrationTests
 {
     public class TurnExecutorTests
     {
+        private readonly ITestOutputHelper _output;
+        
         public TurnExecutor? TurnExecutor { get; set; }
         public Racer? Racer { get; set; }
         public Room? Room { get; set; }
+        private int _stepCounter = 0;
 
-        [Fact]
-        public async Task MoveForward_Should_Update_Racer_Position_Correctly()
+        public TurnExecutorTests(ITestOutputHelper output)
         {
-            List<MapSegmentSnapshot> mapSegmentSnapshots = new List<MapSegmentSnapshot>
-            {
-                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Up.ToString(), false),
-                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Right.ToString(), false),
-                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Down.ToString(), false),
-                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Left.ToString(), false)
-            };
-            var map = CreateMap(mapSegmentSnapshots);
+            _output = output;
+        }
 
+        private void WriteTestOutput(string message)
+        {
+            _output.WriteLine(message);
+        }
+
+        private void WriteMapDebugInfo(RaceMap map)
+        {
+            WriteTestOutput("=== Map Structure Debug Info ===");
+            for (int segIndex = 0; segIndex < map.Segments.Count; segIndex++)
+            {
+                var segment = map.Segments[segIndex];
+                WriteTestOutput($"Segment {segIndex}: Direction={segment.Direction}, LaneCount={segment.LaneCount}, CellCount={segment.CellCount}, IsIntermediate={segment.IsIntermediate}");
+            }
+            WriteTestOutput("=================================");
+        }
+
+        private void SetupTestEnvironment(RaceMap map)
+        {
             var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<TurnExecutor>();
             TurnExecutor = new TurnExecutor(map, logger);
 
@@ -52,57 +67,134 @@ namespace Toko.IntegrationTests
             };
             Room.Racers.Add(Racer);
 
-            var instruction = new ConcreteInstruction
+            _stepCounter = 0; // Reset step counter
+
+            WriteMapDebugInfo(map);
+        }
+
+        private ConcreteInstruction CreateMoveInstruction(int effect = 1)
+        {
+            return new ConcreteInstruction
             {
                 Type = CardType.Move,
-                ExecParameter = new ExecParameter { Effect = 1 }
+                ExecParameter = new ExecParameter { Effect = effect }
+            };
+        }
+
+        [Fact]
+        public async Task MoveForward_Should_Update_Racer_Position_Correctly()
+        {
+            // Setup map with simple 4-segment circular track
+            List<MapSegmentSnapshot> mapSegmentSnapshots = new List<MapSegmentSnapshot>
+            {
+                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Up.ToString(), false),
+                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Right.ToString(), false),
+                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Down.ToString(), false),
+                new MapSegmentSnapshot(CellType.Road.ToString(), 2, 3, SegmentDirection.Left.ToString(), false)
+            };
+            var map = CreateMap(mapSegmentSnapshots);
+            SetupTestEnvironment(map);
+
+            var instruction = CreateMoveInstruction();
+
+            // Test movement through the track
+            var expectedPositions = new[]
+            {
+                (0, 0, 1), (0, 0, 2),           // Move forward in first segment
+                (1, 0, 0), (1, 1, 1),           // Enter curve, drive around
+                (2, 1, 0), (2, 1, 1), (2, 1, 2), // Move through second segment
+                (3, 1, 0), (3, 0, 1),           // Enter next curve
+                (4, 1, 0), (4, 1, 1), (4, 1, 2), // Continue through track
+                (5, 1, 0), (5, 0, 1),           // Another curve
+                (6, 0, 0), (6, 0, 1), (6, 0, 2), // Move through segment
+                (7, 0, 0), (7, 1, 1)            // Final movements
             };
 
-            AssertRacerPositionAfterInstruction(instruction, 0, 0, 1);
-            AssertRacerPositionAfterInstruction(instruction, 0, 0, 2);
-            // enter the curve segment
-            AssertRacerPositionAfterInstruction(instruction, 1, 0, 0);
-            AssertRacerPositionAfterInstruction(instruction, 1, 0, 1);
-            AssertRacerPositionAfterInstruction(instruction, 1, 1, 1); // drive around the curve
+            foreach (var (expectedSegment, expectedLane, expectedCell) in expectedPositions)
+            {
+                AssertRacerPositionAfterInstruction(instruction, expectedSegment, expectedLane, expectedCell);
+            }
 
-            AssertRacerPositionAfterInstruction(instruction, 2, 1, 0);
-            AssertRacerPositionAfterInstruction(instruction, 2, 1, 1);
-            AssertRacerPositionAfterInstruction(instruction, 2, 1, 2);
+            if (Room != null)
+                await Room.DisposeAsync();
+        }
+        
+        [Fact]
+        public async Task MoveForward_Should_Update_Racer_Position_Correctly2()
+        {
+            // Setup map with more complex track segments
+            var segments = new List<TrackSegment>
+            {
+                CreateNormalSegment(CellType.Road, 2, 6, SegmentDirection.Up),
+                CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Down),
+                CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Up),
+                CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
+                CreateNormalSegment(CellType.Road, 2, 6, SegmentDirection.Down),
+                CreateNormalSegment(CellType.Road, 2, 7, SegmentDirection.Left),
+            };
+            var map = GenerateFinalMapWithIntermediate(segments);
+            SetupTestEnvironment(map);
 
-            AssertRacerPositionAfterInstruction(instruction, 3, 1, 0);
-            AssertRacerPositionAfterInstruction(instruction, 3, 1, 1);
-            AssertRacerPositionAfterInstruction(instruction, 3, 0, 1);
+            var instruction = CreateMoveInstruction();
 
-            AssertRacerPositionAfterInstruction(instruction, 4, 1, 0);
-            AssertRacerPositionAfterInstruction(instruction, 4, 1, 1);
-            AssertRacerPositionAfterInstruction(instruction, 4, 1, 2);
+            // Test movement through the complex track
+            var expectedPositions = new[]
+            {
+                // Initial segment (6 cells)
+                (0, 0, 1), (0, 0, 2), (0, 0, 3), (0, 0, 4), (0, 0, 5),
+                // Enter curve and continue
+                (1, 0, 0), (1, 1, 1),
+                (2, 1, 0),
+                (3, 0, 0), (3, 1, 1),
+                (4, 1, 0), (4, 1, 1), (4, 1, 2),
+                (5, 1, 0),
+                (6, 1, 0),
+                (7, 1, 0),
+                (8, 0, 1),
+                // Continue through remaining segments
+                (9, 0, 0), (9, 0, 1), (9, 0, 2),
+                (10, 0, 0), (10, 1, 1),
+                (11, 1, 0),
+                (12, 1, 0), (12, 0, 1),
+                (13, 1, 0), (13, 1, 1), (13, 1, 2), (13, 1, 3), (13, 1, 4), (13, 1, 5),
+                (14, 1, 0), (14, 0, 1),
+                (15, 0, 0), (15, 0, 1), (15, 0, 2), (15, 0, 3), (15, 0, 4), (15, 0, 5), (15, 0, 6), (15, 0, 7),
+                (16, 0, 0), (16, 0, 1)
+            };
 
-            AssertRacerPositionAfterInstruction(instruction, 5, 1, 0);
-            AssertRacerPositionAfterInstruction(instruction, 5, 1, 1);
-            AssertRacerPositionAfterInstruction(instruction, 5, 0, 1);
+            foreach (var (expectedSegment, expectedLane, expectedCell) in expectedPositions)
+            {
+                AssertRacerPositionAfterInstruction(instruction, expectedSegment, expectedLane, expectedCell);
+            }
 
-            AssertRacerPositionAfterInstruction(instruction, 6, 0, 0);
-            AssertRacerPositionAfterInstruction(instruction, 6, 0, 1);
-            AssertRacerPositionAfterInstruction(instruction, 6, 0, 2);
-
-            AssertRacerPositionAfterInstruction(instruction, 7, 0, 0);
-            AssertRacerPositionAfterInstruction(instruction, 7, 0, 1);
-            AssertRacerPositionAfterInstruction(instruction, 7, 1, 1);
-
-
-            await Room.DisposeAsync();
+            if (Room != null)
+                await Room.DisposeAsync();
         }
         private void AssertRacerPositionAfterInstruction(ConcreteInstruction instruction, int expectedSegmentIndex, int expectedLaneIndex, int expectedCellIndex)
         {
+            _stepCounter++;
             var result = TurnExecutor!.ApplyInstruction(Racer!, instruction, Room!);
 
-            Assert.True(result == TurnExecutor.TurnExecutionResult.Continue, 
-                $"Execution failed - Expected: Continue, Actual: {result}, Position: ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex})");
-            
-            Assert.Equal(expectedSegmentIndex, Racer!.SegmentIndex);
-            Assert.Equal(expectedLaneIndex, Racer!.LaneIndex);
-            Assert.Equal(expectedCellIndex, Racer!.CellIndex);
+            Assert.True(result == TurnExecutor.TurnExecutionResult.Continue,
+                $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}, Position: ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex})");
 
+            try
+            {
+                Assert.Equal(expectedSegmentIndex, Racer!.SegmentIndex);
+                Assert.Equal(expectedLaneIndex, Racer!.LaneIndex);
+                Assert.Equal(expectedCellIndex, Racer!.CellIndex);
+
+                // Output successful debug information
+                WriteTestOutput($"Step {_stepCounter}: Position ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex}) - Expected ({expectedSegmentIndex}, {expectedLaneIndex}, {expectedCellIndex}) ✓");
+            }
+            catch (Xunit.Sdk.EqualException ex)
+            {
+                // Output detailed failure information
+                WriteTestOutput($"Step {_stepCounter} failed: Actual position ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex}) - Expected position ({expectedSegmentIndex}, {expectedLaneIndex}, {expectedCellIndex}) ✗");
+                throw new Exception($"Step {_stepCounter} assertion failed - {ex.Message}", ex);
+            }
         }
     }
 }
