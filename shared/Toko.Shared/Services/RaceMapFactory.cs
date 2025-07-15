@@ -19,10 +19,6 @@ namespace Toko.Shared.Services
                 CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
                 CreateNormalSegment(CellType.Road, 2, 6, SegmentDirection.Down),
                 CreateNormalSegment(CellType.Road, 2, 7, SegmentDirection.Left),
-                // CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Up),
-                // CreateNormalSegment(CellType.Road, 1, 3, SegmentDirection.Right),
-                // CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Down),
-                // CreateNormalSegment(CellType.Road, 1, 3, SegmentDirection.Left),
             };
             return GenerateFinalMapWithIntermediate(segments);
         }
@@ -444,12 +440,13 @@ namespace Toko.Shared.Services
                     {
                         var rotation = dir switch
                         {
-                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
+                            SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
                             SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
-                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
+                            SegmentDirection.RightDown => MapRenderingRotation.Rotate90, // 3 * 90 = 270
                             SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
                             SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
                             SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
+                            SegmentDirection.LeftUp => MapRenderingRotation.Rotate270,
                             _ => throw new ArgumentException($"Unexpected direction: {dir}")
                         };
                         return (MapRenderingType.SingleEdge, rotation, false);
@@ -463,24 +460,14 @@ namespace Toko.Shared.Services
                         var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
                         return (MapRenderingType.CurveLargeSeg3, rotation, shouldBeFlipped);
                     }
-                    else if (cellIndex == 0)
+                    else if (cellIndex == 0 && laneCount == 2)
                     {
                         var (shouldBeFlipped, rotation) = CalculateCornerEdgeFlipAndRotation(dir);
                         return (MapRenderingType.CornerEdge, rotation, shouldBeFlipped);
                     }
                     else
                     {
-                        var rotation = dir switch
-                        {
-                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
-                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
-                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
-                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
-                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
-                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
-                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
-                        };
-                        return (MapRenderingType.Plain, rotation, false);
+                        return (MapRenderingType.Plain, MapRenderingRotation.Original, false);
                     }
                 }
                 else if (isSideLane)
@@ -494,29 +481,20 @@ namespace Toko.Shared.Services
                     {
                         var rotation = dir switch
                         {
-                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
-                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
-                            SegmentDirection.RightDown => MapRenderingRotation.Rotate90, // (3 * 90 + 180) % 360 = 90
+                            SegmentDirection.LeftDown => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
+                            SegmentDirection.RightDown or SegmentDirection.RightUp => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
+                            SegmentDirection.UpRight => MapRenderingRotation.Rotate90, // (3 * 90 + 180) % 360 = 90
                             SegmentDirection.UpLeft => MapRenderingRotation.Rotate270, // 1 * 90 + 180 = 270
-                            SegmentDirection.DownLeft => MapRenderingRotation.Original, // (2 * 90 + 180) % 360 = 0
+                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate270, // (2 * 90 + 180) % 360 = 0
                             SegmentDirection.DownRight => MapRenderingRotation.Rotate180, // 0 * 90 + 180 = 180
+                            SegmentDirection.LeftUp => MapRenderingRotation.Original,
                             _ => throw new ArgumentException($"Unexpected direction: {dir}")
                         };
                         return (MapRenderingType.SingleEdge, rotation, false);
                     }
                     else
                     {
-                        var rotation = dir switch
-                        {
-                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
-                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
-                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
-                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
-                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
-                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
-                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
-                        };
-                        return (MapRenderingType.Plain, rotation, false);
+                        return (MapRenderingType.Plain, MapRenderingRotation.Original, false);
                     }
                 }
                 else
@@ -537,17 +515,7 @@ namespace Toko.Shared.Services
                     }
                     else
                     {
-                        var rotation = dir switch
-                        {
-                            SegmentDirection.LeftUp or SegmentDirection.LeftDown => MapRenderingRotation.Rotate90, // 1 * 90
-                            SegmentDirection.RightUp or SegmentDirection.UpRight => MapRenderingRotation.Original, // 0 * 90
-                            SegmentDirection.RightDown => MapRenderingRotation.Rotate270, // 3 * 90 = 270
-                            SegmentDirection.UpLeft => MapRenderingRotation.Rotate90, // 1 * 90
-                            SegmentDirection.DownLeft => MapRenderingRotation.Rotate180, // 2 * 90 = 180
-                            SegmentDirection.DownRight => MapRenderingRotation.Original, // 0 * 90
-                            _ => throw new ArgumentException($"Unexpected direction: {dir}")
-                        };
-                        return (MapRenderingType.Plain, rotation, false);
+                        return (MapRenderingType.Plain, MapRenderingRotation.Original, false);
                     }
                 }
             }
