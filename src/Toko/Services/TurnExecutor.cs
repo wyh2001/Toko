@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using Toko.Models;
 using Toko.Shared.Models;
+using static Toko.Shared.Services.RaceMapFactory;
 
 namespace Toko.Services
 {
@@ -13,6 +16,15 @@ namespace Toko.Services
         private readonly ILogger<TurnExecutor> _log = log;
         private const int MAX_INTERACTION_DEPTH = 5;
 
+        // Coordinate tracking system
+        private readonly ConcurrentDictionary<Point, TrackPosition> _coordinateMap = new();
+        private readonly ConcurrentDictionary<TrackPosition, Point> _positionToCoordinate = new();
+        private readonly ConcurrentDictionary<Point, Point?> _nextCoordinateMap = new();
+        private volatile bool _coordinateSystemInitialized = false;
+
+        // Track whether each racer has left the starting segment at least once
+        private readonly ConcurrentDictionary<string, bool> _racerHasLeftStartingSegment = new();
+
         public enum TurnExecutionResult
         {
             Continue,
@@ -20,9 +32,257 @@ namespace Toko.Services
             InvalidState
         }
 
+        // Structure for representing track position
+        public struct TrackPosition
+        {
+            public int SegmentIndex;
+            public int LaneIndex;
+            public int CellIndex;
+
+            public TrackPosition(int segmentIndex, int laneIndex, int cellIndex)
+            {
+                SegmentIndex = segmentIndex;
+                LaneIndex = laneIndex;
+                CellIndex = cellIndex;
+            }
+
+            public override bool Equals(object? obj)
+            {
+                return obj is TrackPosition position &&
+                       SegmentIndex == position.SegmentIndex &&
+                       LaneIndex == position.LaneIndex &&
+                       CellIndex == position.CellIndex;
+            }
+
+            public override int GetHashCode()
+            {
+                return HashCode.Combine(SegmentIndex, LaneIndex, CellIndex);
+            }
+        }
+
+        private void InitializeCoordinateSystem()
+        {
+            if (_coordinateSystemInitialized) return;
+
+            // 1. Build coordinate to position mapping
+            BuildCoordinateMap();
+
+            // 2. Find the next forward position for each coordinate
+            BuildNextCoordinateMap();
+
+            _coordinateSystemInitialized = true;
+        }
+
+        private void BuildCoordinateMap()
+        {
+            _coordinateMap.Clear();
+            _positionToCoordinate.Clear();
+
+            for (int segIndex = 0; segIndex < _map.Segments.Count; segIndex++)
+            {
+                var segment = _map.Segments[segIndex];
+                for (int laneIndex = 0; laneIndex < segment.LaneCount; laneIndex++)
+                {
+                    for (int cellIndex = 0; cellIndex < segment.CellCount; cellIndex++)
+                    {
+                        var cell = segment.LaneCells[laneIndex][cellIndex];
+                        var position = new TrackPosition(segIndex, laneIndex, cellIndex);
+
+                        _coordinateMap[cell.Position] = position;
+                        _positionToCoordinate[position] = cell.Position;
+                    }
+                }
+            }
+        }
+
+        private void BuildNextCoordinateMap()
+        {
+            _nextCoordinateMap.Clear();
+
+            // Get all unique coordinates and sort them in ring structure
+            var allCoordinates = _coordinateMap.Keys.ToHashSet();
+            var coordinateRings = BuildCoordinateRings(allCoordinates);
+
+            // Establish next relationship for each ring
+            foreach (var ring in coordinateRings)
+            {
+                for (int i = 0; i < ring.Count; i++)
+                {
+                    var current = ring[i];
+                    var next = ring[(i + 1) % ring.Count]; // Circular, last points to first
+                    _nextCoordinateMap[current] = next;
+                }
+            }
+        }
+
+        private List<List<Point>> BuildCoordinateRings(HashSet<Point> allCoordinates)
+        {
+            var rings = new List<List<Point>>();
+            var minX = allCoordinates.Min(p => p.X);
+            var minY = allCoordinates.Min(p => p.Y);
+
+            return ScanBoundaryWithCornerDetection(allCoordinates, minX, minY);
+        }
+
+        private List<List<Point>> ScanBoundaryWithCornerDetection(HashSet<Point> allCoordinates,
+            int minX, int minY)
+        {
+            var processed = new HashSet<Point>();
+            var ring = new List<Point>();
+            var rings = new List<List<Point>>();
+            Point startPoint = new(minX, minY);
+            Point nextPoint = startPoint;
+            var counter = 0;
+            var maxCount = int.MaxValue;
+            var isFirstHalf = false;
+            while (true)
+            {
+                if (!_coordinateMap.TryGetValue(nextPoint, out var trackPosition))
+                {
+                    throw new InvalidOperationException($"Cannot find track position for coordinate {nextPoint}");
+                    // rings.Add(ring);
+                    // return rings;
+                }
+                var seg = _map.Segments[trackPosition.SegmentIndex];
+                var direction = seg.Direction;
+                var isCorner = seg.IsCorner;
+                if (nextPoint == startPoint && processed.Contains(nextPoint))
+                {
+                    rings.Add(ring);
+                    ring = new List<Point>();
+                    // Advance start to next inner layer; break if no further coordinates
+                    startPoint = new Point(startPoint.X + 1, startPoint.Y + 1);
+                    if (!allCoordinates.Contains(startPoint))
+                        break; // No more layers
+                    nextPoint = startPoint;
+                    processed.Clear();
+                    continue;
+                }
+                if (!isCorner)
+                {
+                    counter = 0;
+                    isFirstHalf = true;
+                    ring.Add(nextPoint);
+                    processed.Add(nextPoint);
+                    nextPoint = GetNextPoint(nextPoint, direction);
+                }
+                else
+                {
+                    counter++;
+                    var isFirstLaneCurve = IsFirstLaneCurve(direction);
+                    maxCount = isFirstLaneCurve ? seg.CellCount - trackPosition.LaneIndex : trackPosition.LaneIndex + 1;
+                    if (counter >= maxCount)
+                    {
+                        isFirstHalf = false;
+                    }
+                    switch (direction)
+                    {
+                        case SegmentDirection.UpRight:
+                            // Add current point and move to next corner
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Up : SegmentDirection.Right);
+                            break;
+                        case SegmentDirection.UpLeft:
+                            // Add current point and move to next corner
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Up : SegmentDirection.Left);
+                            break;
+                        case SegmentDirection.DownRight:
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Down : SegmentDirection.Right);
+                            break;
+                        case SegmentDirection.DownLeft:
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Down : SegmentDirection.Left);
+                            break;
+                        case SegmentDirection.RightUp:
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Right : SegmentDirection.Up);
+                            break;
+                        case SegmentDirection.RightDown:
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Right : SegmentDirection.Down);
+                            break;
+                        case SegmentDirection.LeftUp:
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Left : SegmentDirection.Up);
+                            break;
+                        case SegmentDirection.LeftDown:
+                            ring.Add(nextPoint);
+                            processed.Add(nextPoint);
+                            nextPoint = GetNextPoint(nextPoint, isFirstHalf ? SegmentDirection.Left : SegmentDirection.Down);
+                            break;
+                        default:
+                            throw new InvalidOperationException($"Unsupported corner segment direction: {direction}");
+                    }
+                }
+            }
+
+            return rings;
+        }
+
+        private Point GetNextPoint(Point current, SegmentDirection direction)
+        {
+            return direction switch
+            {
+                SegmentDirection.Left => new Point(current.X - 1, current.Y),
+                SegmentDirection.Right => new Point(current.X + 1, current.Y),
+                SegmentDirection.Up => new Point(current.X, current.Y + 1),
+                SegmentDirection.Down => new Point(current.X, current.Y - 1),
+                _ => throw new InvalidOperationException($"Unsupported segment direction: {direction}")
+            };
+        }
+
+        private SegmentDirection GetOppositeDirection(SegmentDirection direction)
+        {
+            return direction switch
+            {
+                SegmentDirection.Left => SegmentDirection.Right,
+                SegmentDirection.Right => SegmentDirection.Left,
+                SegmentDirection.Up => SegmentDirection.Down,
+                SegmentDirection.Down => SegmentDirection.Up,
+                _ => throw new InvalidOperationException($"Unsupported segment direction: {direction}")
+            };
+        }
+
+        private bool IsCellInCornerSegment(Point coordinate)
+        {
+            if (_coordinateMap.TryGetValue(coordinate, out var position))
+            {
+                if (position.SegmentIndex >= 0 && position.SegmentIndex < _map.Segments.Count)
+                {
+                    var segment = _map.Segments[position.SegmentIndex];
+                    return segment.IsIntermediate; // IsIntermediate means it's a corner
+                }
+            }
+            return false;
+        }
+
+        private (int x, int y) GetNextPosition(int currentX, int currentY, int direction)
+        {
+            return direction switch
+            {
+                0 => (currentX + 1, currentY),     // Right
+                1 => (currentX, currentY - 1),     // Down
+                2 => (currentX - 1, currentY),     // Left
+                3 => (currentX, currentY + 1),     // Up
+                _ => (currentX, currentY)
+            };
+        }
+
         public TurnExecutionResult ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
         {
-            // 先执行动作
+            // Ensure coordinate system is initialized
+            InitializeCoordinateSystem();
+
+            // Execute action first
             switch (ins.Type)
             {
                 case CardType.Move:
@@ -30,24 +290,24 @@ namespace Toko.Services
                     {
                         return TurnExecutionResult.InvalidState;
                     }
-                    return MoveForward(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
+                    return MoveForwardNew(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
                 case CardType.ChangeLane:
                     if (ins.ExecParameter.Effect != -1 && ins.ExecParameter.Effect != 1)
                     {
                         return TurnExecutionResult.InvalidState;
                     }
-                    ChangeLane(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
+                    ChangeLaneNew(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
                     return TurnExecutionResult.Continue;
                 case CardType.Repair:
                     Repair(racer, ins.ExecParameter.DiscardedCardIds);
                     return TurnExecutionResult.Continue;
                 default:
-                    // Junk 不会在此提交
+                    // Junk won't be submitted here
                     return TurnExecutionResult.Continue;
             }
         }
 
-        private TurnExecutionResult MoveForward(Racer racer, int steps, Room room, int depth)
+        private TurnExecutionResult MoveForwardNew(Racer racer, int steps, Room room, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
@@ -55,38 +315,69 @@ namespace Toko.Services
                 return TurnExecutionResult.Continue;
             }
 
+            var currentPosition = new TrackPosition(racer.SegmentIndex, racer.LaneIndex, racer.CellIndex);
+
             for (int i = 0; i < steps; i++)
             {
-                // 先检查是否进入下一段
-                var seg = _map.Segments[racer.SegmentIndex];
-                if (racer.CellIndex + 1 >= seg.LaneCells[racer.LaneIndex].Count)
+                // Get current position coordinates
+                if (!_positionToCoordinate.TryGetValue(currentPosition, out var currentCoordinate))
                 {
-                    // 如果是最后一段，则结束比赛
-                    if (racer.SegmentIndex + 1 >= _map.Segments.Count)
+                    _log.LogError($"Cannot find coordinate for position {currentPosition.SegmentIndex}-{currentPosition.LaneIndex}-{currentPosition.CellIndex}");
+                    return TurnExecutionResult.InvalidState;
+                }
+
+                // Get next coordinate
+                if (!_nextCoordinateMap.TryGetValue(currentCoordinate, out var nextCoordinate) || nextCoordinate == null)
+                {
+                    // If no next coordinate, reached finish line
+                    return TurnExecutionResult.PlayerFinished;
+                }
+
+                // Convert next coordinate to position
+                if (!_coordinateMap.TryGetValue(nextCoordinate.Value, out var nextPosition))
+                {
+                    _log.LogError($"Cannot find position for coordinate {nextCoordinate.Value}");
+                    return TurnExecutionResult.InvalidState;
+                }
+
+                // Update racer position
+                racer.SegmentIndex = nextPosition.SegmentIndex;
+                racer.LaneIndex = nextPosition.LaneIndex;
+                racer.CellIndex = nextPosition.CellIndex;
+                currentPosition = nextPosition;
+
+                // Track if the racer has left the starting segment
+                if (racer.SegmentIndex != 0)
+                {
+                    _racerHasLeftStartingSegment[racer.Id] = true;
+                }
+
+                // Check for special grid types that require automatic forward movement
+                var currentCell = _map.Segments[racer.SegmentIndex].LaneCells[racer.LaneIndex][racer.CellIndex];
+                if (currentCell.Grid?.RenderingType == MapRenderingType.CurveLargeSeg2)
+                {
+                    _log.LogDebug($"Racer {racer.Id} hit CurveLargeSeg2 at position {racer.SegmentIndex}-{racer.LaneIndex}-{racer.CellIndex}, automatically moving forward");
+
+                    // Automatically move forward one more step without counting towards the total steps
+                    if (_positionToCoordinate.TryGetValue(currentPosition, out var autoMoveCoordinate) &&
+                        _nextCoordinateMap.TryGetValue(autoMoveCoordinate, out var autoMoveNextCoordinate) &&
+                        autoMoveNextCoordinate != null &&
+                        _coordinateMap.TryGetValue(autoMoveNextCoordinate.Value, out var autoMoveNextPosition))
                     {
-                        return TurnExecutionResult.PlayerFinished;
+                        racer.SegmentIndex = autoMoveNextPosition.SegmentIndex;
+                        racer.LaneIndex = autoMoveNextPosition.LaneIndex;
+                        racer.CellIndex = autoMoveNextPosition.CellIndex;
+                        currentPosition = autoMoveNextPosition;
+
+                        // Track if the racer has left the starting segment after auto-move
+                        if (racer.SegmentIndex != 0)
+                        {
+                            _racerHasLeftStartingSegment[racer.Id] = true;
+                        }
                     }
-                    // Next segment
-                    var nextSeg = _map.Segments[racer.SegmentIndex + 1];
-                    int fromLanes    = seg.LaneCount;
-                    int toLanes      = nextSeg.LaneCount;
-
-
-                    float relPos     = (racer.LaneIndex + 0.5f) / fromLanes;
-                    racer.LaneIndex  = (int)Math.Floor(relPos * toLanes);
-
-                    // Ensure LaneIndex is within bounds
-                    racer.LaneIndex  = Math.Clamp(racer.LaneIndex, 0, toLanes - 1);
-                    
-                    racer.SegmentIndex++;
-                    racer.CellIndex = 0;
                 }
-                else
-                {
-                    // 否则继续在当前段前进
-                    racer.CellIndex++;
-                }
-                // 碰撞检查：同段同道即撞人
+
+                // Collision check: same position means collision
                 var collided = room.Racers
                     .Where(r => r.Id != racer.Id
                              && r.SegmentIndex == racer.SegmentIndex
@@ -96,21 +387,29 @@ namespace Toko.Services
 
                 if (collided.Count != 0)
                 {
-                    // 主动撞与被撞都得 Junk
+                    // Both initiator and collided racers get junk
                     AddJunk(racer, 1);
                     foreach (var other in collided)
                     {
                         AddJunk(other, 1);
-                        // 被撞者前进一格
-                        return MoveForward(other, 1, room, depth + 1); // Increment depth
+                        // Collided racer moves forward one step
+                        var result = MoveForwardNew(other, 1, room, depth + 1); // Increment depth
+                        if (result != TurnExecutionResult.Continue)
+                            return result;
                     }
+                }
+
+                // Check if race is finished - when returning to starting point
+                if (IsAtFinishLine(racer))
+                {
+                    return TurnExecutionResult.PlayerFinished;
                 }
             }
 
             return TurnExecutionResult.Continue;
         }
 
-        private void ChangeLane(Racer racer, int delta, Room room, int depth)
+        private void ChangeLaneNew(Racer racer, int delta, Room room, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
@@ -118,45 +417,57 @@ namespace Toko.Services
                 return;
             }
 
-            var seg = _map.Segments[racer.SegmentIndex];
-            int steps = Math.Abs(delta);
-            int step = Math.Sign(delta);
+            var currentPosition = new TrackPosition(racer.SegmentIndex, racer.LaneIndex, racer.CellIndex);
 
-            // Perform lane change one lane at a time, checking collisions at each step
-            for (int i = 0; i < steps; i++)
+            // Get current coordinate
+            if (!_positionToCoordinate.TryGetValue(currentPosition, out var currentCoordinate))
             {
-                int targetLane = racer.LaneIndex + step;
-                // Boundary check: hitting wall
-                if (targetLane < 0 || targetLane >= seg.LaneCount)
-                {
-                    AddJunk(racer, 1);
-                    return;
-                }
-
-                // Check for collision in the target lane at current position
-                var collided = room.Racers
-                    .Where(r => r.Id != racer.Id
-                             && r.SegmentIndex == racer.SegmentIndex
-                             && r.CellIndex    == racer.CellIndex
-                             && r.LaneIndex    == targetLane)
-                    .ToList();
-
-                if (collided.Count != 0)
-                {
-                    // Both initiator and occupied racer get junk
-                    AddJunk(racer, 1);
-                    foreach (var other in collided)
-                    {
-                        AddJunk(other, 1);
-                        // Attempt to push the other racer along the same lane-change direction
-                        ChangeLane(other, delta, room, depth + 1);
-                    }
-                    return; // stop further lane change after collision
-                }
-
-                // Commit the lane change step
-                racer.LaneIndex = targetLane;
+                _log.LogError($"Cannot find coordinate for position {currentPosition.SegmentIndex}-{currentPosition.LaneIndex}-{currentPosition.CellIndex}");
+                return;
             }
+
+            // Calculate target lane
+            int targetLane = racer.LaneIndex + delta;
+            var seg = _map.Segments[racer.SegmentIndex];
+
+            // Boundary check: hitting wall
+            if (targetLane < 0 || targetLane >= seg.LaneCount)
+            {
+                AddJunk(racer, 1);
+                return;
+            }
+
+            // Check for collision in target position
+            var collided = room.Racers
+                .Where(r => r.Id != racer.Id
+                         && r.SegmentIndex == racer.SegmentIndex
+                         && r.CellIndex == racer.CellIndex
+                         && r.LaneIndex == targetLane)
+                .ToList();
+
+            if (collided.Count != 0)
+            {
+                // Both lane changer and collided racer get junk
+                AddJunk(racer, 1);
+                foreach (var other in collided)
+                {
+                    AddJunk(other, 1);
+                    // Try to push other racer in the same lane-change direction
+                    ChangeLaneNew(other, delta, room, depth + 1);
+                }
+                return; // Stop further lane changes after collision
+            }
+
+            // Execute lane change
+            racer.LaneIndex = targetLane;
+        }
+
+        private bool IsAtFinishLine(Racer racer)
+        {
+            // Check if racer has returned to the starting segment (segment 0) for the second time
+            // This means the racer has completed a full lap around the track
+            return racer.SegmentIndex == 0 &&
+                   _racerHasLeftStartingSegment.GetValueOrDefault(racer.Id, false);
         }
 
         private static void AddJunk(Racer racer, int qty)
@@ -167,10 +478,10 @@ namespace Toko.Services
 
         private static void Repair(Racer racer, List<string> discardedCardId)
         {
-            // see if the size is legit
+            // Check if the size is legitimate
             if (discardedCardId.Count > 2)
                 return; // or throw?
-            // check if the cards are in the hand
+            // Check if the cards are in the hand
             foreach (var cardId in discardedCardId)
             {
                 var card = racer.Hand
@@ -180,13 +491,13 @@ namespace Toko.Services
                 if (card.Type != CardType.Junk)
                     return; // not junk
             }
-            // discard the junk card the user chose, remove directly without adding to discard pile
+            // Discard the junk card the user chose, remove directly without adding to discard pile
             InternalRemove(racer, discardedCardId);
         }
 
         private static void InternalRemove(Racer racer, List<string> discardedCardId)
         {
-            // see if the size is legit
+            // Check if the size is legitimate
             if (discardedCardId.Count == 0)
                 return;
 
@@ -201,10 +512,10 @@ namespace Toko.Services
             }
         }
 
-        // dicard cards
+        // Discard cards
         private static void InternalDiscard(Racer racer, List<string> discardedCardId)
         {
-            // see if the size is legit
+            // Check if the size is legitimate
             if (discardedCardId.Count == 0)
                 return;
 
@@ -224,7 +535,7 @@ namespace Toko.Services
         {
             if (discardedCardId.Count == 0)
                 return true;
-            // check if the cards are in the hand
+            // Check if the cards are in the hand
             foreach (var cardId in discardedCardId)
             {
                 var card = racer.Hand
@@ -232,9 +543,23 @@ namespace Toko.Services
                 if (card == null)
                     return false; // not all in hand
             }
-            // discard the cards the user chose
+            // Discard the cards the user chose
             InternalDiscard(racer, discardedCardId);
             return true;
+        }
+
+        public Point? GetCurrentCoordinate(Racer racer)
+        {
+            var position = new TrackPosition(racer.SegmentIndex, racer.LaneIndex, racer.CellIndex);
+            return _positionToCoordinate.TryGetValue(position, out var coordinate) ? coordinate : null;
+        }
+
+        public Point? GetNextCoordinate(Racer racer)
+        {
+            var currentCoord = GetCurrentCoordinate(racer);
+            if (currentCoord == null) return null;
+
+            return _nextCoordinateMap.TryGetValue(currentCoord.Value, out var next) ? next : null;
         }
     }
 }
