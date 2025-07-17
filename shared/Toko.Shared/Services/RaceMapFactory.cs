@@ -19,6 +19,10 @@ namespace Toko.Shared.Services
                 CreateNormalSegment(CellType.Road, 2, 1, SegmentDirection.Right),
                 CreateNormalSegment(CellType.Road, 2, 6, SegmentDirection.Down),
                 CreateNormalSegment(CellType.Road, 2, 7, SegmentDirection.Left),
+                // CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Up),
+                // CreateNormalSegment(CellType.Road, 1, 3, SegmentDirection.Right),
+                // CreateNormalSegment(CellType.Road, 2, 3, SegmentDirection.Down),
+                // CreateNormalSegment(CellType.Road, 1, 3, SegmentDirection.Left),
             };
             return GenerateFinalMapWithIntermediate(segments);
         }
@@ -177,7 +181,7 @@ namespace Toko.Shared.Services
 
             for (int x = 0; x < cellCount; x++)
                 for (int lane = 0; lane < laneCount; lane++)
-                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type, null));
+                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type, null, direction));
 
             return seg;
         }
@@ -199,7 +203,7 @@ namespace Toko.Shared.Services
 
             for (int x = 0; x < cellCount; x++)
                 for (int lane = 0; lane < laneCount; lane++)
-                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type, null));
+                    seg.LaneCells[lane].Add(new Cell(new Point(x, lane), type, null, direction));
 
             return seg;
         }
@@ -696,7 +700,7 @@ namespace Toko.Shared.Services
             };
         }
 
-        private static bool IsFirstLaneCurve(SegmentDirection dir)
+        public static bool IsFirstLaneCurve(SegmentDirection dir)
         {
             if (IsBasic(dir))
             {

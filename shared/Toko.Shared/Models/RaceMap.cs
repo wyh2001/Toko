@@ -61,7 +61,7 @@ namespace Toko.Shared.Models
     public record MapSnapshot(int TotalCells, List<MapSegmentSnapshot> Segments);
     public record CustomMapRequest(List<MapSegmentSnapshot> Segments);
     public record MapSegmentSnapshot(string Type, int LaneCount, int CellCount, string Direction, bool IsIntermediate);
-    public record Cell(Point Position, CellType Type, Grid? Grid)
+    public record Cell(Point Position, CellType Type, Grid? Grid, SegmentDirection Direction)
     {
         public Cell WithPosition(Point newPosition)
         {
