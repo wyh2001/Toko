@@ -277,7 +277,7 @@ namespace Toko.IntegrationTests
                 await Room.DisposeAsync();
         }
 
-                [Fact]
+        [Fact]
         public async Task MoveForward_Should_Update_Racer_Position_Correctly5()
         {
             // Setup map with more complex track segments
@@ -327,7 +327,15 @@ namespace Toko.IntegrationTests
             var result = TurnExecutor!.ApplyInstruction(Racer!, instruction, Room!);
 
             Assert.True(result == TurnExecutor.TurnExecutionResult.Continue,
-                $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}, Position: ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex})");
+                $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}");
+
+            // Get actual coordinates
+            var actualSegment = Room!.Map.Segments[Racer!.SegmentIndex];
+            var actualCoord = actualSegment.LaneCells[Racer!.LaneIndex][Racer!.CellIndex].Position;
+            
+            // Get expected coordinates
+            var expectedSegment = Room!.Map.Segments[expectedSegmentIndex];
+            var expectedCoord = expectedSegment.LaneCells[expectedLaneIndex][expectedCellIndex].Position;
 
             try
             {
@@ -335,13 +343,15 @@ namespace Toko.IntegrationTests
                 Assert.Equal(expectedLaneIndex, Racer!.LaneIndex);
                 Assert.Equal(expectedCellIndex, Racer!.CellIndex);
 
-                // Output successful debug information
-                WriteTestOutput($"Step {_stepCounter}: Position ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex}) - Expected ({expectedSegmentIndex}, {expectedLaneIndex}, {expectedCellIndex}) ✓");
+                // Output successful debug information with coordinates only
+                WriteTestOutput($"Step {_stepCounter}: Coord({actualCoord.X}, {actualCoord.Y}) -> Expected Coord({expectedCoord.X}, {expectedCoord.Y}) ✓");
             }
             catch (Xunit.Sdk.EqualException ex)
             {
-                // Output detailed failure information
-                WriteTestOutput($"Step {_stepCounter} failed: Actual position ({Racer!.SegmentIndex}, {Racer!.LaneIndex}, {Racer!.CellIndex}) - Expected position ({expectedSegmentIndex}, {expectedLaneIndex}, {expectedCellIndex}) ✗");
+                // Output detailed failure information with coordinates only
+                WriteTestOutput($"Step {_stepCounter} failed:");
+                WriteTestOutput($"  Coord({actualCoord.X}, {actualCoord.Y})");
+                WriteTestOutput($"  Expected: Coord({expectedCoord.X}, {expectedCoord.Y}) ✗");
                 throw new Exception($"Step {_stepCounter} assertion failed - {ex.Message}", ex);
             }
         }
