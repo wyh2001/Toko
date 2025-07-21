@@ -17,6 +17,36 @@ body {
     margin: 0 auto;
     padding: 40px 20px;
     min-height: 100vh;
+    position: relative;
+}
+
+/* Connection Status Overlay */
+.connection-status-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    z-index: 2000;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.connection-status-overlay.reconnecting {
+    background-color: #ff9800; /* Orange for reconnecting */
+}
+
+.connection-status-overlay.disconnected {
+    background-color: #f44336; /* Red for disconnected */
+}
+
+.connection-status-overlay .status-icon {
+    margin-right: 10px;
+    font-size: 1.2rem;
 }
 
 /* Game Header */
@@ -253,8 +283,6 @@ body {
 
 .player-item {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
     padding: 16px;
     background: #f5f5f5;
     transition: all 0.15s ease;
@@ -291,6 +319,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    width: 100%; /* Ensure player-info takes full width */
 }
 
 .player-name {
@@ -312,10 +341,98 @@ body {
     color: #cccccc;
 }
 
+.player-main-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
 .player-status {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0; /* Prevent status icons from shrinking */
+}
+
+.player-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap; /* Allow stats to wrap to the next line */
+    margin-top: 4px;
+}
+
+.player-gear {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #f5f5f5;
+    border: 1px solid #cccccc;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #333333;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.player-item.current-player .player-gear {
+    background: #ffffff;
+    border: 1px solid #666666;
+    color: #000000;
+    font-weight: 800;
+}
+
+.player-item.active-turn .player-gear {
+    background: #555555; /* A more subtle dark gray for active turn */
+    border: 1px solid #555555;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.player-timebank {
+    display: inline-block;
+    padding: 2px 6px;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #333333;
+    letter-spacing: 0.05em;
+    min-width: 50px;
+    text-align: center;
+}
+
+.player-item.current-player .player-timebank {
+    background: #ffffff;
+    border: 1px solid #666666;
+    color: #000000;
+    font-weight: 800;
+}
+
+.player-item.active-turn .player-timebank {
+    background: #ff6600;
+    border: 1px solid #ff6600;
+    color: #ffffff;
+    font-weight: 800;
+    animation: pulse-timer 1s infinite;
+}
+
+@keyframes pulse-timer {
+    0%, 100% { 
+        transform: scale(1);
+        opacity: 1; 
+    }
+    50% { 
+        transform: scale(1.05);
+        opacity: 0.8; 
+    }
+}
+
+.gear-info {
+    color: #999999;
+    font-size: 0.75rem;
+    font-weight: 400;
+    margin-top: 4px;
 }
 
 .turn-indicator {
@@ -385,6 +502,17 @@ body {
     border: 1px solid #000000;
     padding: 24px;
     flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.race-board-container {
+    flex-grow: 1;
+    overflow: auto; /* Make the container scrollable */
+    background: #f0f0f0;
+    border: 1px solid #e0e0e0;
+    padding: 10px;
+    /* max-height removed to allow the board to take available space */
 }
 
 .race-board {
@@ -692,6 +820,93 @@ body {
     font-weight: 600;
     color: #000000;
     font-size: 0.9rem;
+}
+.effect-button.selected:hover {
+    background: #222222;
+    box-shadow: 2px 2px 0 #666666;
+}
+
+/* ShiftGear specific styles */
+.effect-button.shift-up {
+    border-color: #000000;
+    color: #000000;
+    position: relative;
+    padding-top: 20px;
+    padding-bottom: 12px;
+}
+
+.effect-button.shift-up::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 6px solid currentColor;
+}
+
+.effect-button.shift-up:hover {
+    border-color: #000000;
+    background: #f5f5f5;
+    color: #000000;
+    transform: translate(-1px, -1px);
+    box-shadow: 2px 2px 0 #000000;
+}
+
+.effect-button.shift-up.selected {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+.effect-button.shift-up.selected:hover {
+    background: #222222;
+    transform: translate(-1px, -1px);
+    box-shadow: 2px 2px 0 #666666;
+}
+
+.effect-button.shift-down {
+    border-color: #000000;
+    color: #000000;
+    position: relative;
+    padding-top: 12px;
+    padding-bottom: 20px;
+}
+
+.effect-button.shift-down::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid currentColor;
+}
+
+.effect-button.shift-down:hover {
+    border-color: #000000;
+    background: #f5f5f5;
+    color: #000000;
+    transform: translate(-1px, -1px);
+    box-shadow: 2px 2px 0 #000000;
+}
+
+.effect-button.shift-down.selected {
+    background: #000000;
+    border-color: #000000;
+    color: #ffffff;
+}
+
+.effect-button.shift-down.selected:hover {
+    background: #222222;
+    transform: translate(-1px, -1px);
+    box-shadow: 2px 2px 0 #666666;
 }
 
 .effect-buttons {
@@ -1004,6 +1219,20 @@ body {
     font-size: 0.9rem;
     color: #666666;
     font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.no-results-message {
+    padding: 24px;
+    text-align: center;
+    color: #666666;
+    font-style: italic;
+}
+
+.no-results-message p {
+    font-size: 1rem;
+    margin: 0;
 }
 
 /* Repair instruction */

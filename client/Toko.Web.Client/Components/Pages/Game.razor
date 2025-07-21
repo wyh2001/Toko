@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Web
 @using Toko.Web.Client.Services
+@using System.Net.Http.Json
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IAuthenticationService AuthService
@@ -15,6 +16,22 @@
 <PageTitle>Game - @roomName - Toko Toko</PageTitle>
 
 <div class="game-container">
+    <!-- Connection Status -->
+    @if (!isConnected)
+    {
+        <div class="connection-status-overlay disconnected">
+            <div class="status-icon">❌</div>
+            <div class="status-text">Disconnected. Please refresh the page.</div>
+        </div>
+    }
+    else if (isReconnecting)
+    {
+        <div class="connection-status-overlay reconnecting">
+            <div class="status-icon">🔄</div>
+            <div class="status-text">Connection lost. Reconnecting...</div>
+        </div>
+    }
+
     <!-- Game Header -->
     <div class="game-header">
         <div class="game-title-section">
@@ -62,20 +79,26 @@
             <!-- Game Ended State -->
             <div class="game-ended-overlay">
                 <div class="game-ended-content">
-                    <h2>🏁 Race Finished!</h2>
+                    <h2>RACE FINISHED</h2>
                     <div class="final-results">
                         <h3>Final Results</h3>
-                        @if (gameData?.Results != null)
+                        @if (gameData?.Results != null && gameData.Results.Any())
                         {
                             <div class="results-list">
-                                @foreach (var result in gameData.Results)
+                                @foreach (var result in gameData.Results.OrderBy(r => r.Rank))
                                 {
                                     <div class="result-item @(result.PlayerId == AuthService.PlayerId ? "current-player" : "")">
                                         <div class="result-position">#{@result.Rank}</div>
-                                        <div class="result-name">@GetPlayerName(result.PlayerId).ToUpper()</div>
-                                        <div class="result-score">Score: @result.Score</div>
+                                        <div class="result-name">@GetPlayerNameSafe(result.PlayerId).ToUpper()</div>
+                                        <div class="result-score">@result.Score PTS</div>
                                     </div>
                                 }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="no-results-message">
+                                <p>Results are being calculated...</p>
                             </div>
                         }
                     </div>
@@ -125,18 +148,24 @@
                             {
                             <div class="player-item @(player.Id == AuthService.PlayerId ? "current-player" : "") @(currentTurnPlayer == player.Id ? "active-turn" : "")">
                                 <div class="player-info">
-                                    <div class="player-name">@player.Name.ToUpper()</div>
-                                    <div class="player-position">Position @GetPlayerPosition(player.Id)</div>
-                                </div>
-                                <div class="player-status">
-                                    @if (currentTurnPlayer == player.Id)
-                                    {
-                                        <div class="turn-indicator">●</div>
-                                    }
-                                    @if (player.IsHost)
-                                    {
-                                        <div class="host-badge">HOST</div>
-                                    }
+                                    <div class="player-main-line">
+                                        <div class="player-name">@player.Name.ToUpper()</div>
+                                        <div class="player-status">
+                                            @if (currentTurnPlayer == player.Id)
+                                            {
+                                                <div class="turn-indicator">●</div>
+                                            }
+                                            @if (player.IsHost)
+                                            {
+                                                <div class="host-badge">HOST</div>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="player-stats">
+                                        <div class="player-position">Position @GetPlayerPosition(player.Id)</div>
+                                        <div class="player-gear">G @GetPlayerGear(player.Id)</div>
+                                        <div class="player-timebank">@GetPlayerTimeBankDisplay(player.Id)</div>
+                                    </div>
                                 </div>
                             </div>
                             }
@@ -163,14 +192,15 @@
             <div class="center-panel">
                 <div class="board-section">
                     <h3 class="panel-title">Race Track</h3>
-                    <div class="race-board">                        @if (gameData?.Map != null)  
+                    <div class="race-board-container">
+                        @if (gameData?.Map != null)
                         {
-                            <RaceBoard MapSnapshot="@gameData.Map" RoomStatus="@gameData" TileSize="128"></RaceBoard>  
+                            <RaceBoard MapSnapshot="@gameData.Map" RoomStatus="@gameData" TileSize="96"></RaceBoard>
                         }
-                        else  
-                        {  
-                            <div class="error-message">Map data is not available.</div>  
-                        }  
+                        else
+                        {
+                            <div class="error-message">Map data is not available.</div>
+                        }
                     </div>
                 </div>
             </div>
@@ -223,19 +253,7 @@
                                         <strong>Card Type:</strong> @(gameData?.CurrentTurnCardType ?? "Unknown")
                                     </div>
                                     
-                                    @if (gameData?.CurrentTurnCardType == "Move")
-                                    {
-                                        <div class="param-input">
-                                            <label>Move Distance:</label>
-                                            <div class="effect-buttons">
-                                                <button class="effect-button @(moveEffect == 1 ? "selected" : "")" 
-                                                        @onclick="() => SetMoveEffect(1)">1</button>
-                                                <button class="effect-button @(moveEffect == 2 ? "selected" : "")" 
-                                                        @onclick="() => SetMoveEffect(2)">2</button>
-                                            </div>
-                                        </div>
-                                    }
-                                    else if (gameData?.CurrentTurnCardType == "ChangeLane")
+                                    @if (gameData?.CurrentTurnCardType == "ChangeLane")
                                     {
                                         <div class="param-input">
                                             <label>Lane Direction:</label>
@@ -244,6 +262,18 @@
                                                         @onclick="() => SetChangeLaneEffect(-1)">← Left</button>
                                                 <button class="effect-button @(changeLaneEffect == 1 ? "selected" : "")" 
                                                         @onclick="() => SetChangeLaneEffect(1)">Right →</button>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (gameData?.CurrentTurnCardType == "ShiftGear")
+                                    {
+                                        <div class="param-input">
+                                            <label>Gear Change:</label>
+                                            <div class="effect-buttons">
+                                                <button class="effect-button shift-down @(shiftGearEffect == -1 ? "selected" : "")" 
+                                                        @onclick="() => SetShiftGearEffect(-1)">DOWN</button>
+                                                <button class="effect-button shift-up @(shiftGearEffect == 1 ? "selected" : "")" 
+                                                        @onclick="() => SetShiftGearEffect(1)">UP</button>
                                             </div>
                                         </div>
                                     }
@@ -348,17 +378,20 @@
                     <div class="instructions-content">
                         @if (gamePhase == Phase.CollectingCards)
                         {
-                            <p>Select a card to program your move. Each card represents a movement command.</p>
+                            <p>Select a card to program your action. After executing your card, you'll automatically move forward based on your current gear.</p>
+                            <div class="gear-info">
+                                <small>Current gear: @GetPlayerGear(AuthService.PlayerId ?? "") (moves @GetPlayerGear(AuthService.PlayerId ?? "") spaces after actions)</small>
+                            </div>
                         }
                         else if (gamePhase == Phase.CollectingParams)
                         {
-                            @if (gameData?.CurrentTurnCardType == "Move")
-                            {
-                                <p>Choose how many spaces to move forward (1 or 2).</p>
-                            }
-                            else if (gameData?.CurrentTurnCardType == "ChangeLane")
+                            @if (gameData?.CurrentTurnCardType == "ChangeLane")
                             {
                                 <p>Choose which direction to change lanes (Left or Right).</p>
+                            }
+                            else if (gameData?.CurrentTurnCardType == "ShiftGear")
+                            {
+                                <p>Choose whether to shift up or down a gear. Higher gears allow faster movement.</p>
                             }
                             else if (gameData?.CurrentTurnCardType == "Repair")
                             {
@@ -395,7 +428,6 @@
     [Parameter] public string RoomId { get; set; } = string.Empty;
 
     private HubConnection? hubConnection;
-    private Timer? pollingTimer;
     
     private bool isLoading = true;
     private RoomStatusSnapshot? gameData;
@@ -405,20 +437,27 @@
     private string? currentTurnPlayer;
     private bool isMyTurn = false;
     private bool gameEnded = false;
+    private bool isConnected = true;
+    private bool isReconnecting = false;
     
     private List<CardDto> playerHand = new();
     private string selectedCard = "";
     private List<GameLogEntry> gameLogs = new();
     
     // Parameter collection state
-    private int moveEffect = 1;
     private int changeLaneEffect = 1;
+    private int shiftGearEffect = 1;
     private List<string> selectedJunkCards = new();
     private List<CardDto> junkCards = new();
     
     // Discarding phase state
     private List<string> selectedDiscardCards = new();
     private List<CardDto> discardableCards = new();
+
+    // Time bank state
+    private Dictionary<string, double> playerTimeBanks = new();
+    private Dictionary<string, Timer?> playerTimers = new();
+    private readonly object timerLock = new object();
 
     protected override async Task OnInitializedAsync()
     {
@@ -429,16 +468,6 @@
         // Load hand data from API
         await LoadHandData();
         
-        // Start polling for game updates
-        pollingTimer = new Timer(
-            callback: async _ => {
-                await LoadGameData();
-                await LoadHandData();
-            },
-            state: null,
-            dueTime: TimeSpan.Zero,
-            period: TimeSpan.FromSeconds(3)
-        );
     }
 
     private async Task LoadHandData()
@@ -478,6 +507,30 @@
                 .WithUrl(Navigation.ToAbsoluteUri("/racehub"))
                 .WithAutomaticReconnect()
                 .Build();
+
+            hubConnection.Closed += async (error) =>
+            {
+                isConnected = false;
+                isReconnecting = false;
+                await InvokeAsync(StateHasChanged);
+                Console.WriteLine($"SignalR connection closed: {error?.Message}");
+            };
+
+            hubConnection.Reconnecting += async (error) =>
+            {
+                isConnected = false;
+                isReconnecting = true;
+                await InvokeAsync(StateHasChanged);
+                Console.WriteLine($"SignalR reconnecting: {error?.Message}");
+            };
+
+            hubConnection.Reconnected += async (connectionId) =>
+            {
+                isConnected = true;
+                isReconnecting = false;
+                await InvokeAsync(StateHasChanged);
+                Console.WriteLine($"SignalR reconnected with new connection ID: {connectionId}");
+            };
                 
             hubConnection.On<string, object>("OnRoomEvent", (eventName, eventData) =>
             {
@@ -485,31 +538,22 @@
                 
                 switch (eventName)
                 {
+                    // Events that trigger a full state reload
+                    case "HostChanged":
                     case "PhaseChanged":
-                        InvokeAsync(async () => {
-                            await LoadGameData();
-                            await LoadHandData();
-                            StateHasChanged();
-                        });
-                        break;
-                        
                     case "PlayerCardsDrawn":
-                        InvokeAsync(async () => {
-                            await LoadGameData();
-                            await LoadHandData();
-                            StateHasChanged();
-                        });
-                        break;
-                        
-                    case "PlayerCardsDiscarded":
-                        InvokeAsync(async () => {
-                            await LoadGameData();
-                            await LoadHandData();
-                            StateHasChanged();
-                        });
-                        break;
-                        
+                    case "PlayerCardSubmitted":
+                    case "PlayerDiscardStarted":
+                    case "PlayerDiscardExecuted":
                     case "PlayerStepExecuted":
+                    case "PlayerAutoMoved":
+                    case "PlayerJoined":
+                    case "PlayerLeft":
+                    case "PlayerKicked":
+                    case "PlayerFinished":
+                    case "PlayerTimeoutElapsed":
+                    case "RoomStarted":
+                    case "RoomSettingsUpdated":
                     case "RoundAdvanced":
                     case "StepAdvanced":
                         InvokeAsync(async () => {
@@ -518,22 +562,22 @@
                             StateHasChanged();
                         });
                         break;
-                        
+
+                    // Events with specific, lighter-weight handling
+                    case "PlayerBankUpdated":
+                        // TODO: Implement specific handler if needed, for now, a full reload is safe
+                        InvokeAsync(async () => {
+                            await LoadGameData();
+                            StateHasChanged();
+                        });
+                        break;
+
                     case "RoomEnded":
                         Console.WriteLine($"Game ended for room: {RoomId}");
                         InvokeAsync(async () => {
                             gameEnded = true;
-                            pollingTimer?.Dispose(); // Stop polling when game ends
+                            DisposeTimers(); // Stop any running timers
                             await LoadGameData(); // Load final game state
-                            StateHasChanged();
-                        });
-                        break;
-                        
-                    case "PlayerJoined":
-                    case "PlayerLeft":
-                        InvokeAsync(async () => {
-                            await LoadGameData();
-                            await LoadHandData();
                             StateHasChanged();
                         });
                         break;
@@ -541,6 +585,7 @@
             });
 
             await hubConnection.StartAsync();
+            isConnected = true;
             
             // Join game room
             if (hubConnection.State == HubConnectionState.Connected)
@@ -569,7 +614,7 @@
                 if (gameData.Status == "Ended" || gameData.Status == "Finished")
                 {
                     gameEnded = true;
-                    pollingTimer?.Dispose(); // Stop polling when game ends
+                    DisposeTimers(); // Stop any running timers
                 }
                 
                 // Update phase from API response
@@ -581,6 +626,9 @@
                     currentTurnPlayer = gameData.CurrentTurnPlayerId;
                     isMyTurn = currentTurnPlayer == AuthService.PlayerId;
                 }
+                
+                // Update time banks
+                UpdatePlayerTimeBanks();
                 
                 isLoading = false;
             }
@@ -694,9 +742,9 @@
             else
                 classes.Add("disabled");
         }
-        else if (gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
+        else if (isMyTurn && gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
         {
-            // In repair phase, only Junk cards can be selected
+            // In repair phase, only Junk cards can be selected by the current player
             if (selectedJunkCards.Contains(card.Id))
                 classes.Add("selected");
             
@@ -744,6 +792,8 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to play card: {ex.Message}");
+            await LoadGameData();
+            await LoadHandData();
         }
     }
 
@@ -772,6 +822,8 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to draw cards: {ex.Message}");
+            await LoadGameData();
+            await LoadHandData();
         }
     }
 
@@ -794,14 +846,14 @@
     }
 
     // Parameter collection methods
-    private void SetMoveEffect(int effect)
-    {
-        moveEffect = effect;
-    }
-
     private void SetChangeLaneEffect(int effect)
     {
         changeLaneEffect = effect;
+    }
+
+    private void SetShiftGearEffect(int effect)
+    {
+        shiftGearEffect = effect;
     }
 
     private void ToggleJunkCardSelection(string cardId)
@@ -822,8 +874,8 @@
         
         return gameData?.CurrentTurnCardType switch
         {
-            "Move" => moveEffect >= 1 && moveEffect <= 2,
             "ChangeLane" => changeLaneEffect == -1 || changeLaneEffect == 1,
+            "ShiftGear" => shiftGearEffect == -1 || shiftGearEffect == 1,
             "Repair" => true, // Always ready for repair (can have empty selection)
             _ => false
         };
@@ -837,8 +889,8 @@
         {
             object execParameter = gameData?.CurrentTurnCardType switch
             {
-                "Move" => new { Effect = moveEffect, DiscardedCardIds = new List<string>() },
                 "ChangeLane" => new { Effect = changeLaneEffect, DiscardedCardIds = new List<string>() },
+                "ShiftGear" => new { Effect = shiftGearEffect, DiscardedCardIds = new List<string>() },
                 "Repair" => new { Effect = -1, DiscardedCardIds = selectedJunkCards.ToList() },
                 _ => throw new InvalidOperationException($"Unknown card type: {gameData?.CurrentTurnCardType}")
             };
@@ -851,8 +903,8 @@
                 // Create detailed log message based on card type
                 var logMessage = gameData?.CurrentTurnCardType switch
                 {
-                    "Move" => $"You submitted Move parameters: distance {moveEffect}",
                     "ChangeLane" => $"You submitted ChangeLane parameters: direction {(changeLaneEffect == -1 ? "Left" : "Right")}",
+                    "ShiftGear" => $"You submitted ShiftGear parameters: {(shiftGearEffect == 1 ? "Shift Up" : "Shift Down")}",
                     "Repair" => $"You submitted Repair parameters: discarded {selectedJunkCards.Count} Junk cards",
                     _ => $"You submitted parameters for {gameData?.CurrentTurnCardType} card"
                 };
@@ -878,14 +930,16 @@
         {
             Console.WriteLine($"Failed to submit parameters: {ex.Message}");
             gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error submitting parameters: {ex.Message}"));
+            await LoadGameData();
+            await LoadHandData();
             await InvokeAsync(StateHasChanged);
         }
     }
 
     private void ResetParameterState()
     {
-        moveEffect = 1;
         changeLaneEffect = 1;
+        shiftGearEffect = 1;
         selectedJunkCards.Clear();
     }
 
@@ -946,8 +1000,9 @@
                 // Clear selection
                 selectedDiscardCards.Clear();
                 
-                // Reload hand data
+                // Reload hand and game data
                 await LoadHandData();
+                await LoadGameData();
                 
                 await InvokeAsync(StateHasChanged);
             }
@@ -964,6 +1019,8 @@
         {
             Console.WriteLine($"Failed to discard cards: {ex.Message}");
             gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error discarding cards: {ex.Message}"));
+            await LoadGameData();
+            await LoadHandData();
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -984,6 +1041,9 @@
                 
                 // Clear selection
                 selectedDiscardCards.Clear();
+
+                // Reload game data to reflect the change in discard status
+                await LoadGameData();
                 
                 await InvokeAsync(StateHasChanged);
             }
@@ -1000,6 +1060,8 @@
         {
             Console.WriteLine($"Failed to skip discard: {ex.Message}");
             gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error skipping discard: {ex.Message}"));
+            await LoadGameData();
+            await LoadHandData();
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -1078,10 +1140,38 @@
         return racer.Segment + 1;
     }
 
+    private int GetPlayerGear(string playerId)
+    {
+        // Get gear from racer data
+        if (gameData?.Racers == null) return 1;
+        
+        var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
+        if (racer == null) return 1;
+        
+        // Return gear property
+        return racer.Gear;
+    }
+
     private string GetPlayerName(string? playerId)
     {
         if (string.IsNullOrEmpty(playerId) || gameData?.Racers == null) return "Unknown";
         return gameData.Racers.FirstOrDefault(r => r.Id == playerId)?.Name ?? "Unknown";
+    }
+
+    private string GetPlayerNameSafe(string? playerId)
+    {
+        // Try to get name from current racers first
+        if (!string.IsNullOrEmpty(playerId) && gameData?.Racers != null)
+        {
+            var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
+            if (racer != null)
+            {
+                return racer.Name;
+            }
+        }
+        
+        // If not found in racers, return a safe default
+        return string.IsNullOrEmpty(playerId) ? "Unknown Player" : $"Player {playerId[..8]}";
     }
 
     private string GetPlayerInitials(string playerName)
@@ -1111,8 +1201,8 @@
     {
         return cardType switch
         {
-            "Move" => "M",
             "ChangeLane" => "L",
+            "ShiftGear" => "G",
             "Junk" => "J",
             "Repair" => "R",
             _ => "?"
@@ -1126,7 +1216,8 @@
         {
             return true; // Junk cards cannot be played in normal card submission
         }
-        else if (gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
+        // This special overlay logic should only apply to the player whose turn it is.
+        else if (isMyTurn && gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
         {
             return card.Type != "Junk"; // Only Junk cards can be selected in repair phase
         }
@@ -1158,11 +1249,114 @@
 
     public async ValueTask DisposeAsync()
     {
-        pollingTimer?.Dispose();
+        DisposeTimers();
         
         if (hubConnection != null)
         {
             await hubConnection.DisposeAsync();
+        }
+    }
+
+    private string GetPlayerTimeBankDisplay(string playerId)
+    {
+        if (playerTimeBanks.TryGetValue(playerId, out var timeBank))
+        {
+            var minutes = (int)(timeBank / 60);
+            var seconds = (int)(timeBank % 60);
+            return $"{minutes:D2}:{seconds:D2}";
+        }
+        
+        // Fallback to server data
+        if (gameData?.Racers != null)
+        {
+            var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
+            if (racer != null)
+            {
+                var minutes = (int)(racer.Bank / 60);
+                var seconds = (int)(racer.Bank % 60);
+                return $"{minutes:D2}:{seconds:D2}";
+            }
+        }
+        
+        return "05:00";
+    }
+
+    private void UpdatePlayerTimeBanks()
+    {
+        if (gameData?.Racers == null) return;
+
+        lock (timerLock)
+        {
+            foreach (var racer in gameData.Racers)
+            {
+                // Stop existing timer if any
+                if (playerTimers.TryGetValue(racer.Id, out var existingTimer))
+                {
+                    existingTimer?.Dispose();
+                    playerTimers[racer.Id] = null;
+                }
+
+                // Sync with server bank data as the source of truth
+                var remainingTime = racer.Bank;
+
+                // If it's the current player's turn and we have a start time, calculate the actual remaining time
+                if (racer.Id == currentTurnPlayer && gameData.TurnStartTimeUtc.HasValue)
+                {
+                    var elapsed = DateTime.UtcNow - gameData.TurnStartTimeUtc.Value;
+                    remainingTime = racer.Bank - elapsed.TotalSeconds;
+                }
+                
+                playerTimeBanks[racer.Id] = remainingTime;
+
+                // Start a new timer for the active turn player to provide a smooth countdown UI on all clients
+                if (racer.Id == currentTurnPlayer)
+                {
+                    var timer = new Timer(async _ => await CountDownPlayerTime(racer.Id), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+                    playerTimers[racer.Id] = timer;
+                }
+            }
+        }
+    }
+
+    private async Task CountDownPlayerTime(string playerId)
+    {
+        // Only count down if it's still the current player's turn
+        if (playerId != currentTurnPlayer)
+        {
+            lock (timerLock)
+            {
+                if (playerTimers.TryGetValue(playerId, out var timer))
+                {
+                    timer?.Dispose();
+                    playerTimers[playerId] = null;
+                }
+            }
+            return;
+        }
+
+        lock (timerLock)
+        {
+            if (playerTimeBanks.TryGetValue(playerId, out var currentTime))
+            {
+                playerTimeBanks[playerId] = currentTime - 1;
+            }
+            
+            // The timer is not stopped when it reaches zero, allowing it to go into negative values.
+            // It will be naturally stopped and disposed when the turn changes.
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void DisposeTimers()
+    {
+        lock (timerLock)
+        {
+            foreach (var timer in playerTimers.Values)
+            {
+                timer?.Dispose();
+            }
+            playerTimers.Clear();
         }
     }
 
