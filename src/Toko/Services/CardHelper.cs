@@ -22,9 +22,9 @@ namespace Toko.Services
                     racer.Deck.Enqueue(new Card { Type = type });
             }
 
-            Add(CardType.Move, 4);
-            Add(CardType.ChangeLane, 1);
-            Add(CardType.Repair, 1);
+            Add(CardType.ChangeLane, 2);
+            Add(CardType.Repair, 2);
+            Add(CardType.ShiftGear, 4); // Combined gear shift card
 
             // 最后随机洗牌
             // Fisher–Yates shuffle
@@ -56,7 +56,25 @@ namespace Toko.Services
                 racer.Hand.Add(card);
                 drawn.Add(card);
             }
+            
+            // Adjust gear after drawing cards in case junk cards were drawn
+            AdjustGearForJunkCards(racer);
+            
             return drawn;
+        }
+
+        /// <summary>
+        /// Adjusts racer's gear to comply with junk card limitations
+        /// </summary>
+        public static void AdjustGearForJunkCards(Racer racer)
+        {
+            int junkCardCount = racer.Hand.Count(card => card.Type == Shared.Models.CardType.Junk);
+            int maxAllowedGear = 6 - junkCardCount; // Each junk card reduces max gear by 1
+            
+            if (racer.Gear > maxAllowedGear)
+            {
+                racer.Gear = maxAllowedGear;
+            }
         }
 
         public static class ShuffleUtils

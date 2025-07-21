@@ -3,7 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using MediatR;
 using Toko.Models;
+using Toko.Models.Events;
 using Toko.Shared.Models;
 using static Toko.Shared.Services.RaceMapFactory;
 
@@ -285,12 +287,6 @@ namespace Toko.Services
             // Execute action first
             switch (ins.Type)
             {
-                case CardType.Move:
-                    if (ins.ExecParameter.Effect <= 0 || ins.ExecParameter.Effect > 2)
-                    {
-                        return TurnExecutionResult.InvalidState;
-                    }
-                    return MoveForwardNew(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
                 case CardType.ChangeLane:
                     if (ins.ExecParameter.Effect != -1 && ins.ExecParameter.Effect != 1)
                     {
@@ -300,6 +296,13 @@ namespace Toko.Services
                     return TurnExecutionResult.Continue;
                 case CardType.Repair:
                     Repair(racer, ins.ExecParameter.DiscardedCardIds);
+                    return TurnExecutionResult.Continue;
+                case CardType.ShiftGear:
+                    if (ins.ExecParameter.Effect != -1 && ins.ExecParameter.Effect != 1)
+                    {
+                        return TurnExecutionResult.InvalidState;
+                    }
+                    ShiftGear(racer, ins.ExecParameter.Effect); // Use parameter: 1 for shift up, -1 for shift down
                     return TurnExecutionResult.Continue;
                 default:
                     // Junk won't be submitted here
@@ -493,6 +496,64 @@ namespace Toko.Services
             }
             // Discard the junk card the user chose, remove directly without adding to discard pile
             InternalRemove(racer, discardedCardId);
+            
+            // Adjust gear after removing junk cards (may allow higher gears)
+            CardHelper.AdjustGearForJunkCards(racer);
+        }
+
+        private static void ShiftGear(Racer racer, int direction)
+        {
+            // direction: 1 for shift up, -1 for shift down
+            int newGear = racer.Gear + direction;
+            
+            // Count junk cards in hand to determine max gear limit
+            int junkCardCount = racer.Hand.Count(card => card.Type == CardType.Junk);
+            int maxAllowedGear = 6 - junkCardCount; // Each junk card reduces max gear by 1
+            
+            // Clamp gear between 1 and max allowed gear
+            if (newGear < 1)
+            {
+                newGear = 1;
+            }
+            else if (newGear > maxAllowedGear)
+            {
+                newGear = maxAllowedGear;
+            }
+            
+            racer.Gear = newGear;
+        }
+
+        public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<INotification> events)
+        {
+            return ExecuteAutoMove(racer, room, events, racer.Gear);
+        }
+
+        public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<INotification> events, int moveDistance)
+        {
+            // Ensure coordinate system is initialized
+            InitializeCoordinateSystem();
+
+            // Store initial position for event generation
+            int initialSegment = racer.SegmentIndex;
+            int initialLane = racer.LaneIndex;
+            int initialCell = racer.CellIndex;
+
+            // Execute movement
+            var result = MoveForwardNew(racer, moveDistance, room, 0);
+
+            // Generate move event
+            events.Add(new PlayerAutoMoved(
+                room.Id, 
+                room.CurrentRound, 
+                room.CurrentStep, 
+                racer.Id, 
+                moveDistance,
+                racer.SegmentIndex,
+                racer.LaneIndex,
+                racer.CellIndex
+            ));
+
+            return result;
         }
 
         private static void InternalRemove(Racer racer, List<string> discardedCardId)

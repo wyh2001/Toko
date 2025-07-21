@@ -76,7 +76,7 @@ namespace Toko.IntegrationTests
         {
             return new ConcreteInstruction
             {
-                Type = CardType.Move,
+                Type = CardType.ShiftGear,
                 ExecParameter = new ExecParameter { Effect = effect }
             };
         }

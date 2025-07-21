@@ -4,10 +4,10 @@
     public enum Phase { CollectingCards, CollectingParams, Discarding }
     public enum CardType
     {
-        Move,
         ChangeLane,
         Junk,
-        Repair
+        Repair,
+        ShiftGear
     }
     public enum GameEndReason
     {

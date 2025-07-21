@@ -343,6 +343,16 @@ namespace Toko.Models
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 events.Add(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
+                
+                // Execute automatic movement based on gear after card execution
+                var autoMoveResult = _turnExecutor.ExecuteAutoMove(racer, this, events);
+                if (autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
+                {
+                    events.Add(new PlayerFinished(Id, pid));
+                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
+                    _gameSM.Fire(GameTrigger.GameOver);
+                }
+                
                 await MoveNextPlayerAsync(events);
                 return new SubmitExecutionParamSuccess(this.Id, pid, ins);
             });
@@ -545,9 +555,9 @@ namespace Toko.Models
         #region Other Helper Methods
         static bool Validate(CardType t, ExecParameter p) => t switch
         {
-            CardType.Move => p.Effect is 1 or 2,
             CardType.ChangeLane => p.Effect is 1 or -1,
             CardType.Repair => p.DiscardedCardIds.Count > 0,
+            CardType.ShiftGear => p.Effect is 1 or -1, // 1 for shift up, -1 for shift down
             _ => false
         };
 
@@ -713,7 +723,7 @@ namespace Toko.Models
                 UpdateBank(pid, events);
                 var result = DrawCards(racer, DRAW_ON_SKIP);
                 events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
-                _cardNow[(pid, CurrentRound, _stepInRound)] = (SKIP, CardType.Move); // Use dummy CardType for skip
+                _cardNow[(pid, CurrentRound, _stepInRound)] = (SKIP, CardType.ChangeLane); // Use dummy CardType for skip
                 await MoveNextPlayerAsync(events);
                 return new DrawSkipSuccess(this.Id, pid, result);
             });
@@ -789,18 +799,6 @@ namespace Toko.Models
             return await WithGateAsync(events =>
             {
                 var phase = _phaseSM.State.ToString();
-                var racers = Racers.Select(r => new RacerStatus(
-                    r.Id,
-                    r.PlayerName,
-                    r.SegmentIndex,
-                    r.LaneIndex,
-                    r.CellIndex,
-                    _bank.TryGetValue(r.Id, out var bank) ? Math.Round(bank.TotalSeconds, 2) : 0.0,
-                    r.IsHost,
-                    r.IsReady,
-                    r.Hand.Count,
-                    _banned.Contains(r.Id)
-                )).ToList();
                 var map = new MapSnapshot(
                     Map.TotalCells,
                     Map.Segments.Select(seg => new MapSegmentSnapshot(

@@ -21,6 +21,7 @@ namespace Toko.Models.Events
     public record PlayerParameterSubmissionStarted(string RoomId, int Round, int Step, string PlayerId, CardType CardType) : IRoomEvent;
     public record PlayerReadyToggled(string RoomId, string PlayerId, bool IsReady) : IRoomEvent;
     public record PlayerStepExecuted(string RoomId, int Round, int Step) : IRoomEvent;
+    public record PlayerAutoMoved(string RoomId, int Round, int Step, string PlayerId, int MoveDistance, int NewSegmentIndex, int NewLaneIndex, int NewCellIndex) : IRoomEvent;
     public record PlayerTimeoutElapsed(string RoomId, string PlayerId) : IRoomEvent;
     public record RoomEnded(string RoomId, GameEndReason Reason, List<PlayerResult> Results) : IRoomEvent;
     public record RoomSettingsUpdated(string RoomId, RoomSettings Settings) : IRoomEvent;
