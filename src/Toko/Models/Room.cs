@@ -836,9 +836,11 @@ namespace Toko.Models
                     r.IsHost,
                     r.IsReady,
                     r.Hand.Count,
-                    _banned.Contains(r.Id)
+                    _banned.Contains(r.Id),
+                    r.Gear
                 )).ToList();
 
+                _thinkStart.TryGetValue(currentTurnPlayerId ?? "", out var turnStartTime);
 
                 return new RoomStatusSnapshot(
                     Id,
@@ -856,7 +858,8 @@ namespace Toko.Models
                     _discardPending.ToList(), // DiscardPendingPlayerIds
                     racerStatuses,
                     map,
-                    _gameResults
+                    _gameResults,
+                    turnStartTime == default ? null : turnStartTime
                 );
             });
         }

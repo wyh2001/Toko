@@ -14,6 +14,7 @@ namespace Toko.Models
         public int LaneIndex { get; set; }      // 当前车道 0..LaneCount-1
         public int CellIndex { get; set; }      // 段内格子上的位置：0 到 LaneCells[LaneIndex].Count-1
         public int Score { get; set; } = 0;
+        public int Gear { get; set; } = 1; // Current gear of the racer (1-6)
         public bool IsHost { get; set; } = false; // 是否是房主
         public bool IsReady { get; set; } = false;
     }
