@@ -34,6 +34,14 @@ else
                          alt="@($"Tile ({x}, {y})")"
                          style="@($"width:{TileSize}px;height:{TileSize}px;{transformStyle};")" />
                     
+                    @if (ShouldShowSkipIndicator(x, y))
+                    {
+                        var (position, transform, arrowDirection) = GetSkipIndicatorStyle(x, y);
+                        <div class="skip-indicator" style="@($"position:absolute;{position}")" title="Skip this tile">
+                            <span class="skip-arrow">@arrowDirection</span>
+                        </div>
+                    }
+                    
                     @if (racersAtPosition.Any())
                     {
                         @for (int i = 0; i < racersAtPosition.Count; i++)
@@ -203,6 +211,59 @@ else
         // Example: highlight the racer in first place
         var leadingRacer = RoomStatus.Racers.OrderByDescending(r => r.Segment).ThenByDescending(r => r.Tile).FirstOrDefault();
         return leadingRacer?.Id == racer.Id;
+    }
+
+    private bool ShouldShowSkipIndicator(int x, int y)
+    {
+        if (!_cellLookup.TryGetValue(new Point(x, y), out var cell) || cell.Grid is null)
+            return false;
+
+        return cell.Grid.RenderingType == MapRenderingType.CurveLargeSeg2;
+    }
+
+    private (string position, string transform, string arrowDirection) GetSkipIndicatorStyle(int x, int y)
+    {
+        if (!_cellLookup.TryGetValue(new Point(x, y), out var cell) || cell.Grid is null)
+            return ("", "", "");
+
+        var direction = cell.Direction;
+        
+        return direction switch
+        {
+            // UpRight -> arrow right, position bottom-right
+            SegmentDirection.UpRight => 
+                ("bottom: 4px; right: 4px;", "", "→"),
+            
+            // RightUp -> arrow right, position top-left
+            SegmentDirection.RightUp => 
+                ("top: 4px; left: 4px;", "", "→"),
+            
+            // RightDown -> arrow down, position bottom-left  
+            SegmentDirection.RightDown => 
+                ("bottom: 4px; left: 4px;", "", "↓"),
+            
+            // DownRight -> arrow right, position top-right
+            SegmentDirection.DownRight => 
+                ("top: 4px; right: 4px;", "", "→"),
+            
+            // DownLeft -> arrow left, position top-left
+            SegmentDirection.DownLeft => 
+                ("top: 4px; left: 4px;", "", "←"),
+            
+            // LeftDown -> arrow down, position top-left
+            SegmentDirection.LeftDown => 
+                ("top: 4px; left: 4px;", "", "↓"),
+            
+            // LeftUp -> arrow up, position top-right
+            SegmentDirection.LeftUp => 
+                ("top: 4px; right: 4px;", "", "↑"),
+            
+            // UpLeft -> arrow left, position top-right
+            SegmentDirection.UpLeft => 
+                ("top: 4px; right: 4px;", "", "←"),
+            
+            _ => ("bottom: 4px; right: 4px;", "", "→")
+        };
     }
 
     private (string top, string left) GetCarPositionOffset(int index, int totalCount)
