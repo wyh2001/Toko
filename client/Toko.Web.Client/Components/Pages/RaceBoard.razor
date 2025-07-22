@@ -29,7 +29,7 @@ else
                     transformStyle += " rotateX(180deg)";
                 }
                 
-                <div style="@($"grid-column:{x - _minX + 1};grid-row:{_maxY - y + 1};position:relative;")">
+                <div class="grid-tile" style="@($"grid-column:{x - _minX + 1};grid-row:{_maxY - y + 1};position:relative;")">
                     <img src="@path"
                          alt="@($"Tile ({x}, {y})")"
                          style="@($"width:{TileSize}px;height:{TileSize}px;{transformStyle};")" />
