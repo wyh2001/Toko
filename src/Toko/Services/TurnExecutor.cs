@@ -422,6 +422,13 @@ namespace Toko.Services
 
             var currentPosition = new TrackPosition(racer.SegmentIndex, racer.LaneIndex, racer.CellIndex);
 
+            var seg = _map.Segments[racer.SegmentIndex];
+            if (seg.IsCorner)
+            {
+                AddJunk(racer, 1);
+                return;
+            }
+
             // Get current coordinate
             if (!_positionToCoordinate.TryGetValue(currentPosition, out var currentCoordinate))
             {
@@ -431,7 +438,6 @@ namespace Toko.Services
 
             // Calculate target lane
             int targetLane = racer.LaneIndex + delta;
-            var seg = _map.Segments[racer.SegmentIndex];
 
             // Boundary check: hitting wall
             if (targetLane < 0 || targetLane >= seg.LaneCount)
