@@ -42,10 +42,13 @@ else
                             var carImagePath = GetCarImage(racer, i);
                             var carPosition = GetCarPositionOffset(i, racersAtPosition.Count);
                             var carRotation = GetCarRotation(racer);
-                            var (carWidth, carHeight) = racersAtPosition.Count == 1 ? (71, 131) : (35, 65); // Use actual 71x131 size
+                            var (carWidth, carHeight) = racersAtPosition.Count == 1 ? (53, 98) : (26, 49); // Scaled down for 96px tiles
+                            var activeClass = IsActiveRacer(racer) ? "active-racer" : "";
                             <img src="@carImagePath"
                                  alt="@($"Racer {racer.Name}")"
-                                 style="@($"position:absolute;top:{carPosition.top};left:{carPosition.left};width:{carWidth}px;height:{carHeight}px;transform:rotate({carRotation}deg);z-index:10;")" />
+                                 class="@($"racer-car {activeClass}".Trim())"
+                                 style="@($"position:absolute;top:{carPosition.top};left:{carPosition.left};width:{carWidth}px;height:{carHeight}px;transform:rotate({carRotation}deg);z-index:10;")" 
+                                 title="@($"Racer: {racer.Name}")" />
                         }
                     }
                 </div>
@@ -191,24 +194,35 @@ else
         return 0; // Default rotation
     }
 
+    private bool IsActiveRacer(RacerStatus racer)
+    {
+        // You can customize this logic based on your game state
+        // For now, we'll highlight racers who are in the lead or currently taking their turn
+        if (RoomStatus?.Racers == null) return false;
+        
+        // Example: highlight the racer in first place
+        var leadingRacer = RoomStatus.Racers.OrderByDescending(r => r.Segment).ThenByDescending(r => r.Tile).FirstOrDefault();
+        return leadingRacer?.Id == racer.Id;
+    }
+
     private (string top, string left) GetCarPositionOffset(int index, int totalCount)
     {
-        // If only one car, center it (car is 71x131)
+        // If only one car, center it (car is 53x98)
         if (totalCount == 1)
-            return ("calc(50% - 65px)", "calc(50% - 35px)"); // Center for 71x131 car
+            return ("calc(50% - 49px)", "calc(50% - 26px)"); // Center for 53x98 car
 
-        // For multiple cars (35x65), position them around the tile
+        // For multiple cars (26x49), position them around the tile
         return index switch
         {
-            0 => ("5px", "5px"),                        // top-left
-            1 => ("5px", "calc(100% - 40px)"),          // top-right (35px + 5px)
-            2 => ("calc(100% - 70px)", "5px"),          // bottom-left (65px + 5px)
-            3 => ("calc(100% - 70px)", "calc(100% - 40px)"), // bottom-right
-            4 => ("5px", "calc(50% - 17px)"),           // top-center (35px/2 = 17px)
-            5 => ("calc(100% - 70px)", "calc(50% - 17px)"),  // bottom-center
-            6 => ("calc(50% - 32px)", "5px"),           // middle-left (65px/2 = 32px)
-            7 => ("calc(50% - 32px)", "calc(100% - 40px)"),  // middle-right
-            _ => ("calc(50% - 32px)", "calc(50% - 17px)")     // center for more than 8 cars
+            0 => ("4px", "4px"),                         // top-left
+            1 => ("4px", "calc(100% - 30px)"),           // top-right (26px + 4px)
+            2 => ("calc(100% - 53px)", "4px"),           // bottom-left (49px + 4px)
+            3 => ("calc(100% - 53px)", "calc(100% - 30px)"),  // bottom-right
+            4 => ("4px", "calc(50% - 13px)"),            // top-center (26px/2)
+            5 => ("calc(100% - 53px)", "calc(50% - 13px)"),   // bottom-center
+            6 => ("calc(50% - 24px)", "4px"),            // middle-left (49px/2)
+            7 => ("calc(50% - 24px)", "calc(100% - 30px)"),   // middle-right
+            _ => ("calc(50% - 24px)", "calc(50% - 13px)")      // center for more than 8 cars
         };
     }
 }

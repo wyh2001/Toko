@@ -1,0 +1,57 @@
+/* Racer car base styles */
+.racer-car {
+    transition: all 0.3s ease-out;
+    will-change: transform, filter;
+    transform-origin: center center;
+    image-rendering: auto;
+}
+
+/* Pulse animation for active racer */
+@keyframes active-pulse {
+    0%, 100% { 
+        filter: brightness(1) drop-shadow(0 0 0px rgba(255, 102, 0, 0)); 
+    }
+    50% { 
+        filter: brightness(1.2) drop-shadow(0 0 8px rgba(255, 102, 0, 0.8)); 
+    }
+}
+
+/* Hover effects for better interaction */
+.racer-car:hover {
+    filter: brightness(1.15) drop-shadow(0 0 4px rgba(0, 0, 0, 0.3));
+    transform-origin: center;
+    z-index: 15 !important;
+}
+
+/* Active racer highlighting */
+.racer-car.active-racer {
+    animation: active-pulse 2s ease-in-out infinite;
+    z-index: 12 !important;
+}
+
+/* Ensure smooth transitions don't interfere with rotations */
+.racer-car {
+    transform-origin: center center;
+    image-rendering: auto;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* Performance optimizations */
+.track-grid {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+/* Track grid styling for better visual context */
+.track-grid-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: #666;
+    font-size: 1.2rem;
+    background: #f5f5f5;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+}
