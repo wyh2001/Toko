@@ -4,32 +4,32 @@
             "mapName": "RectangleTrack",
             "mapSnapshot": {
                 "totalCells": 26,
-        "segments": [
-          {
-            "type": "Road",
-            "laneCount": 2,
-            "cellCount": 3,
-            "direction": "Up"
-          },
-          {
-            "type": "Road",
-            "laneCount": 1,
-            "cellCount": 3,
-            "direction": "Right"
-          },
-          {
-            "type": "Road",
-            "laneCount": 2,
-            "cellCount": 3,
-            "direction": "Down"
-          },
-          {
-            "type": "Road",
-            "laneCount": 1,
-            "cellCount": 3,
-            "direction": "Left"
-          }
-        ]
+                "segments": [
+                    {
+                        "type": "Road",
+                        "laneCount": 2,
+                        "cellCount": 3,
+                        "direction": "Up"
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 1,
+                        "cellCount": 3,
+                        "direction": "Right"
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 2,
+                        "cellCount": 3,
+                        "direction": "Down"
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 1,
+                        "cellCount": 3,
+                        "direction": "Left"
+                    }
+                ]
             },
             "expectedCells": [
                 {
@@ -1239,139 +1239,992 @@
                     }
                 }
             ]
-        },    {
-      "mapName": "MediumTrack",
-      "mapSnapshot": {
-        "totalCells": 40,
-        "segments": [
-          { "type": "Road", "laneCount": 2, "cellCount": 3, "direction": "Up", "isIntermediate": false },
-          { "type": "Road", "laneCount": 2, "cellCount": 3, "direction": "Right",  "isIntermediate": false },
-          { "type": "Road", "laneCount": 2, "cellCount": 3, "direction": "Down",  "isIntermediate": false },
-          { "type": "Road", "laneCount": 2, "cellCount": 3, "direction": "Left",    "isIntermediate": false }
-        ]
-      },
-      "expectedCells": [
-        { "x": 0, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 1, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 2, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 3, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 4, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 5, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Rotate180", "isFlipped": false } },
-        { "x": 6, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 1, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CornerEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 2, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90",  "isFlipped": false } },
-        { "x": 3, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90",  "isFlipped": false } },
-        { "x": 4, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90",  "isFlipped": false } },
-        { "x": 5, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CornerEdge",     "rotation": "Rotate180", "isFlipped": false } },
-        { "x": 6, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 0, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 0, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-        { "x": 5, "y": 0, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original",  "isFlipped": false } },
-        { "x": 6, "y": 0, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180","isFlipped": false } },
-        { "x": 5, "y": 1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original", "isFlipped": false } },
-        { "x": 6, "y": 1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180","isFlipped": false } },
-
-        { "x": 0, "y": 2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180","isFlipped": false } },
-        { "x": 5, "y": 2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original", "isFlipped": false } },
-        { "x": 6, "y": 2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180","isFlipped": false } },
-
-        { "x": 0, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CornerEdge",     "rotation": "Original", "isFlipped": false } },
-        { "x": 2, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 3, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 4, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 5, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CornerEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 6, "y": 3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Rotate90", "isFlipped": false } },
-
-        { "x": 0, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Original", "isFlipped": false } },
-        { "x": 2, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 3, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 4, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 5, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 6, "y": 4, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Rotate90", "isFlipped": false } }
-      ]
-    },
+        },
         {
-      "mapName": "SquareTrack9x9",
-      "mapSnapshot": {
-        "totalCells": 72,
-        "segments": [
-          { "type": "Road", "laneCount": 3, "cellCount": 3, "direction": "Up", "isIntermediate": false },
-          { "type": "Road", "laneCount": 3, "cellCount": 3, "direction": "Right",  "isIntermediate": false },
-          { "type": "Road", "laneCount": 3, "cellCount": 3, "direction": "Down",  "isIntermediate": false },
-          { "type": "Road", "laneCount": 3, "cellCount": 3, "direction": "Left",    "isIntermediate": false }
-        ]
-      },
-      "expectedCells": [
-        { "x": 0, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 1, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 2, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 3, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 4, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 5, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 6, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 7, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Rotate180", "isFlipped": false } },
-        { "x": 8, "y": -3, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Rotate270", "isFlipped": false } },
-        { "x": 1, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original",  "isFlipped": false } },
-        { "x": 2, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original", "isFlipped": false } },
-        { "x": 3, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original",  "isFlipped": false } },
-        { "x": 4, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original",  "isFlipped": false } },
-        { "x": 5, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original",  "isFlipped": false } },
-        { "x": 6, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original", "isFlipped": false } },
-        { "x": 7, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original", "isFlipped": false } },
-        { "x": 8, "y": -2, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original",  "isFlipped": false } },
-        { "x": 1, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 7, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original", "isFlipped": false } },
-        { "x": 8, "y": -1, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 0,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original",  "isFlipped": false } },
-        { "x": 1, "y": 0,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 7, "y": 0,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 8, "y": 0,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 1,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original",  "isFlipped": false } },
-        { "x": 1, "y": 1,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 7, "y": 1,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 8, "y": 1,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 2,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original",  "isFlipped": false } },
-        { "x": 1, "y": 2,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 7, "y": 2,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 8, "y": 2,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 3,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Original",  "isFlipped": false } },
-        { "x": 1, "y": 3,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original",  "isFlipped": false } },
-        { "x": 7, "y": 3,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",      "rotation": "Original", "isFlipped": false } },
-        { "x": 8, "y": 3,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge", "rotation": "Rotate180", "isFlipped": false } },
-
-        { "x": 0, "y": 4,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 4,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original", "isFlipped": false } },
-        { "x": 7, "y": 4,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "Plain",          "rotation": "Original","isFlipped": false } },
-        { "x": 8, "y": 4,  "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Rotate90", "isFlipped": false } },
-
-        { "x": 0, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Original", "isFlipped": false } },
-        { "x": 1, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg3", "rotation": "Original", "isFlipped": false } },
-        { "x": 2, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 3, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 4, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 5, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 6, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "SingleEdge",     "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 7, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg1", "rotation": "Rotate90", "isFlipped": false } },
-        { "x": 8, "y": 5, "expectedCellType": "Road", "expectedGrid": { "renderingType": "CurveLargeSeg2", "rotation": "Rotate90", "isFlipped": false } }
-      ]
-    }
-
+            "mapName": "MediumTrack",
+            "mapSnapshot": {
+                "totalCells": 40,
+                "segments": [
+                    {
+                        "type": "Road",
+                        "laneCount": 2,
+                        "cellCount": 3,
+                        "direction": "Up",
+                        "isIntermediate": false
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 2,
+                        "cellCount": 3,
+                        "direction": "Right",
+                        "isIntermediate": false
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 2,
+                        "cellCount": 3,
+                        "direction": "Down",
+                        "isIntermediate": false
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 2,
+                        "cellCount": 3,
+                        "direction": "Left",
+                        "isIntermediate": false
+                    }
+                ]
+            },
+            "expectedCells": [
+                {
+                    "x": 0,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CornerEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CornerEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CornerEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CornerEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                }
+            ]
+        },
+        {
+            "mapName": "SquareTrack9x9",
+            "mapSnapshot": {
+                "totalCells": 72,
+                "segments": [
+                    {
+                        "type": "Road",
+                        "laneCount": 3,
+                        "cellCount": 3,
+                        "direction": "Up",
+                        "isIntermediate": false
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 3,
+                        "cellCount": 3,
+                        "direction": "Right",
+                        "isIntermediate": false
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 3,
+                        "cellCount": 3,
+                        "direction": "Down",
+                        "isIntermediate": false
+                    },
+                    {
+                        "type": "Road",
+                        "laneCount": 3,
+                        "cellCount": 3,
+                        "direction": "Left",
+                        "isIntermediate": false
+                    }
+                ]
+            },
+            "expectedCells": [
+                {
+                    "x": 0,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": -3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Rotate270",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": -2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": -1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": 0,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": 1,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": 2,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": 3,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate180",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "Plain",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": 4,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 0,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 1,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg3",
+                        "rotation": "Original",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 2,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 3,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 4,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 5,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 6,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "SingleEdge",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 7,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg1",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                },
+                {
+                    "x": 8,
+                    "y": 5,
+                    "expectedCellType": "Road",
+                    "expectedGrid": {
+                        "renderingType": "CurveLargeSeg2",
+                        "rotation": "Rotate90",
+                        "isFlipped": false
+                    }
+                }
+            ]
+        }
     ]
 }
