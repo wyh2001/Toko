@@ -547,6 +547,65 @@ namespace Toko.IntegrationTests
         }
 
         [Fact]
+        public async Task TwoPlayersStartGame_FirstPlayerPlaysCard_ShouldHaveOnlyOneLogEntry()
+        {
+            // Create two test players
+            var player1 = new TestGameClient(factory, _output);
+            var player2 = new TestGameClient(factory, _output);
+
+            // Authenticate both players
+            await player1.AuthenticateAsync();
+            await player2.AuthenticateAsync();
+
+            // Create room
+            var roomId = await player1.CreateRoomAsync();
+            // Second player joins the room
+            await player2.JoinRoomAsync(roomId);
+
+            // Both players ready up
+            await player1.SetReadyAsync(roomId, true);
+            await player2.SetReadyAsync(roomId, true);
+
+            // Start the game
+            await player1.StartGameAsync(roomId);
+            
+            // Wait for game state to update
+            await Task.Delay(100);
+
+            // Verify game has started and is in card collection phase
+            var status = await player1.GetRoomStatusAsync(roomId);
+            Assert.Equal("Playing", status.Status);
+            Assert.Equal("CollectingCards", status.Phase);
+
+            // First player gets their hand
+            var hand = await player1.GetHandAsync(roomId);
+            Assert.NotNull(hand);
+            Assert.NotNull(hand.Cards);
+            Assert.True(hand.Cards.Count > 0, "Player should have cards in hand");
+
+            // First player plays a random card
+            var randomCard = hand.Cards[new Random().Next(hand.Cards.Count)];
+            _output.WriteLine($"Player1 plays card: {randomCard.Type} (ID: {randomCard.Id})");
+            await player1.SubmitStepCardAsync(roomId, randomCard.Id);
+
+            // Get room status directly via API (including logs)
+            var resp = await player1.Client.GetAsync($"/api/room/{roomId}/status");
+            resp.EnsureSuccessStatusCode();
+            var fullStatus = await resp.Content.ReadFromJsonAsync<ApiSuccess<Toko.Shared.Models.RoomStatusSnapshot>>(_json);
+            
+            Assert.NotNull(fullStatus);
+            Assert.NotNull(fullStatus.Data);
+            
+            // Verify there is only one log entry
+            Assert.NotNull(fullStatus.Data.Logs);
+            var singleLog = Assert.Single(fullStatus.Data.Logs);
+            
+            // Verify the log is about the first player's card submission
+            Assert.Equal(player1.PlayerId, singleLog.PlayerId);
+            Assert.Contains("submitted", singleLog.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
         public async Task CompleteGameFlowUsingAPI_ShouldSucceed()
         {
             // Create three test game clients to simulate 3 players
