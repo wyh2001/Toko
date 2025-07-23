@@ -629,11 +629,6 @@ namespace Toko.Services
             // Ensure coordinate system is initialized
             InitializeCoordinateSystem();
 
-            // Store initial position for event generation
-            int initialSegment = racer.SegmentIndex;
-            int initialLane = racer.LaneIndex;
-            int initialCell = racer.CellIndex;
-
             // Execute movement
             var result = MoveForwardNew(racer, moveDistance, room, events, 0);
 
@@ -644,10 +639,7 @@ namespace Toko.Services
                 room.CurrentStep,
                 racer.Id,
                 racer.PlayerName,
-                moveDistance,
-                racer.SegmentIndex,
-                racer.LaneIndex,
-                racer.CellIndex
+                moveDistance
             ));
 
             return result;

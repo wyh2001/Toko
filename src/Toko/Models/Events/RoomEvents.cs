@@ -50,9 +50,9 @@ namespace Toko.Models.Events
     public record PlayerParameterSubmissionStarted(string RoomId, int Round, int Step, string PlayerId, string PlayerName, CardType CardType) : IRoomEvent;
     public record PlayerReadyToggled(string RoomId, string PlayerId, string PlayerName, bool IsReady) : IRoomEvent;
     public record PlayerStepExecuted(string RoomId, int Round, int Step) : IRoomEvent;
-    public record PlayerAutoMoved(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int MoveDistance, int NewSegmentIndex, int NewLaneIndex, int NewCellIndex) : IRoomEvent, ILogEvent
+    public record PlayerAutoMoved(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int MoveDistance) : IRoomEvent, ILogEvent
     {
-        public string ToLogMessage() => $"Player automatically moved {MoveDistance} spaces to position ({NewSegmentIndex},{NewLaneIndex},{NewCellIndex})";
+        public string ToLogMessage() => $"Step ends, {PlayerName} moved forward)";
         public (int Round, int Step) GetRoundStep() => (Round, Step);
     }
     public record PlayerTimeoutElapsed(string RoomId, string PlayerId, string PlayerName) : IRoomEvent;
@@ -66,14 +66,14 @@ namespace Toko.Models.Events
     // Log events
     public record PlayerMoved(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int MoveDistance, int FromSegmentIndex, int FromLaneIndex, int FromCellIndex, int ToSegmentIndex, int ToLaneIndex, int ToCellIndex) : ILogEvent, INotification
     {
-        public string ToLogMessage() => $"{PlayerName} moved {MoveDistance} space{(MoveDistance > 1 ? "s" : "")} from ({FromSegmentIndex},{FromLaneIndex},{FromCellIndex}) to ({ToSegmentIndex},{ToLaneIndex},{ToCellIndex})";
+        public string ToLogMessage() => $"{PlayerName} moved forward {MoveDistance} space{(MoveDistance > 1 ? "s" : "")}";
         public (int Round, int Step) GetRoundStep() => (Round, Step);
     }
     public record PlayerCollision(string RoomId, int Round, int Step, string PlayerId, string PlayerName, List<string> CollidedPlayerIds, List<string> CollidedPlayerNames, int SegmentIndex, int LaneIndex, int CellIndex) : ILogEvent, INotification
     {
         public string ToLogMessage() => CollidedPlayerIds.Count == 1 
-            ? $"{PlayerName} collided with {CollidedPlayerNames[0]} at position ({SegmentIndex},{LaneIndex},{CellIndex})"
-            : $"{PlayerName} collided with {string.Join(", ", CollidedPlayerNames)} at position ({SegmentIndex},{LaneIndex},{CellIndex})";
+            ? $"{PlayerName} collided with {CollidedPlayerNames[0]}"
+            : $"{PlayerName} collided with {string.Join(", ", CollidedPlayerNames)}";
         public (int Round, int Step) GetRoundStep() => (Round, Step);
     }
     public record PlayerChangedLane(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, int FromLane, int ToLane, bool Success) : ILogEvent, INotification
