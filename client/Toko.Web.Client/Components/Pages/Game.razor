@@ -177,11 +177,20 @@
                 <div class="log-section">
                     <h3 class="panel-title">Game Log</h3>
                     <div class="log-container">
-                        @foreach (var logEntry in gameLogs.TakeLast(10))
+                        @if (gameLogs.Any())
                         {
-                            <div class="log-entry">
-                                <div class="log-time">R@logEntry.Turn</div>
-                                <div class="log-message">@logEntry.Message</div>
+                            @foreach (var logEntry in gameLogs.TakeLast(5).Reverse())
+                            {
+                                <div class="log-entry @(logEntry.PlayerId == AuthService.PlayerId ? "current-player-log" : "")">
+                                    <div class="log-time">R@(logEntry.Round+1)-S@(logEntry.Step+1)</div>
+                                    <div class="log-message">@logEntry.Message</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="log-entry empty-log">
+                                <div class="log-message">Logs will appear here when available.</div>
                             </div>
                         }
                     </div>
@@ -324,9 +333,6 @@
                                     }
                                 </div>
                             }
-                            <button class="action-button" @onclick="EndTurn">
-                                End Turn
-                            </button>
                         }
                         else
                         {
@@ -440,9 +446,10 @@
     private bool isConnected = true;
     private bool isReconnecting = false;
     
-    private List<CardDto> playerHand = new();
+private List<CardDto> playerHand = new();
     private string selectedCard = "";
-    private List<GameLogEntry> gameLogs = new();
+    private List<TurnLog> gameLogs = new();
+    private HashSet<Guid> seenLogIds = new(); // Track seen log UUIDs for deduplication
     
     // Parameter collection state
     private int changeLaneEffect = 1;
@@ -556,6 +563,7 @@
                     case "RoomSettingsUpdated":
                     case "RoundAdvanced":
                     case "StepAdvanced":
+                    // case "LogUpdated":
                         InvokeAsync(async () => {
                             await LoadGameData();
                             await LoadHandData();
@@ -629,6 +637,12 @@
                 
                 // Update time banks
                 UpdatePlayerTimeBanks();
+                
+                // Update game logs from server with UUID-based deduplication
+                if (gameData.Logs != null)
+                {
+                    UpdateGameLogsWithDeduplication(gameData.Logs);
+                }
                 
                 isLoading = false;
             }
@@ -784,9 +798,6 @@
             playerHand.RemoveAll(c => c.Id == selectedCard);
             selectedCard = "";
             
-            // Add log entry
-            gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, "You submitted a card."));
-            
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
@@ -810,7 +821,6 @@
             {
                 // Reload hand data after drawing cards
                 await LoadHandData();
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, "You drew cards."));
                 
                 await InvokeAsync(StateHasChanged);
             }
@@ -835,7 +845,6 @@
         {
             // TODO: Implement real execution logic with API
             // For now, just add a log entry
-            gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, "You executed your programmed moves."));
             
             await InvokeAsync(StateHasChanged);
         }
@@ -909,8 +918,6 @@
                     _ => $"You submitted parameters for {gameData?.CurrentTurnCardType} card"
                 };
 
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, logMessage));
-                
                 // Reset parameter state
                 ResetParameterState();
                 
@@ -921,15 +928,12 @@
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"Failed to submit parameters: {response.StatusCode} - {errorContent}");
                 
-                // Show error to user
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error submitting parameters: {response.StatusCode}"));
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to submit parameters: {ex.Message}");
-            gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error submitting parameters: {ex.Message}"));
             await LoadGameData();
             await LoadHandData();
             await InvokeAsync(StateHasChanged);
@@ -995,8 +999,6 @@
                     ? $"You discarded {selectedDiscardCards.Count} cards"
                     : "You chose not to discard any cards";
                 
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, logMessage));
-                
                 // Clear selection
                 selectedDiscardCards.Clear();
                 
@@ -1011,14 +1013,12 @@
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"Failed to discard cards: {response.StatusCode} - {errorContent}");
                 
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error discarding cards: {response.StatusCode}"));
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to discard cards: {ex.Message}");
-            gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error discarding cards: {ex.Message}"));
             await LoadGameData();
             await LoadHandData();
             await InvokeAsync(StateHasChanged);
@@ -1037,8 +1037,6 @@
 
             if (response.IsSuccessStatusCode)
             {
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, "You skipped discarding"));
-                
                 // Clear selection
                 selectedDiscardCards.Clear();
 
@@ -1052,35 +1050,15 @@
                 var errorContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"Failed to skip discard: {response.StatusCode} - {errorContent}");
                 
-                gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error skipping discard: {response.StatusCode}"));
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to skip discard: {ex.Message}");
-            gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, $"Error skipping discard: {ex.Message}"));
             await LoadGameData();
             await LoadHandData();
             await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task EndTurn()
-    {
-        if (!isMyTurn) return;
-
-        try
-        {
-            // TODO: Implement real end turn logic with API
-            // For now, just add a log entry
-            gameLogs.Add(new GameLogEntry(gameData?.CurrentRound ?? 1, "Turn ended."));
-            
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to end turn: {ex.Message}");
         }
     }
 
@@ -1261,9 +1239,15 @@
     {
         if (playerTimeBanks.TryGetValue(playerId, out var timeBank))
         {
-            var minutes = (int)(timeBank / 60);
-            var seconds = (int)(timeBank % 60);
-            return $"{minutes:D2}:{seconds:D2}";
+            // Handle negative time display correctly
+            var isNegative = timeBank < 0;
+            var absoluteTime = Math.Abs(timeBank);
+            var minutes = (int)(absoluteTime / 60);
+            var seconds = (int)(absoluteTime % 60);
+            
+            return isNegative 
+                ? $"-{minutes:D2}:{seconds:D2}" 
+                : $"{minutes:D2}:{seconds:D2}";
         }
         
         // Fallback to server data
@@ -1360,6 +1344,24 @@
         }
     }
 
-    // Helper classes
-    private record GameLogEntry(int Turn, string Message);
+    private void UpdateGameLogsWithDeduplication(List<TurnLog> newLogs)
+    {
+        bool hasNewLogs = false;
+        
+        // Add new logs that haven't been seen before
+        foreach (var log in newLogs)
+        {
+            if (seenLogIds.Add(log.Id)) // Add returns true if item was not already in set
+            {
+                gameLogs.Add(log);
+                hasNewLogs = true;
+            }
+        }
+        
+        // Only sort if we added new logs
+        if (hasNewLogs)
+        {
+            gameLogs.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+        }
+    }
 }
