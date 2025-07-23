@@ -13,6 +13,7 @@ using static Toko.Services.CardHelper;
 using System.Threading.Tasks;
 using Toko.Shared.Models;
 using Toko.Shared.Services;
+using System.Collections.Concurrent;
 
 namespace Toko.Models
 {
@@ -79,6 +80,11 @@ namespace Toko.Models
         private readonly ILoggerFactory _loggerFactory;
 
         private readonly TurnExecutor _turnExecutor;
+        private readonly ConcurrentStack<TurnLog> _logs = new();
+        private volatile int _logCount = 0;
+        
+        // Maximum number of logs to prevent memory issues
+        private const int MAX_LOGS = 10000;
         #endregion
 
         public Room(IMediator mediator, IEnumerable<int> stepsPerRound, ILogger<Room> log, ILoggerFactory loggerFactory)
@@ -777,6 +783,34 @@ namespace Toko.Models
 
         #region Snapshot for API
         // Returns a snapshot of the current room status for API
+
+        
+        public void AddLog(TurnLog log)
+        {
+            AddLogInternal(log);
+        }
+        
+        private void AddLogInternal(TurnLog log)
+        {
+            var currentCount = Interlocked.Increment(ref _logCount);
+            if (currentCount <= MAX_LOGS)
+            {
+                _logs.Push(log);
+            }
+            else
+            {
+                Interlocked.Decrement(ref _logCount);
+                _log.LogWarning("Log limit exceeded for room {RoomId}. Current log count: {Count}", Id, currentCount);
+            }
+        }
+        
+        public IReadOnlyList<TurnLog> GetRecentLogs(int last = 10)
+        {
+            var recentLogs = _logs.Take(last).ToArray();
+            Array.Reverse(recentLogs);
+            return recentLogs;
+        }
+        
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
         {
             return await WithGateAsync(events =>
@@ -822,6 +856,8 @@ namespace Toko.Models
                 )).ToList();
 
                 _thinkStart.TryGetValue(currentTurnPlayerId ?? "", out var turnStartTime);
+                
+                var latestTurnLogs = GetRecentLogs(10).ToList();
 
                 return new RoomStatusSnapshot(
                     Id,
@@ -840,7 +876,8 @@ namespace Toko.Models
                     racerStatuses,
                     map,
                     _gameResults,
-                    turnStartTime == default ? null : turnStartTime
+                    turnStartTime == default ? null : turnStartTime,
+                    latestTurnLogs
                 );
             });
         }

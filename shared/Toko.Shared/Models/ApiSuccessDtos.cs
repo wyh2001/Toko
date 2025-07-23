@@ -25,7 +25,8 @@
     List<RacerStatus> Racers,
     MapSnapshot Map,
     List<PlayerResult>? Results,
-    DateTime? TurnStartTimeUtc
+    DateTime? TurnStartTimeUtc,
+    List<TurnLog>? Logs
         );
     public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned, int Gear);
     public record RoomListItemDto(string Id, string Name, int MaxPlayers, bool IsPrivate, List<RacerStatus> Racers, string Status);

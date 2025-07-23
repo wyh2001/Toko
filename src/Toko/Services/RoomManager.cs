@@ -127,11 +127,6 @@ namespace Toko.Services
             return (roomId, host);
         }
 
-        /// <summary>
-        /// 根据 ID 获取房间
-        /// </summary>
-        //public Room? GetRoom(string roomId) =>
-        //_rooms.TryGetValue(roomId, out var room) ? room : null;
         private Room? GetRoomInternal(string roomId)
         {
             if (!_cache.TryGetValue(roomId, out Room? room))
@@ -333,6 +328,11 @@ namespace Toko.Services
             var room = GetRoomInternal(roomId);
             if (room is null) return UpdateRoomSettingsError.RoomNotFound;
             return await room.UpdateSettingsAsync(playerId, settings);
+        }
+        public void AddLogToRoom(string roomId, TurnLog log)
+        {
+            var room = GetRoomInternal(roomId);
+            room?.AddLog(log);
         }
     }
 }
