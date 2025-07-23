@@ -278,7 +278,7 @@ namespace Toko.Services
             };
         }
 
-        public TurnExecutionResult ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room)
+        public TurnExecutionResult ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room, List<INotification> events)
         {
             // Ensure coordinate system is initialized
             InitializeCoordinateSystem();
@@ -291,7 +291,7 @@ namespace Toko.Services
                     {
                         return TurnExecutionResult.InvalidState;
                     }
-                    ChangeLaneNew(racer, ins.ExecParameter.Effect, room, 0); // Initial depth 0
+                    ChangeLaneNew(racer, ins.ExecParameter.Effect, room, events, 0); // Initial depth 0
                     return TurnExecutionResult.Continue;
                 case CardType.Repair:
                     Repair(racer, ins.ExecParameter.DiscardedCardIds);
@@ -301,7 +301,7 @@ namespace Toko.Services
                     {
                         return TurnExecutionResult.InvalidState;
                     }
-                    ShiftGear(racer, ins.ExecParameter.Effect); // Use parameter: 1 for shift up, -1 for shift down
+                    ShiftGear(racer, ins.ExecParameter.Effect, room, events); // Use parameter: 1 for shift up, -1 for shift down
                     return TurnExecutionResult.Continue;
                 default:
                     // Junk won't be submitted here
@@ -309,7 +309,7 @@ namespace Toko.Services
             }
         }
 
-        private TurnExecutionResult MoveForwardNew(Racer racer, int steps, Room room, int depth)
+        private TurnExecutionResult MoveForwardNew(Racer racer, int steps, Room room, List<INotification> events, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
@@ -318,6 +318,11 @@ namespace Toko.Services
             }
 
             var currentPosition = new TrackPosition(racer.SegmentIndex, racer.LaneIndex, racer.CellIndex);
+
+            // Store initial position for event generation
+            int initialSegment = racer.SegmentIndex;
+            int initialLane = racer.LaneIndex;
+            int initialCell = racer.CellIndex;
 
             for (int i = 0; i < steps; i++)
             {
@@ -389,13 +394,27 @@ namespace Toko.Services
 
                 if (collided.Count != 0)
                 {
+                    // Generate collision event
+                    events.Add(new PlayerCollision(
+                        room.Id,
+                        room.CurrentRound,
+                        room.CurrentStep,
+                        racer.Id,
+                        racer.PlayerName,
+                        collided.Select(r => r.Id).ToList(),
+                        collided.Select(r => r.PlayerName).ToList(),
+                        racer.SegmentIndex,
+                        racer.LaneIndex,
+                        racer.CellIndex
+                    ));
+
                     // Both initiator and collided racers get junk
                     AddJunk(racer, 1);
                     foreach (var other in collided)
                     {
                         AddJunk(other, 1);
                         // Collided racer moves forward one step
-                        var result = MoveForwardNew(other, 1, room, depth + 1); // Increment depth
+                        var result = MoveForwardNew(other, 1, room, events, depth + 1); // Increment depth
                         if (result != TurnExecutionResult.Continue)
                             return result;
                     }
@@ -408,10 +427,28 @@ namespace Toko.Services
                 }
             }
 
+            // Generate move event if the position actually changed
+            if (initialSegment != racer.SegmentIndex || initialLane != racer.LaneIndex || initialCell != racer.CellIndex)
+            {
+                events.Add(new PlayerMoved(
+                    room.Id,
+                    room.CurrentRound,
+                    room.CurrentStep,
+                    racer.Id,
+                    racer.PlayerName,
+                    steps,
+                    initialSegment,
+                    initialLane,
+                    initialCell,
+                    racer.SegmentIndex,
+                    racer.LaneIndex,
+                    racer.CellIndex
+                ));
+            }
+
             return TurnExecutionResult.Continue;
         }
-
-        private void ChangeLaneNew(Racer racer, int delta, Room room, int depth)
+        private void ChangeLaneNew(Racer racer, int delta, Room room, List<INotification> events, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
@@ -420,10 +457,18 @@ namespace Toko.Services
             }
 
             var currentPosition = new TrackPosition(racer.SegmentIndex, racer.LaneIndex, racer.CellIndex);
+            int initialLane = racer.LaneIndex;
 
             var seg = _map.Segments[racer.SegmentIndex];
             if (seg.IsCorner)
             {
+                events.Add(new PlayerCornerLaneChangeFailed(
+                    room.Id,
+                    room.CurrentRound,
+                    room.CurrentStep,
+                    racer.Id,
+                    racer.PlayerName
+                ));
                 AddJunk(racer, 1);
                 return;
             }
@@ -441,6 +486,15 @@ namespace Toko.Services
             // Boundary check: hitting wall
             if (targetLane < 0 || targetLane >= seg.LaneCount)
             {
+                events.Add(new PlayerHitWall(
+                    room.Id,
+                    room.CurrentRound,
+                    room.CurrentStep,
+                    racer.Id,
+                    racer.PlayerName,
+                    delta,
+                    racer.LaneIndex
+                ));
                 AddJunk(racer, 1);
                 return;
             }
@@ -455,19 +509,43 @@ namespace Toko.Services
 
             if (collided.Count != 0)
             {
+                events.Add(new PlayerLaneChangeBlocked(
+                    room.Id,
+                    room.CurrentRound,
+                    room.CurrentStep,
+                    racer.Id,
+                    racer.PlayerName,
+                    delta,
+                    collided.Select(r => r.Id).ToList(),
+                    collided.Select(r => r.PlayerName).ToList()
+                ));
+
                 // Both lane changer and collided racer get junk
                 AddJunk(racer, 1);
                 foreach (var other in collided)
                 {
                     AddJunk(other, 1);
                     // Try to push other racer in the same lane-change direction
-                    ChangeLaneNew(other, delta, room, depth + 1);
+                    ChangeLaneNew(other, delta, room, events, depth + 1);
                 }
                 return; // Stop further lane changes after collision
             }
 
             // Execute lane change
             racer.LaneIndex = targetLane;
+
+            // Generate successful lane change event
+            events.Add(new PlayerChangedLane(
+                room.Id,
+                room.CurrentRound,
+                room.CurrentStep,
+                racer.Id,
+                racer.PlayerName,
+                delta,
+                initialLane,
+                targetLane,
+                true
+            ));
         }
 
         private bool IsAtFinishLine(Racer racer)
@@ -506,9 +584,10 @@ namespace Toko.Services
             CardHelper.AdjustGearForJunkCards(racer);
         }
 
-        private static void ShiftGear(Racer racer, int direction)
+        private static void ShiftGear(Racer racer, int direction, Room room, List<INotification> events)
         {
             // direction: 1 for shift up, -1 for shift down
+            int oldGear = racer.Gear;
             int newGear = racer.Gear + direction;
             
             // Count junk cards in hand to determine max gear limit
@@ -526,6 +605,18 @@ namespace Toko.Services
             }
             
             racer.Gear = newGear;
+
+            // Generate gear change event
+            events.Add(new PlayerChangedGear(
+                room.Id,
+                room.CurrentRound,
+                room.CurrentStep,
+                racer.Id,
+                racer.PlayerName,
+                direction,
+                oldGear,
+                newGear
+            ));
         }
 
         public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<INotification> events)
@@ -544,14 +635,14 @@ namespace Toko.Services
             int initialCell = racer.CellIndex;
 
             // Execute movement
-            var result = MoveForwardNew(racer, moveDistance, room, 0);
+            var result = MoveForwardNew(racer, moveDistance, room, events, 0);
 
             // Generate move event
             events.Add(new PlayerAutoMoved(
-                room.Id, 
-                room.CurrentRound, 
-                room.CurrentStep, 
-                racer.Id, 
+                room.Id,
+                room.CurrentRound,
+                room.CurrentStep,
+                racer.Id,
                 racer.PlayerName,
                 moveDistance,
                 racer.SegmentIndex,

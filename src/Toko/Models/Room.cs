@@ -341,7 +341,7 @@ namespace Toko.Models
                 UpdateBank(pid, events);
 
                 var ins = new ConcreteInstruction { Type = cardType, ExecParameter = p };
-                var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this);
+                var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this, events);
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
                     events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));

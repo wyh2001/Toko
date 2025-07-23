@@ -1,4 +1,5 @@
-﻿using Toko.Shared.Models;
+﻿using MediatR;
+using Toko.Shared.Models;
 namespace Toko.Models.Events
 {
     public interface ILogEvent
@@ -61,4 +62,49 @@ namespace Toko.Models.Events
     public record RoundAdvanced(string RoomId, int Round) : IRoomEvent;
     public record StepAdvanced(string RoomId, int Round, int Step, string? NextPhase = null) : IRoomEvent;
     public record LogUpdated(string RoomId, TurnLog Log) : IRoomEvent;
+
+    // Log events
+    public record PlayerMoved(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int MoveDistance, int FromSegmentIndex, int FromLaneIndex, int FromCellIndex, int ToSegmentIndex, int ToLaneIndex, int ToCellIndex) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => $"{PlayerName} moved {MoveDistance} space{(MoveDistance > 1 ? "s" : "")} from ({FromSegmentIndex},{FromLaneIndex},{FromCellIndex}) to ({ToSegmentIndex},{ToLaneIndex},{ToCellIndex})";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
+    public record PlayerCollision(string RoomId, int Round, int Step, string PlayerId, string PlayerName, List<string> CollidedPlayerIds, List<string> CollidedPlayerNames, int SegmentIndex, int LaneIndex, int CellIndex) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => CollidedPlayerIds.Count == 1 
+            ? $"{PlayerName} collided with {CollidedPlayerNames[0]} at position ({SegmentIndex},{LaneIndex},{CellIndex})"
+            : $"{PlayerName} collided with {string.Join(", ", CollidedPlayerNames)} at position ({SegmentIndex},{LaneIndex},{CellIndex})";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
+    public record PlayerChangedLane(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, int FromLane, int ToLane, bool Success) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => Success 
+            ? $"{PlayerName} successfully changed lanes {(Direction > 0 ? "right" : "left")} from lane {FromLane} to lane {ToLane}"
+            : $"{PlayerName} failed to change lanes {(Direction > 0 ? "right" : "left")} from lane {FromLane}";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
+    public record PlayerHitWall(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, int AtLane) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => $"{PlayerName} hit the wall trying to change lanes {(Direction > 0 ? "right" : "left")} from lane {AtLane}";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
+    public record PlayerLaneChangeBlocked(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, List<string> BlockingPlayerIds, List<string> BlockingPlayerNames) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => BlockingPlayerIds.Count == 1
+            ? $"{PlayerName} couldn't change lanes {(Direction > 0 ? "right" : "left")} due to collision with {BlockingPlayerNames[0]}"
+            : $"{PlayerName} couldn't change lanes {(Direction > 0 ? "right" : "left")} due to collision with {string.Join(", ", BlockingPlayerNames)}";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
+    public record PlayerChangedGear(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, int FromGear, int ToGear) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => Direction > 0 
+            ? $"{PlayerName} shifted up from gear {FromGear} to gear {ToGear}"
+            : $"{PlayerName} shifted down from gear {FromGear} to gear {ToGear}";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
+    public record PlayerCornerLaneChangeFailed(string RoomId, int Round, int Step, string PlayerId, string PlayerName) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => $"{PlayerName} tried to change lanes in a corner and received junk";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
 }
