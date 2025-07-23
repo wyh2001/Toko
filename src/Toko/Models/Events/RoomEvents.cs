@@ -50,11 +50,6 @@ namespace Toko.Models.Events
     public record PlayerParameterSubmissionStarted(string RoomId, int Round, int Step, string PlayerId, string PlayerName, CardType CardType) : IRoomEvent;
     public record PlayerReadyToggled(string RoomId, string PlayerId, string PlayerName, bool IsReady) : IRoomEvent;
     public record PlayerStepExecuted(string RoomId, int Round, int Step) : IRoomEvent;
-    public record PlayerAutoMoved(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int MoveDistance) : IRoomEvent, ILogEvent
-    {
-        public string ToLogMessage() => $"Step ends, {PlayerName} moved forward)";
-        public (int Round, int Step) GetRoundStep() => (Round, Step);
-    }
     public record PlayerTimeoutElapsed(string RoomId, string PlayerId, string PlayerName) : IRoomEvent;
     public record RoomEnded(string RoomId, GameEndReason Reason, List<PlayerResult> Results) : IRoomEvent;
     public record RoomSettingsUpdated(string RoomId, RoomSettings Settings) : IRoomEvent;

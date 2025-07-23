@@ -632,16 +632,6 @@ namespace Toko.Services
             // Execute movement
             var result = MoveForwardNew(racer, moveDistance, room, events, 0);
 
-            // Generate move event
-            events.Add(new PlayerAutoMoved(
-                room.Id,
-                room.CurrentRound,
-                room.CurrentStep,
-                racer.Id,
-                racer.PlayerName,
-                moveDistance
-            ));
-
             return result;
         }
 
