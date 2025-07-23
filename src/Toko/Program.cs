@@ -36,8 +36,6 @@ builder.Services
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
-builder.Services.AddTransient(typeof(INotificationHandler<>), typeof(Toko.Handlers.LogEventHandler<>));
-
 //builder.Services.AddScoped<EnsureRoomStatusFilter>();
 
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
