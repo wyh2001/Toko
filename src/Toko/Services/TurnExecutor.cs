@@ -14,7 +14,6 @@ namespace Toko.Services
     public class TurnExecutor(RaceMap map, ILogger<TurnExecutor> log)
     {
         private readonly RaceMap _map = map ?? throw new ArgumentNullException(nameof(map));
-        public List<TurnLog> Logs { get; } = [];
         private readonly ILogger<TurnExecutor> _log = log;
         private const int MAX_INTERACTION_DEPTH = 5;
 
@@ -553,6 +552,7 @@ namespace Toko.Services
                 room.CurrentRound, 
                 room.CurrentStep, 
                 racer.Id, 
+                racer.PlayerName,
                 moveDistance,
                 racer.SegmentIndex,
                 racer.LaneIndex,

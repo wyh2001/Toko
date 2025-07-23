@@ -260,6 +260,12 @@ namespace Toko.Models
             });
         }
 
+        private string GetPlayerName(string playerId)
+        {
+            var racer = Racers.FirstOrDefault(r => r.Id == playerId);
+            return racer?.PlayerName ?? "Unknown Player";
+        }
+
         public async Task<OneOf<ReadyUpSuccess, ReadyUpError>> ReadyUpAsync(string pid, bool ready)
         {
             return await WithGateAsync<OneOf<ReadyUpSuccess, ReadyUpError>>(events =>
@@ -267,7 +273,7 @@ namespace Toko.Models
                 var racer = Racers.FirstOrDefault(r => r.Id == pid);
                 if (racer is null) return ReadyUpError.PlayerNotFound;
                 racer.IsReady = ready;
-                events.Add(new PlayerReadyToggled(Id, pid, ready));
+                events.Add(new PlayerReadyToggled(Id, pid, racer.PlayerName, ready));
                 return new ReadyUpSuccess(this.Id, pid, ready);
             });
         }
@@ -295,7 +301,7 @@ namespace Toko.Models
                 racer.DiscardPile.Add(cardObj);
 
                 _cardNow[(pid, CurrentRound, _stepInRound)] = (cardId, cardObj.Type);
-                events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, cardId));
+                events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, racer.PlayerName, cardId, cardObj.Type));
                 await MoveNextPlayerAsync(events);
                 return new SubmitStepCardSuccess(this.Id, pid, cardId);
             });
@@ -323,7 +329,7 @@ namespace Toko.Models
                 if (cardType == CardType.Repair && p.DiscardedCardIds.Count == 0)
                 {
                     UpdateBank(pid, events);
-                    events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
+                    events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
                     await MoveNextPlayerAsync(events);
                     // Return success with a no-op instruction
                     var skipInstruction = new ConcreteInstruction { Type = cardType, ExecParameter = p };
@@ -338,7 +344,7 @@ namespace Toko.Models
                 var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this);
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
-                    events.Add(new PlayerFinished(Id, pid));
+                    events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
                     events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
@@ -348,7 +354,7 @@ namespace Toko.Models
                 var autoMoveResult = _turnExecutor.ExecuteAutoMove(racer, this, events);
                 if (autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
-                    events.Add(new PlayerFinished(Id, pid));
+                    events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
                     events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
@@ -386,7 +392,7 @@ namespace Toko.Models
                 }
 
                 _turnExecutor.DiscardCards(racer, cardIds);
-                events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, cardIds));
+                events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, racer.PlayerName, cardIds));
 
                 _discardPending.Remove(pid);
                 UpdateBank(pid, events);
@@ -415,7 +421,7 @@ namespace Toko.Models
                     var targetRacer = Racers.FirstOrDefault(r => r.Id == kickedPlayerId);
                     if (targetRacer is null) return KickPlayerError.TargetNotFound;
                     Racers.Remove(targetRacer);
-                    events.Add(new PlayerKicked(Id, kickedPlayerId));
+                    events.Add(new PlayerKicked(Id, kickedPlayerId, targetRacer.PlayerName));
                     return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
                 }
                 if (Status != RoomStatus.Playing) return KickPlayerError.WrongPhase;
@@ -424,7 +430,7 @@ namespace Toko.Models
                 if (!IsKickEligible(kickedPlayerId)) return KickPlayerError.TooEarly;
 
                 _banned.Add(kickedPlayerId);
-                events.Add(new PlayerKicked(Id, kickedPlayerId));
+                events.Add(new PlayerKicked(Id, kickedPlayerId, GetPlayerName(kickedPlayerId)));
                 return new KickPlayerSuccess(Id, playerId, kickedPlayerId);
             });
         }
@@ -492,7 +498,7 @@ namespace Toko.Models
             foreach (var r in Racers)
             {
                 DrawCards(r, AUTO_DRAW);
-                eventsToPublish.Add(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, r.Id, r.Hand.Count));
+                eventsToPublish.Add(new PlayerCardsDrawn(Id, CurrentRound, CurrentStep, r.Id, r.PlayerName, r.Hand.Count));
             }
             await PublishEventsAsync(eventsToPublish);
             _cardNow.Clear();
@@ -518,7 +524,7 @@ namespace Toko.Models
             foreach (var pid in _discardPending)
             {
                 _thinkStart[pid] = DateTime.UtcNow;
-                eventsToPublish.Add(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid));
+                eventsToPublish.Add(new PlayerDiscardStarted(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid)));
                 ResetPrompt(pid);
             }
             await PublishEventsAsync(eventsToPublish);
@@ -530,7 +536,7 @@ namespace Toko.Models
         {
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
-            return new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid);
+            return new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid));
         }
 
         async Task PromptParamAsync(string pid, List<INotification> events)
@@ -538,7 +544,7 @@ namespace Toko.Models
             //check if draw to skip
             if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardInfo) && cardInfo.cardId == SKIP)
             {
-                events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid));
+                events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid)));
                 await MoveNextPlayerAsync(events);
                 return;
             }
@@ -548,7 +554,7 @@ namespace Toko.Models
 
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
-            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid, cardType));
+            events.Add(new PlayerParameterSubmissionStarted(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid), cardType));
         }
         #endregion
 
@@ -566,7 +572,7 @@ namespace Toko.Models
             var elapsed = DateTime.UtcNow - _thinkStart[pid];
             _bank[pid] -= elapsed;
             _bank[pid] += BANK_INCREMENT;
-            events.Add(new PlayerBankUpdated(Id, pid, _bank[pid]));
+            events.Add(new PlayerBankUpdated(Id, pid, GetPlayerName(pid), _bank[pid]));
 
             _thinkStart[pid] = DateTime.UtcNow;
             ResetPrompt(pid);
@@ -603,8 +609,8 @@ namespace Toko.Models
                                 {
                                     _discardPending.Remove(pid);
                                     _thinkStart[pid] = DateTime.UtcNow; // reset think start
-                                    events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, new List<string>()));
-                                    events.Add(new PlayerBankUpdated(Id, pid, _bank[pid]));
+                                    events.Add(new PlayerDiscardExecuted(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid), new List<string>()));
+                                    events.Add(new PlayerBankUpdated(Id, pid, GetPlayerName(pid), _bank[pid]));
 
                                     // if no more players pending discard, then move to next phase
                                     if (_discardPending.Count == 0)
@@ -612,7 +618,7 @@ namespace Toko.Models
                                 }
                                 else if (IsTimeOut(pid))
                                 {
-                                    events.Add(new PlayerTimeoutElapsed(Id, pid));
+                                    events.Add(new PlayerTimeoutElapsed(Id, pid, GetPlayerName(pid)));
                                 }
                             }
 
@@ -623,8 +629,8 @@ namespace Toko.Models
                         var pidTurn = _order[_idx]; // current turn player's id
                         if (IsTimeOut(pidTurn))
                         {
-                            events.Add(new PlayerTimeoutElapsed(Id, pidTurn));
-                            events.Add(new PlayerBankUpdated(Id, pidTurn, _bank[pidTurn]));
+                            events.Add(new PlayerTimeoutElapsed(Id, pidTurn, GetPlayerName(pidTurn)));
+                            events.Add(new PlayerBankUpdated(Id, pidTurn, GetPlayerName(pidTurn), _bank[pidTurn]));
 
                             _nextPrompt[pidTurn] = DateTime.MaxValue;
                         }
@@ -722,7 +728,7 @@ namespace Toko.Models
                        ?? throw new InvalidOperationException();
                 UpdateBank(pid, events);
                 var result = DrawCards(racer, DRAW_ON_SKIP);
-                events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid));
+                events.Add(new PlayerDrawToSkip(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid)));
                 _cardNow[(pid, CurrentRound, _stepInRound)] = (SKIP, CardType.ChangeLane); // Use dummy CardType for skip
                 await MoveNextPlayerAsync(events);
                 return new DrawSkipSuccess(this.Id, pid, result);
@@ -770,29 +776,6 @@ namespace Toko.Models
         #endregion
 
         #region Snapshot for API
-        // Snapshot DTO for API
-        //public record RoomStatusSnapshot(
-        //    string RoomId,
-        //    string Name,
-        //    int MaxPlayers,
-        //    bool IsPrivate,
-        //    string Status,
-        //    string Phase,
-        //    int CurrentRound,
-        //    int CurrentStep,
-        //    int TotalRounds,
-        //    int TotalSteps,
-        //    string? CurrentTurnPlayerId,
-        //    string? CurrentTurnCardType, // Add card type for parameter submission
-        //    List<string> DiscardPendingPlayerIds,
-        //    List<RacerStatus> Racers,
-        //    object Map,
-        //    List<PlayerResult>? Results
-        //);
-        //public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned);
-        //public record MapSnapshot(int TotalCells, List<MapSegmentSnapshot> Segments);
-        //public record MapSegmentSnapshot(string Type, int LaneCount, int CellCount, string Direction, bool IsIntermediate);
-
         // Returns a snapshot of the current room status for API
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
         {

@@ -6,6 +6,7 @@ using System.Text.Json;
 using Toko.Filters;
 using Toko.Hubs;
 using Toko.Services;
+using MediatR;
 using static Toko.Filters.ApiWrapperFilter;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +36,7 @@ builder.Services
 builder.Services.AddMediatR(cfg =>
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
+builder.Services.AddTransient(typeof(INotificationHandler<>), typeof(Toko.Handlers.LogEventHandler<>));
 
 //builder.Services.AddScoped<EnsureRoomStatusFilter>();
 
