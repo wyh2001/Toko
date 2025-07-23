@@ -138,8 +138,8 @@ namespace Toko.IntegrationTests
                 Type = CardType.ChangeLane,
                 ExecParameter = new ExecParameter { Effect = 1 } // Change to right lane
             };
-            var changeLaneResult = TurnExecutor!.ApplyInstruction(Racer!, changeLaneInstruction, Room!);
-           AssertRacerPositionAfterInstruction(changeLaneInstruction, 0, 1, 0); // Expect to change to right lane in first segment
+            var changeLaneResult = TurnExecutor!.ApplyInstruction(Racer!, changeLaneInstruction, Room!, new List<INotification>());
+            AssertRacerPositionAfterInstruction(changeLaneInstruction, 0, 1, 0); // Expect to change to right lane in first segment
 
 
             var instruction = CreateMoveInstruction();
@@ -324,7 +324,7 @@ namespace Toko.IntegrationTests
         private void AssertRacerPositionAfterInstruction(ConcreteInstruction instruction, int expectedSegmentIndex, int expectedLaneIndex, int expectedCellIndex)
         {
             _stepCounter++;
-            var result = TurnExecutor!.ApplyInstruction(Racer!, instruction, Room!);
+            var result = TurnExecutor!.ApplyInstruction(Racer!, instruction, Room!, new List<INotification>());
 
             Assert.True(result == TurnExecutor.TurnExecutionResult.Continue,
                 $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}");
