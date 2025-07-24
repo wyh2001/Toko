@@ -205,6 +205,9 @@ namespace Toko.Models
                 if (Racers.Any(r => r.Id == playerId)) return JoinRoomError.AlreadyJoined;
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
+                
+                AssignStartingPosition(racer);
+                
                 InitializeDeck(racer); DrawCardsInternal(racer, INITIALDRAW);
                 Racers.Add(racer);
                 events.Add(new PlayerJoined(Id, racer.Id, racer.PlayerName));
@@ -933,6 +936,27 @@ namespace Toko.Models
                 await PublishEventsAsync(events);
 
             return result;
+        }
+
+        private void AssignStartingPosition(Racer racer)
+        {
+            var startSegment = Map.Segments[0];
+            var laneCount = startSegment.LaneCount;
+            
+            var racerCount = Racers.Count;
+            
+            var targetLaneIndex = racerCount % laneCount;
+            var targetCellIndex = racerCount / laneCount;
+            
+            // Ensure we don't exceed segment boundaries
+            if (targetCellIndex >= startSegment.CellCount)
+            {
+                targetCellIndex = startSegment.CellCount - 1;
+            }
+            
+            racer.SegmentIndex = 0;
+            racer.LaneIndex = targetLaneIndex;
+            racer.CellIndex = targetCellIndex;
         }
     }
 }
