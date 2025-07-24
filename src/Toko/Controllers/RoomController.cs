@@ -103,7 +103,7 @@ namespace Toko.Controllers
             return Ok(new ApiSuccess<object>(
                 "Room list retrieved successfully",
                 rooms
-                    .Where(r => !r.IsPrivate)
+                    .Where(r => !r.IsPrivate && r.Status != RoomStatus.Finished)
                     .Select(r => new
                     {
                         r.Id,
