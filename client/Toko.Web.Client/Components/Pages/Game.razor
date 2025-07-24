@@ -138,6 +138,36 @@
                     </div>
                 </div>
 
+                <!-- Turn Order -->
+                <div class="turn-order-section">
+                    <h3 class="panel-title">Turn Order</h3>
+                    <div class="turn-order-list">
+                        @if (gameData?.TurnOrder != null)
+                        {
+                            @for (int i = 0; i < gameData.TurnOrder.Count; i++)
+                            {
+                                var turnPlayer = gameData.TurnOrder[i];
+                                <div class="turn-order-item @(turnPlayer.PlayerId == AuthService.PlayerId ? "current-player" : "") @(currentTurnPlayer == turnPlayer.PlayerId ? "active-turn" : "")">
+                                    <div class="turn-order-position">@(i + 1)</div>
+                                    <div class="turn-order-info">
+                                        <div class="turn-order-name">@turnPlayer.PlayerName.ToUpper()</div>
+                                        <div class="gear-shift-indicator">
+                                            @for (int j = 0; j < turnPlayer.GearShiftCount; j++)
+                                            {
+                                                <span class="gear-shift-icon">⚙</span>
+                                            }
+                                            @if (turnPlayer.GearShiftCount == 0)
+                                            {
+                                                <span class="no-shifts">-</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+
                 <!-- Players List -->
                 <div class="players-section">
                     <h3 class="panel-title">Racers</h3>

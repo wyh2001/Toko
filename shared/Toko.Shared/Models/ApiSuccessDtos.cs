@@ -23,12 +23,14 @@
     string? CurrentTurnCardType, // Add card type for parameter submission
     List<string> DiscardPendingPlayerIds,
     List<RacerStatus> Racers,
+    List<TurnOrderStatus> TurnOrder, // Add turn order with gear shift counts
     MapSnapshot Map,
     List<PlayerResult>? Results,
     DateTime? TurnStartTimeUtc,
     List<TurnLog>? Logs
         );
     public record RacerStatus(string Id, string Name, int Segment, int Lane, int Tile, double Bank, bool IsHost, bool IsReady, int HandCount, bool IsBanned, int Gear);
+    public record TurnOrderStatus(string PlayerId, string PlayerName, int GearShiftCount);
     public record RoomListItemDto(string Id, string Name, int MaxPlayers, bool IsPrivate, List<RacerStatus> Racers, string Status);
     public record DrawSkipDto(string RoomId, string PlayerId, List<CardDto> DrawnCards);
     public record CardDto(string Id, string Type);

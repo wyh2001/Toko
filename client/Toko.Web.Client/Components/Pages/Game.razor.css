@@ -268,6 +268,114 @@ body {
     letter-spacing: 0.1em;
 }
 
+/* Turn Order Section */
+.turn-order-section {
+    background: #ffffff;
+    border: 1px solid #000000;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.turn-order-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.turn-order-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: #f5f5f5;
+    transition: all 0.15s ease;
+    position: relative;
+}
+
+    .turn-order-item:hover {
+        background: #eeeeee;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #000000;
+    }
+
+.turn-order-item.current-player {
+    background: #000000;
+    color: #ffffff;
+}
+
+    .turn-order-item.current-player:hover {
+        background: #222222;
+        color: #ffffff;
+    }
+
+.turn-order-item.active-turn {
+    border-left: 4px solid #ff6600;
+    background: #fff5f0;
+}
+
+    .turn-order-item.active-turn.current-player {
+        border-left: 4px solid #ff6600;
+        background: #000000;
+    }
+
+.turn-order-position {
+    font-size: 1.2rem;
+    font-weight: 900;
+    text-align: center;
+    width: 32px;
+    height: 32px;
+    background: #000000;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+}
+
+.turn-order-item.current-player .turn-order-position {
+    background: #ffffff;
+    color: #000000;
+}
+
+.turn-order-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.turn-order-name {
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.gear-shift-indicator {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.gear-shift-icon {
+    font-size: 0.8rem;
+    color: #ff6600;
+    font-weight: bold;
+}
+
+.turn-order-item.current-player .gear-shift-icon {
+    color: #ff9933;
+}
+
+.no-shifts {
+    font-size: 0.8rem;
+    color: #999999;
+    font-style: italic;
+}
+
+.turn-order-item.current-player .no-shifts {
+    color: #cccccc;
+}
+
 /* Players Section */
 .players-section {
     background: #ffffff;

@@ -898,6 +898,13 @@ namespace Toko.Models
                 
                 var latestTurnLogs = GetRecentLogs(10).ToList();
 
+                // Build turn order with gear shift counts
+                var turnOrder = _order.Select(playerId => new TurnOrderStatus(
+                    playerId,
+                    GetPlayerName(playerId),
+                    _currentTurnGearShifts.GetValueOrDefault(playerId, 0)
+                )).ToList();
+
                 return new RoomStatusSnapshot(
                     Id,
                     Name ?? string.Empty, // Ensure Name is not null
@@ -913,6 +920,7 @@ namespace Toko.Models
                     currentTurnCardType, // CurrentTurnCardType
                     _discardPending.ToList(), // DiscardPendingPlayerIds
                     racerStatuses,
+                    turnOrder, // Add turn order data
                     map,
                     _gameResults,
                     turnStartTime == default ? null : turnStartTime,
