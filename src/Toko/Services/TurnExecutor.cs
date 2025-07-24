@@ -648,6 +648,14 @@ namespace Toko.Services
             int junkCardCount = racer.Hand.Count(card => card.Type == CardType.Junk);
             int maxAllowedGear = 6 - junkCardCount; // Each junk card reduces max gear by 1
             
+            // Check if player tries to shift up beyond the maximum allowed gear
+            bool hitGearLimit = false;
+            if (direction > 0 && racer.Gear >= maxAllowedGear)
+            {
+                hitGearLimit = true;
+                AddJunk(racer, 1);
+            }
+            
             // Clamp gear between 1 and max allowed gear
             if (newGear < 1)
             {
@@ -671,6 +679,19 @@ namespace Toko.Services
                 oldGear,
                 newGear
             ));
+            
+            // Generate gear limit violation event if player hit the limit
+            if (hitGearLimit)
+            {
+                events.Add(new PlayerGearLimitExceeded(
+                    room.Id,
+                    room.CurrentRound,
+                    room.CurrentStep,
+                    racer.Id,
+                    racer.PlayerName,
+                    maxAllowedGear
+                ));
+            }
         }
 
         public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<INotification> events)

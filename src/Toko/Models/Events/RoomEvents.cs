@@ -107,4 +107,9 @@ namespace Toko.Models.Events
         public string ToLogMessage() => $"{PlayerName} passed through corner at gear {CurrentGear} (limit: {GearLimit}) and received junk";
         public (int Round, int Step) GetRoundStep() => (Round, Step);
     }
+    public record PlayerGearLimitExceeded(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int GearLimit) : ILogEvent, INotification
+    {
+        public string ToLogMessage() => $"{PlayerName} tried to shift beyond maximum gear {GearLimit} and received junk";
+        public (int Round, int Step) GetRoundStep() => (Round, Step);
+    }
 }
