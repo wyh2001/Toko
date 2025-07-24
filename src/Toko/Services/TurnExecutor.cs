@@ -351,6 +351,8 @@ namespace Toko.Services
                     return TurnExecutionResult.InvalidState;
                 }
 
+                var previousPosition = currentPosition;
+
                 // Update racer position
                 racer.SegmentIndex = nextPosition.SegmentIndex;
                 racer.LaneIndex = nextPosition.LaneIndex;
@@ -432,16 +434,22 @@ namespace Toko.Services
                         racer.CellIndex
                     ));
 
-                    // Both initiator and collided racers get junk
-                    AddJunk(racer, 1);
+                    // Collision penalty: moving racer (rear car) gets 2 junk cards and downshift 2 gears, stationary cars (front cars) get 1 junk card and downshift 1 gear each
+                    AddJunk(racer, 2);
+                    DownshiftGear(racer, 2);
                     foreach (var other in collided)
                     {
                         AddJunk(other, 1);
-                        // Collided racer moves forward one step
-                        var result = MoveForwardNew(other, 1, room, events, depth + 1); // Increment depth
-                        if (result != TurnExecutionResult.Continue)
-                            return result;
+                        DownshiftGear(other, 1);
                     }
+
+                    // The moving racer (rear car) stops at the previous position (cannot advance to occupied position)
+                    racer.SegmentIndex = previousPosition.SegmentIndex;
+                    racer.LaneIndex = previousPosition.LaneIndex;
+                    racer.CellIndex = previousPosition.CellIndex;
+                    
+                    // Stop further movement for the current racer in this turn
+                    i = steps; // This will break the loop
                 }
 
                 // Check if race is finished - when returning to starting point
@@ -566,13 +574,13 @@ namespace Toko.Services
                     collided.Select(r => r.PlayerName).ToList()
                 ));
 
-                // Both lane changer and collided racer get junk
+                // Lane change collision penalty: lane changer gets 1 junk card and downshift 1 gear, blocking car gets 1 junk card and downshift 3 gears
                 AddJunk(racer, 1);
+                DownshiftGear(racer, 1);
                 foreach (var other in collided)
                 {
                     AddJunk(other, 1);
-                    // Try to push other racer in the same lane-change direction
-                    ChangeLaneNew(other, delta, room, events, depth + 1);
+                    DownshiftGear(other, 3);
                 }
                 return; // Stop further lane changes after collision
             }
@@ -606,6 +614,18 @@ namespace Toko.Services
         {
             for (int i = 0; i < qty; i++)
                 racer.Deck.Enqueue(new Card { Type = CardType.Junk });
+        }
+
+        private static void DownshiftGear(Racer racer, int levels)
+        {
+            int newGear = racer.Gear - levels;
+            
+            if (newGear < 1)
+            {
+                newGear = 1;
+            }
+            
+            racer.Gear = newGear;
         }
 
         private static void Repair(Racer racer, List<string> discardedCardId)
