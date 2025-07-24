@@ -204,13 +204,9 @@ else
 
     private bool IsActiveRacer(RacerStatus racer)
     {
-        // You can customize this logic based on your game state
-        // For now, we'll highlight racers who are in the lead or currently taking their turn
-        if (RoomStatus?.Racers == null) return false;
+        if (RoomStatus?.CurrentTurnPlayerId == null) return false;
         
-        // Example: highlight the racer in first place
-        var leadingRacer = RoomStatus.Racers.OrderByDescending(r => r.Segment).ThenByDescending(r => r.Tile).FirstOrDefault();
-        return leadingRacer?.Id == racer.Id;
+        return RoomStatus.CurrentTurnPlayerId == racer.Id;
     }
 
     private bool ShouldShowSkipIndicator(int x, int y)
