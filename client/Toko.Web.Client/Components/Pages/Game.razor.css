@@ -1064,6 +1064,26 @@ body {
     box-shadow: 2px 2px 0 #666666;
 }
 
+/* Lane change button layout variants */
+.lane-buttons-normal {
+    display: flex;
+    gap: 8px;
+}
+
+.lane-buttons-vertical-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* Left top, right bottom */
+}
+
+.lane-buttons-vertical-left {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    /* Left bottom, right top */
+}
+
 .discard-cards {
     display: flex;
     flex-wrap: wrap;

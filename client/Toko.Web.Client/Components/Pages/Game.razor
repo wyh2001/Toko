@@ -296,11 +296,15 @@
                                     {
                                         <div class="param-input">
                                             <label>Lane Direction:</label>
-                                            <div class="effect-buttons">
-                                                <button class="effect-button @(changeLaneEffect == -1 ? "selected" : "")" 
-                                                        @onclick="() => SetChangeLaneEffect(-1)">← Left</button>
-                                                <button class="effect-button @(changeLaneEffect == 1 ? "selected" : "")" 
-                                                        @onclick="() => SetChangeLaneEffect(1)">Right →</button>
+                                            @{
+                                                var (laneButtons, layoutClass) = GetLaneChangeButtonsAndLayout();
+                                            }
+                                            <div class="effect-buttons @layoutClass">
+                                                @foreach (var button in laneButtons)
+                                                {
+                                                    <button class="effect-button @(changeLaneEffect == button.Value ? "selected" : "")" 
+                                                            @onclick="() => SetChangeLaneEffect(button.Value)">@button.Text</button>
+                                                }
                                             </div>
                                         </div>
                                     }
@@ -917,6 +921,55 @@ private List<CardDto> playerHand = new();
         {
             selectedJunkCards.Add(cardId);
         }
+    }
+
+    // Lane change direction helpers
+    private RacerStatus? GetMyPlayer()
+    {
+        if (gameData?.Racers == null || string.IsNullOrEmpty(AuthService.PlayerId)) return null;
+        return gameData.Racers.FirstOrDefault(r => r.Id == AuthService.PlayerId);
+    }
+
+    private string GetMyPlayerDirection()
+    {
+        var player = GetMyPlayer();
+        if (player == null || gameData?.Map?.Segments == null) return "Up";
+        
+        if (player.Segment >= 0 && player.Segment < gameData.Map.Segments.Count)
+        {
+            return gameData.Map.Segments[player.Segment].Direction;
+        }
+        return "Up";
+    }
+
+    private (List<(string Text, int Value)>, string LayoutClass) GetLaneChangeButtonsAndLayout()
+    {
+        var direction = GetMyPlayerDirection();
+        var baseDirection = GetBaseDirection(direction);
+        
+        // Direction mapping for lane change values and layout
+        var (buttons, layoutClass) = baseDirection.ToLower() switch
+        {
+            "up" or "down" => (new List<(string, int)> { ("← Left", -1), ("Right →", 1) }, "lane-buttons-normal"),
+            "left" or "right" => (new List<(string, int)> { ("↑ Up", 1), ("Down ↓", -1) }, 
+            baseDirection.ToLower() == "left" ? "lane-buttons-vertical-left" : "lane-buttons-vertical-right"),
+            _ => (new List<(string, int)> { ("← Left", -1), ("Right →", 1) }, "lane-buttons-normal")
+        };
+
+        return (buttons, layoutClass);
+    }
+
+    private string GetBaseDirection(string direction)
+    {
+        // Extract base direction from corner directions
+        return direction.ToLower() switch
+        {
+            "leftdown" or "leftup" => "left",
+            "rightdown" or "rightup" => "right",
+            "upright" or "upleft" => "up",
+            "downright" or "downleft" => "down",
+            _ => direction // Basic directions unchanged
+        };
     }
 
     private bool IsParameterSubmissionReady()
