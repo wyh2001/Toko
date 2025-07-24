@@ -3,7 +3,7 @@
 
 @if (IsVisible)
 {
-    <div class="modal-overlay" @onclick="HandleOverlayClick">
+    <div class="modal-overlay">
         <div class="modal-content" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h2 class="modal-title">Create New Game</h2>
@@ -134,11 +134,6 @@
             MaxPlayers = 8,
             StepsPerRound = [3, 3, 3]
         };
-    }
-
-    private async Task HandleOverlayClick()
-    {
-        await OnClose.InvokeAsync();
     }
 
     private async Task HandleSubmit()
