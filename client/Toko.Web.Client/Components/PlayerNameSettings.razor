@@ -1,10 +1,12 @@
 @inject Toko.Web.Client.Services.IPlayerNameService PlayerNameService
-
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 <div class="player-name-settings">
-    <div class="player-name-display">
-        <span class="player-name-label">Playing as:</span>
-        <span class="player-name-value">@currentPlayerName</span>
-        <button class="player-name-edit-btn" @onclick="ToggleEdit">??</button>
+    <div class="player-name-container">
+        <div class="player-name-label">Playing as:</div>
+        <div class="player-name-display" @onclick="ToggleEdit">
+            <span class="player-name-value">@currentPlayerName</span>
+            <button class="player-name-edit-btn" @onclick:stopPropagation="true" @onclick="ToggleEdit">▼</button>
+        </div>
     </div>
     
     @if (isEditing)
@@ -74,32 +76,64 @@
 <style>
     .player-name-settings {
         display: inline-block;
-        padding: 0.5rem;
+        position: relative;
     }
 
-    .player-name-display {
+    .player-name-container {
         display: flex;
         align-items: center;
         gap: 0.5rem;
     }
 
     .player-name-label {
-        font-size: 0.875rem;
-        color: #6b7280;
+        font-size: 0.7rem;
+        color: #666666;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+    }
+
+    .player-name-display {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: #ffffff;
+        border: 2px solid #000000;
+        transition: all 0.15s ease;
+        cursor: pointer;
+        font-family: 'Inter', sans-serif;
+    }
+
+    .player-name-display:hover {
+        background: #f5f5f5;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #000000;
+    }
+
+    .player-name-display:active {
+        transform: translate(0, 0);
+        box-shadow: none;
     }
 
     .player-name-value {
-        font-weight: 600;
-        color: #1f2937;
+        font-weight: 700;
+        color: #000000;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
     }
 
     .player-name-edit-btn {
         background: none;
         border: none;
         cursor: pointer;
-        font-size: 0.875rem;
-        opacity: 0.7;
-        transition: opacity 0.2s;
+        font-size: 0.8rem;
+        opacity: 0.6;
+        transition: all 0.15s ease;
+        color: #000000;
+        padding: 0;
     }
 
     .player-name-edit-btn:hover {
@@ -107,34 +141,78 @@
     }
 
     .player-name-edit {
-        margin-top: 0.5rem;
+        position: absolute;
+        top: 100%;
+        right: 0;
+        margin-top: 4px;
         display: flex;
-        gap: 0.5rem;
-        align-items: center;
+        flex-direction: column;
+        gap: 8px;
+        background: #ffffff;
+        padding: 1rem;
+        border: 2px solid #000000;
+        min-width: 200px;
+        z-index: 1001;
     }
 
     .player-name-input {
-        padding: 0.25rem 0.5rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.25rem;
-        font-size: 0.875rem;
+        padding: 0.75rem;
+        border: 2px solid #000000;
+        background: #ffffff;
+        font-size: 0.8rem;
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+        transition: all 0.15s ease;
+    }
+
+    .player-name-input:focus {
+        outline: none;
+        background: #f5f5f5;
     }
 
     .save-btn, .cancel-btn {
-        padding: 0.25rem 0.5rem;
-        border: none;
-        border-radius: 0.25rem;
-        font-size: 0.75rem;
+        padding: 0.75rem 1rem;
+        border: 2px solid #000000;
+        font-size: 0.7rem;
         cursor: pointer;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        transition: all 0.15s ease;
+        font-family: 'Inter', sans-serif;
     }
 
     .save-btn {
-        background-color: #10b981;
-        color: white;
+        background-color: #000000;
+        color: #ffffff;
+    }
+
+    .save-btn:hover {
+        background-color: #222222;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #666666;
+    }
+
+    .save-btn:active {
+        transform: translate(0, 0);
+        box-shadow: none;
     }
 
     .cancel-btn {
-        background-color: #6b7280;
-        color: white;
+        background-color: #ffffff;
+        color: #000000;
+    }
+
+    .cancel-btn:hover {
+        background-color: #f5f5f5;
+        transform: translate(-1px, -1px);
+        box-shadow: 2px 2px 0 #000000;
+    }
+
+    .cancel-btn:active {
+        transform: translate(0, 0);
+        box-shadow: none;
     }
 </style>

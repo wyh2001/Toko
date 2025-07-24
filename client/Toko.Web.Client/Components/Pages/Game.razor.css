@@ -1,22 +1,8 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-    background: #ffffff;
-    min-height: 100vh;
-    color: #000000;
-    line-height: 1.4;
-}
-
 .game-container {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 40px 20px;
-    min-height: 100vh;
+    padding: 20px;
+    min-height: calc(100vh - 80px);
     position: relative;
 }
 
@@ -54,8 +40,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 40px;
-    padding-bottom: 20px;
+    margin-bottom: 30px;
+    padding: 20px 0;
     border-bottom: 1px solid #f5f5f5;
 }
 
@@ -64,21 +50,21 @@ body {
 }
 
 .game-title {
-    font-size: 3rem;
-    font-weight: 900;
+    font-size: 2rem;
+    font-weight: 700;
     color: #000000;
-    letter-spacing: -1px;
-    line-height: 0.9;
-    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+    margin-bottom: 6px;
     text-transform: uppercase;
 }
 
 .game-subtitle {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #666666;
-    font-weight: 400;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.5px;
 }
 
 .game-controls {

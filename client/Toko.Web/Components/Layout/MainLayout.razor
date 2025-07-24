@@ -1,18 +1,21 @@
 ﻿@inherits LayoutComponentBase
+@using Toko.Web.Client.Components
+@inject NavigationManager Navigation
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<div class="toko-layout">
+    <header class="toko-header">
+        <div class="toko-header-content">
+            <div class="toko-title" @onclick="NavigateToHome">
+                <span class="toko-title-text">TOKO TOKO</span>
+            </div>
+            <div class="toko-user-section">
+                <PlayerNameSettings />
+            </div>
         </div>
+    </header>
 
-        <article class="content px-4">
-            @Body
-        </article>
+    <main class="toko-main">
+        @Body
     </main>
 </div>
 
@@ -21,3 +24,10 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private void NavigateToHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
