@@ -792,7 +792,7 @@ private List<CardDto> playerHand = new();
         try
         {
             var request = new { CardId = selectedCard };
-            await Http.PostAsJsonAsync($"/api/room/{RoomId}/submit-step-card", request);
+            await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/submit-step-card", request));
             
             // Remove selected card from hand
             playerHand.RemoveAll(c => c.Id == selectedCard);
@@ -815,7 +815,7 @@ private List<CardDto> playerHand = new();
         try
         {
             // Use the real API to draw cards
-            var response = await Http.PostAsJsonAsync($"/api/room/{RoomId}/drawSkip", new { });
+            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/drawSkip", new { }));
             
             if (response.IsSuccessStatusCode)
             {
@@ -852,6 +852,18 @@ private List<CardDto> playerHand = new();
         {
             Console.WriteLine($"Failed to execute move: {ex.Message}");
         }
+    }
+
+    // reload data on 400+ status codes
+    private async Task<HttpResponseMessage> SendAsync(Func<Task<HttpResponseMessage>> action)
+    {
+        var response = await action();
+        if (!response.IsSuccessStatusCode && (int)response.StatusCode >= 400)
+        {
+            await LoadGameData();
+            await LoadHandData();
+        }
+        return response;
     }
 
     // Parameter collection methods
@@ -905,7 +917,7 @@ private List<CardDto> playerHand = new();
             };
 
             var request = new { ExecParameter = execParameter };
-            var response = await Http.PostAsJsonAsync($"/api/room/{RoomId}/submit-exec-param", request);
+            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/submit-exec-param", request));
 
             if (response.IsSuccessStatusCode)
             {
@@ -990,7 +1002,7 @@ private List<CardDto> playerHand = new();
         try
         {
             var request = new { CardIds = selectedDiscardCards.ToList() };
-            var response = await Http.PostAsJsonAsync($"/api/room/{RoomId}/discard-cards", request);
+            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/discard-cards", request));
 
             if (response.IsSuccessStatusCode)
             {
@@ -1033,7 +1045,7 @@ private List<CardDto> playerHand = new();
         {
             // Submit empty card list to skip discarding
             var request = new { CardIds = new List<string>() };
-            var response = await Http.PostAsJsonAsync($"/api/room/{RoomId}/discard-cards", request);
+            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/discard-cards", request));
 
             if (response.IsSuccessStatusCode)
             {
