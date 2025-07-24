@@ -324,6 +324,10 @@ namespace Toko.Services
             int initialLane = racer.LaneIndex;
             int initialCell = racer.CellIndex;
 
+            // Track corner pass-through for gear limit violation detection
+            bool passedThroughCorner = false;
+            int cornerGearLimit = 6; // Default gear limit
+
             for (int i = 0; i < steps; i++)
             {
                 // Get current position coordinates
@@ -352,6 +356,26 @@ namespace Toko.Services
                 racer.LaneIndex = nextPosition.LaneIndex;
                 racer.CellIndex = nextPosition.CellIndex;
                 currentPosition = nextPosition;
+
+                // Track corner pass-through: if we moved through a corner segment
+                var currentSegment = _map.Segments[racer.SegmentIndex];
+                if (currentSegment.IsCorner && !passedThroughCorner)
+                {
+                    passedThroughCorner = true;
+                    // Calculate gear limit based on corner type and lane position
+                    bool isFirstLaneCurve = IsFirstLaneCurve(currentSegment.Direction);
+                    if (isFirstLaneCurve)
+                    {
+                        // From lane 0, base value 4, decrease by 2 per lane (minimum 1)
+                        cornerGearLimit = Math.Max(1, 4 - (racer.LaneIndex * 2));
+                    }
+                    else
+                    {
+                        // From last lane backwards, base value 4, decrease by 2 per lane (minimum 1)
+                        int laneFromEnd = (currentSegment.LaneCount - 1) - racer.LaneIndex;
+                        cornerGearLimit = Math.Max(1, 4 - (laneFromEnd * 2));
+                    }
+                }
 
                 // Track if the racer has left the starting segment
                 if (racer.SegmentIndex != 0)
@@ -444,6 +468,28 @@ namespace Toko.Services
                     racer.LaneIndex,
                     racer.CellIndex
                 ));
+            }
+
+            // Check for corner pass-through gear limit violation
+            // If racer passed through any corner during this move and gear exceeds limit, add junk card
+            if (passedThroughCorner)
+            {
+                if (racer.Gear > cornerGearLimit)
+                {
+                    AddJunk(racer, 1);
+                    _log.LogDebug($"Racer {racer.Id} received junk card for passing through corner at gear {racer.Gear} (limit: {cornerGearLimit})");
+                    
+                    // Generate corner gear limit violation event
+                    events.Add(new PlayerCornerGearLimitViolation(
+                        room.Id,
+                        room.CurrentRound,
+                        room.CurrentStep,
+                        racer.Id,
+                        racer.PlayerName,
+                        racer.Gear,
+                        cornerGearLimit
+                    ));
+                }
             }
 
             return TurnExecutionResult.Continue;
