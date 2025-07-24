@@ -364,19 +364,7 @@ namespace Toko.Services
                 if (currentSegment.IsCorner && !passedThroughCorner)
                 {
                     passedThroughCorner = true;
-                    // Calculate gear limit based on corner type and lane position
-                    bool isFirstLaneCurve = IsFirstLaneCurve(currentSegment.Direction);
-                    if (isFirstLaneCurve)
-                    {
-                        // From lane 0, base value 4, decrease by 2 per lane (minimum 1)
-                        cornerGearLimit = Math.Max(1, 4 - (racer.LaneIndex * 2));
-                    }
-                    else
-                    {
-                        // From last lane backwards, base value 4, decrease by 2 per lane (minimum 1)
-                        int laneFromEnd = (currentSegment.LaneCount - 1) - racer.LaneIndex;
-                        cornerGearLimit = Math.Max(1, 4 - (laneFromEnd * 2));
-                    }
+                    cornerGearLimit = 4;
                 }
 
                 // Track if the racer has left the starting segment
