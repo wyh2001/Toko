@@ -364,7 +364,8 @@ namespace Toko.Models
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
                     events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
-                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
+                    _gameResults ??= CollectGameResults(); 
+                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 events.Add(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
@@ -374,7 +375,8 @@ namespace Toko.Models
                 if (autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
                     events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
-                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, CollectGameResults()));
+                    _gameResults ??= CollectGameResults(); 
+                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 
