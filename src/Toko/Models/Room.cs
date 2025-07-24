@@ -144,14 +144,11 @@ namespace Toko.Models
         // Collects and returns the game results, ranking players by progress and assigning scores (total cells passed)
         private List<PlayerResult> CollectGameResults()
         {
-            var segmentLengths = Map.SegmentLengths;
 
-            // Compute progress for each player: total cells passed
             var progressList = Racers.Select(r => new
             {
                 Racer = r,
-                // Total cells passed (sum of lengths of previous segments + current cell index + 1)
-                Score = segmentLengths.Take(r.SegmentIndex).Sum() + r.CellIndex + 1
+                Score = r.Score // Use the real-time score maintained by TurnExecutor
             }).ToList();
 
             // Sort by score descending
@@ -1003,6 +1000,7 @@ namespace Toko.Models
             racer.SegmentIndex = 0;
             racer.LaneIndex = targetLaneIndex;
             racer.CellIndex = targetCellIndex;
+            racer.Score = targetCellIndex;
         }
     }
 }

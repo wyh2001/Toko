@@ -359,6 +359,8 @@ namespace Toko.Services
                 racer.CellIndex = nextPosition.CellIndex;
                 currentPosition = nextPosition;
 
+                racer.Score++;
+
                 // Track corner pass-through: if we moved through a corner segment
                 var currentSegment = _map.Segments[racer.SegmentIndex];
                 if (currentSegment.IsCorner && !passedThroughCorner)
@@ -389,6 +391,8 @@ namespace Toko.Services
                         racer.LaneIndex = autoMoveNextPosition.LaneIndex;
                         racer.CellIndex = autoMoveNextPosition.CellIndex;
                         currentPosition = autoMoveNextPosition;
+
+                        racer.Score++;
 
                         // Track if the racer has left the starting segment after auto-move
                         if (racer.SegmentIndex != 0)
