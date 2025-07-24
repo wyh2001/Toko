@@ -74,7 +74,7 @@
     }
     else
     {
-        @if (gameEnded || gameData?.Status == "Ended" || gameData?.Status == "Finished")
+        @if (showGameEndedOverlay)
         {
             <!-- Game Ended State -->
             <div class="game-ended-overlay">
@@ -477,6 +477,7 @@
     private string? currentTurnPlayer;
     private bool isMyTurn = false;
     private bool gameEnded = false;
+    private bool showGameEndedOverlay = false;
     private bool isConnected = true;
     private bool isReconnecting = false;
     
@@ -618,6 +619,7 @@ private List<CardDto> playerHand = new();
                         Console.WriteLine($"Game ended for room: {RoomId}");
                         InvokeAsync(async () => {
                             gameEnded = true;
+                            showGameEndedOverlay = true;
                             DisposeTimers(); // Stop any running timers
                             await LoadGameData(); // Load final game state
                             StateHasChanged();
@@ -656,6 +658,7 @@ private List<CardDto> playerHand = new();
                 if (gameData.Status == "Ended" || gameData.Status == "Finished")
                 {
                     gameEnded = true;
+                    showGameEndedOverlay = true;
                     DisposeTimers(); // Stop any running timers
                 }
                 
@@ -1195,7 +1198,7 @@ private List<CardDto> playerHand = new();
     private void ReviewGame()
     {
         // Close the game ended overlay and show the game state
-        gameEnded = false;
+        showGameEndedOverlay = false;
         StateHasChanged();
     }
 
