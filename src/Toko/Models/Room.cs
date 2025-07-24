@@ -58,6 +58,9 @@ namespace Toko.Models
         private readonly Dictionary<(string, int, int), (string cardId, CardType cardType)> _cardNow = []; // (pid, round, step) -> (cardId, cardType)
         private readonly HashSet<string> _discardPending = [];
         private List<PlayerResult>? _gameResults = null; // Cached game results
+        
+        // Track gear shift counts for turn order adjustment
+        private readonly Dictionary<string, int> _currentTurnGearShifts = [];
 
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _pumpTask;
@@ -309,6 +312,12 @@ namespace Toko.Models
                 racer.Hand.Remove(cardObj);
                 racer.DiscardPile.Add(cardObj);
 
+                // Track gear shift count if this is a gear shift card
+                if (cardObj.Type == CardType.ShiftGear)
+                {
+                    _currentTurnGearShifts[pid] = _currentTurnGearShifts.GetValueOrDefault(pid, 0) + 1;
+                }
+
                 _cardNow[(pid, CurrentRound, _stepInRound)] = (cardId, cardObj.Type);
                 events.Add(new PlayerCardSubmitted(Id, CurrentRound, CurrentStep, pid, racer.PlayerName, cardId, cardObj.Type));
                 await MoveNextPlayerAsync(events);
@@ -350,6 +359,7 @@ namespace Toko.Models
                 UpdateBank(pid, events);
 
                 var ins = new ConcreteInstruction { Type = cardType, ExecParameter = p };
+                
                 var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this, events);
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
@@ -529,6 +539,9 @@ namespace Toko.Models
             _discardPending.Clear();
             _discardPending.UnionWith(_order.Where(id => !_banned.Contains(id)));
 
+            // Adjust turn order based on gear shift frequency
+            AdjustTurnOrderByGearShifts();
+
             var eventsToPublish = new List<INotification>();
             foreach (var pid in _discardPending)
             {
@@ -537,6 +550,29 @@ namespace Toko.Models
                 ResetPrompt(pid);
             }
             await PublishEventsAsync(eventsToPublish);
+        }
+        
+        private void AdjustTurnOrderByGearShifts()
+        {
+            // Create list of players with their gear shift counts
+            var playersWithShifts = _order
+                .Where(pid => !_banned.Contains(pid))
+                .Select(pid => new { PlayerId = pid, ShiftCount = _currentTurnGearShifts.GetValueOrDefault(pid, 0) })
+                .ToList();
+
+            // Sort players: first by gear shift count (ascending), then maintain original order for same counts
+            var sortedPlayers = playersWithShifts
+                .OrderBy(p => p.ShiftCount)
+                .ThenBy(p => _order.IndexOf(p.PlayerId))
+                .Select(p => p.PlayerId)
+                .ToList();
+
+            // Update the order list
+            _order.Clear();
+            _order.AddRange(sortedPlayers);
+
+            // Clear gear shift counts for next turn
+            _currentTurnGearShifts.Clear();
         }
         #endregion
 
