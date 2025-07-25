@@ -355,7 +355,7 @@
                                                 Discard Selected Cards (@selectedDiscardCards.Count)
                                             </button>
                                             <button class="action-button secondary" @onclick="SkipDiscard">
-                                                Skip Discarding
+                                                Skip Discarding@(discardCountdown > 0 ? $" ({discardCountdown}s)" : "")
                                             </button>
                                         </div>
                                     }
@@ -388,7 +388,7 @@
                                                 Discard Selected Cards (@selectedDiscardCards.Count)
                                             </button>
                                             <button class="action-button secondary" @onclick="SkipDiscard">
-                                                Skip Discarding
+                                                Skip Discarding@(discardCountdown > 0 ? $" ({discardCountdown}s)" : "")
                                             </button>
                                         </div>
                                     </div>
@@ -500,6 +500,11 @@ private List<CardDto> playerHand = new();
     private Dictionary<string, double> playerTimeBanks = new();
     private Dictionary<string, Timer?> playerTimers = new();
     private readonly object timerLock = new object();
+    
+    // Discard phase countdown timer
+    private Timer? discardTimer;
+    private int discardCountdown = 0;
+    private readonly object discardTimerLock = new object();
 
     protected override async Task OnInitializedAsync()
     {
@@ -736,6 +741,7 @@ private List<CardDto> playerHand = new();
         if (oldPhase != gamePhase && gamePhase == Phase.Discarding)
         {
             selectedDiscardCards.Clear();
+            StartDiscardCountdown();
         }
     }
 
@@ -1440,6 +1446,9 @@ private List<CardDto> playerHand = new();
             }
             playerTimers.Clear();
         }
+        
+        // Also dispose discard timer
+        StopDiscardCountdown();
     }
 
     private void UpdateGameLogsWithDeduplication(List<TurnLog> newLogs)
@@ -1460,6 +1469,46 @@ private List<CardDto> playerHand = new();
         if (hasNewLogs)
         {
             gameLogs.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+        }
+    }
+
+    private void StartDiscardCountdown()
+    {
+        lock (discardTimerLock)
+        {
+            // Stop existing timer if any
+            discardTimer?.Dispose();
+            
+            // Start 15-second countdown
+            discardCountdown = 15;
+            
+            discardTimer = new Timer(async _ => await CountDownDiscardTime(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        }
+    }
+
+    private async Task CountDownDiscardTime()
+    {
+        lock (discardTimerLock)
+        {
+            discardCountdown--;
+            
+            if (discardCountdown <= 0)
+            {
+                discardTimer?.Dispose();
+                discardTimer = null;
+            }
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void StopDiscardCountdown()
+    {
+        lock (discardTimerLock)
+        {
+            discardTimer?.Dispose();
+            discardTimer = null;
+            discardCountdown = 0;
         }
     }
 }
