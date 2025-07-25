@@ -5,13 +5,13 @@ VisualStudioVersion = 17.13.35931.197
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toko", "src\Toko\Toko.csproj", "{AD3184BF-BD47-1C64-FD86-29B89210C9A4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toko.IntegrationTests", "tests\Toko.IntegrationTests\Toko.IntegrationTests.csproj", "{A7B3AE1E-0FAB-00AF-4C0D-159537A25274}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toko.Web", "client\Toko.Web\Toko.Web.csproj", "{52AF145E-580B-4C68-BB02-9C0399DA6C73}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toko.Shared", "shared\Toko.Shared\Toko.Shared.csproj", "{BC8A6B4B-C3B7-4103-91A6-3B4A6604734C}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toko.Web.Client", "client\Toko.Web.Client\Toko.Web.Client.csproj", "{742CA32B-CEE6-4112-8999-733F75FFCDAF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Toko.Tests", "tests\Toko.Tests\Toko.Tests.csproj", "{909EC1D9-1E43-1DCA-D7CE-73E56126BA3F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,10 +23,6 @@ Global
 		{AD3184BF-BD47-1C64-FD86-29B89210C9A4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AD3184BF-BD47-1C64-FD86-29B89210C9A4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AD3184BF-BD47-1C64-FD86-29B89210C9A4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A7B3AE1E-0FAB-00AF-4C0D-159537A25274}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A7B3AE1E-0FAB-00AF-4C0D-159537A25274}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A7B3AE1E-0FAB-00AF-4C0D-159537A25274}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A7B3AE1E-0FAB-00AF-4C0D-159537A25274}.Release|Any CPU.Build.0 = Release|Any CPU
 		{52AF145E-580B-4C68-BB02-9C0399DA6C73}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{52AF145E-580B-4C68-BB02-9C0399DA6C73}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{52AF145E-580B-4C68-BB02-9C0399DA6C73}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -39,6 +35,10 @@ Global
 		{742CA32B-CEE6-4112-8999-733F75FFCDAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{742CA32B-CEE6-4112-8999-733F75FFCDAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{742CA32B-CEE6-4112-8999-733F75FFCDAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{909EC1D9-1E43-1DCA-D7CE-73E56126BA3F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{909EC1D9-1E43-1DCA-D7CE-73E56126BA3F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{909EC1D9-1E43-1DCA-D7CE-73E56126BA3F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{909EC1D9-1E43-1DCA-D7CE-73E56126BA3F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
