@@ -16,7 +16,9 @@ else
                     grid-template-columns:repeat(@_gridWidth, @TileSizepx);
                     grid-auto-rows:@TileSizepx;
                     image-rendering:pixelated;
-                    background-color:#5c9e3a;">
+                    background-image:url('@GrassTilePath');
+                    background-repeat:repeat;
+                    background-size:@TileSizepx @TileSizepx;">
         @for (int y = _minY; y <= _maxY; y++)
         {
             @for (int x = _minX; x <= _maxX; x++)
