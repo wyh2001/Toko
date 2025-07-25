@@ -14,6 +14,7 @@
         <div class="player-name-edit">
             <input type="text" @bind="editPlayerName" @onkeypress="HandleKeyPress" 
                    placeholder="Enter your name" maxlength="50" class="player-name-input" />
+            <div class="player-name-hint">Name changes take effect in new rooms</div>
             <button class="save-btn" @onclick="SavePlayerName">Save</button>
             <button class="cancel-btn" @onclick="CancelEdit">Cancel</button>
         </div>
@@ -83,6 +84,15 @@
         display: flex;
         align-items: center;
         gap: 0.5rem;
+    }
+
+    .player-name-hint {
+        font-size: 0.6rem;
+        color: #888888;
+        margin: 0.5rem 0;
+        font-style: italic;
+        text-align: center;
+        line-height: 1.2;
     }
 
     .player-name-label {
