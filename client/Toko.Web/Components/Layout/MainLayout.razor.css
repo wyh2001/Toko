@@ -17,6 +17,39 @@
     border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     padding: 0 40px;
     height: 80px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.toko-layout[data-page="home"] .toko-header {
+    background: transparent;
+    border-bottom: none;
+    backdrop-filter: none;
+}
+
+.toko-layout[data-page="home"] .toko-title {
+    opacity: 0;
+    pointer-events: auto;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toko-layout[data-page="home"] .toko-user-section {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* When scrolled: show full header on homepage */
+body.scrolled .toko-layout[data-page="home"] .toko-header {
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+body.scrolled .toko-layout[data-page="home"] .toko-title {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
 }
 
 .toko-header-content {
@@ -31,6 +64,12 @@
 .toko-title {
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.toko-title-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
 }
 
 .toko-title:hover {

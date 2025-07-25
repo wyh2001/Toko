@@ -2,11 +2,13 @@
 @using Toko.Web.Client.Components
 @inject NavigationManager Navigation
 
-<div class="toko-layout">
+<div class="toko-layout" data-page="@(IsHomePage ? "home" : "other")">
     <header class="toko-header">
         <div class="toko-header-content">
-            <div class="toko-title" @onclick="NavigateToHome">
-                <span class="toko-title-text">TOKO TOKO</span>
+            <div class="toko-title">
+                <a href="/" class="toko-title-link">
+                    <span class="toko-title-text">TOKO TOKO</span>
+                </a>
             </div>
             <div class="toko-user-section">
                 <PlayerNameSettings />
@@ -26,8 +28,16 @@
 </div>
 
 @code {
-    private void NavigateToHome()
+    private bool IsHomePage => CheckIfHomePage();
+
+    protected override void OnInitialized()
     {
-        Navigation.NavigateTo("/");
+        Navigation.LocationChanged += (sender, e) => StateHasChanged();
+    }
+
+    private bool CheckIfHomePage()
+    {
+        var uri = new Uri(Navigation.Uri);
+        return uri.AbsolutePath == "/" || uri.AbsolutePath == "";
     }
 }
