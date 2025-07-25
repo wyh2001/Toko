@@ -337,60 +337,28 @@
                                     </button>
                                 </div>
                             }
-                            else if (gamePhase == Phase.Discarding)
-                            {
-                                <!-- Discarding Phase UI -->
-                                <div class="discard-phase-section">
-                                    <div class="discard-info">
-                                        <strong>Discarding Phase</strong>
-                                        <p>Click on cards in your hand to select them for discarding (Junk cards cannot be discarded)</p>
-                                    </div>
-                                    
-                                    @if (IsPlayerInDiscardPhase())
-                                    {
-                                        <div class="discard-actions">
-                                            <button class="action-button primary @(HasJunkCardsSelected() ? "disabled" : "")" 
-                                                    @onclick="SubmitDiscardCards"
-                                                    disabled="@HasJunkCardsSelected()">
-                                                Discard Selected Cards (@selectedDiscardCards.Count)
-                                            </button>
-                                            <button class="action-button secondary" @onclick="SkipDiscard">
-                                                Skip Discarding@(discardCountdown > 0 ? $" ({discardCountdown}s)" : "")
-                                            </button>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="waiting-discard-message">
-                                            Waiting for other players to discard...
-                                        </div>
-                                    }
-                                </div>
-                            }
                         }
-                        else
+                        
+                        @if (gamePhase == Phase.Discarding)
                         {
-                            @if (gamePhase == Phase.Discarding)
-                            {
-                                <!-- Show discard actions for all players in discard phase -->
+                            <!-- Discarding Phase UI - Independent of turn order -->
+                            <div class="discard-phase-section">
+                                <div class="discard-info">
+                                    <strong>Discarding Phase</strong>
+                                    <p>Click on cards in your hand to select them for discarding (Junk cards cannot be discarded)</p>
+                                </div>
+                                
                                 @if (IsPlayerInDiscardPhase())
                                 {
-                                    <div class="discard-phase-section">
-                                        <div class="discard-info">
-                                            <strong>Discarding Phase</strong>
-                                            <p>Click on cards in your hand to select them for discarding (Junk cards cannot be discarded)</p>
-                                        </div>
-                                        
-                                        <div class="discard-actions">
-                                            <button class="action-button primary @(HasJunkCardsSelected() ? "disabled" : "")" 
-                                                    @onclick="SubmitDiscardCards"
-                                                    disabled="@HasJunkCardsSelected()">
-                                                Discard Selected Cards (@selectedDiscardCards.Count)
-                                            </button>
-                                            <button class="action-button secondary" @onclick="SkipDiscard">
-                                                Skip Discarding@(discardCountdown > 0 ? $" ({discardCountdown}s)" : "")
-                                            </button>
-                                        </div>
+                                    <div class="discard-actions">
+                                        <button class="action-button primary @(HasJunkCardsSelected() ? "disabled" : "")" 
+                                                @onclick="SubmitDiscardCards"
+                                                disabled="@HasJunkCardsSelected()">
+                                            Discard Selected Cards (@selectedDiscardCards.Count)
+                                        </button>
+                                        <button class="action-button secondary" @onclick="SkipDiscard">
+                                            Skip Discarding@(discardCountdown > 0 ? $" ({discardCountdown}s)" : "")
+                                        </button>
                                     </div>
                                 }
                                 else
@@ -401,13 +369,13 @@
                                         </div>
                                     </div>
                                 }
-                            }
-                            else
-                            {
-                                <div class="waiting-message">
-                                    Waiting for @GetPlayerName(currentTurnPlayer)...
-                                </div>
-                            }
+                            </div>
+                        }
+                        else if (!isMyTurn)
+                        {
+                            <div class="waiting-message">
+                                Waiting for @GetPlayerName(currentTurnPlayer)...
+                            </div>
                         }
                     </div>
                 </div>
