@@ -81,6 +81,15 @@ namespace Toko.IntegrationTests
             };
         }
 
+        private ConcreteInstruction CreateSkipInstruction()
+        {
+            return new ConcreteInstruction
+            {
+                Type = CardType.Repair,
+                ExecParameter = new ExecParameter { Effect = -1, DiscardedCardIds = new List<string>() }
+            };
+        }
+
         [Fact]
         public async Task MoveForward_Should_Update_Racer_Position_Correctly()
         {
@@ -95,7 +104,7 @@ namespace Toko.IntegrationTests
             var map = CreateMap(mapSegmentSnapshots);
             SetupTestEnvironment(map);
 
-            var instruction = CreateMoveInstruction();
+            var instruction = CreateSkipInstruction();
 
             // Test movement through the track
             var expectedPositions = new[]
@@ -133,16 +142,10 @@ namespace Toko.IntegrationTests
             var map = CreateMap(mapSegmentSnapshots);
             SetupTestEnvironment(map);
 
-            var changeLaneInstruction = new ConcreteInstruction
-            {
-                Type = CardType.ChangeLane,
-                ExecParameter = new ExecParameter { Effect = 1 } // Change to right lane
-            };
-            var changeLaneResult = TurnExecutor!.ApplyInstruction(Racer!, changeLaneInstruction, Room!, new List<INotification>());
-            AssertRacerPositionAfterInstruction(changeLaneInstruction, 0, 1, 0); // Expect to change to right lane in first segment
+            Racer!.LaneIndex = 1;
 
 
-            var instruction = CreateMoveInstruction();
+            var instruction = CreateSkipInstruction();
 
             // Test movement through the track
             var expectedPositions = new[]
@@ -184,7 +187,7 @@ namespace Toko.IntegrationTests
             var map = GenerateFinalMapWithIntermediate(segments);
             SetupTestEnvironment(map);
 
-            var instruction = CreateMoveInstruction();
+            var instruction = CreateSkipInstruction();
 
             // Test movement through the complex track
             var expectedPositions = new[]
@@ -236,14 +239,9 @@ namespace Toko.IntegrationTests
             };
             var map = GenerateFinalMapWithIntermediate(segments);
             SetupTestEnvironment(map);
-
-            var instruction = CreateMoveInstruction();
-            var changeLaneInstruction = new ConcreteInstruction
-            {
-                Type = CardType.ChangeLane,
-                ExecParameter = new ExecParameter { Effect = 1 } // Change to right lane
-            };
-            AssertRacerPositionAfterInstruction(changeLaneInstruction, 0, 1, 0); // Expect to change to right lane in first segment
+            Racer!.LaneIndex = 1;
+            
+            var instruction = CreateSkipInstruction();
             // Test movement through the complex track
             var expectedPositions = new[]
             {
@@ -290,14 +288,9 @@ namespace Toko.IntegrationTests
             };
             var map = GenerateFinalMapWithIntermediate(segments);
             SetupTestEnvironment(map);
-
-            var instruction = CreateMoveInstruction();
-            var changeLaneInstruction = new ConcreteInstruction
-            {
-                Type = CardType.ChangeLane,
-                ExecParameter = new ExecParameter { Effect = 1 } // Change to right lane
-            };
-            AssertRacerPositionAfterInstruction(changeLaneInstruction, 0, 1, 0); // Expect to change to right lane in first segment
+            Racer!.LaneIndex = 1;
+            
+            var instruction = CreateSkipInstruction();
             // Test movement through the complex track
             var expectedPositions = new[]
             {
@@ -328,6 +321,11 @@ namespace Toko.IntegrationTests
 
             Assert.True(result == TurnExecutor.TurnExecutionResult.Continue,
                 $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}");
+
+            var autoMoveResult = TurnExecutor!.ExecuteAutoMove(Racer!, Room!, new List<INotification>());
+            
+            Assert.True(autoMoveResult == TurnExecutor.TurnExecutionResult.Continue || autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished,
+                $"Step {_stepCounter} auto move failed - Expected: Continue or PlayerFinished, Actual: {autoMoveResult}");
 
             // Get actual coordinates
             var actualSegment = Room!.Map.Segments[Racer!.SegmentIndex];
