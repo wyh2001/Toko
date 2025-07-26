@@ -8,6 +8,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Toko.Tests
 {
@@ -52,8 +53,6 @@ namespace Toko.Tests
             {
                 WorkingDirectory = Path.GetFullPath(Path.Combine(
                     AppContext.BaseDirectory, "..", "..", "..", "..", "..", "client", "Toko.Web")),
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
@@ -103,22 +102,27 @@ namespace Toko.Tests
     public class GUITests
     {
         private readonly TokoServerFixture _server;
-        public GUITests(TokoServerFixture server) => _server = server;
+        private readonly ITestOutputHelper _output;
+        public GUITests(TokoServerFixture server, ITestOutputHelper output) 
+        { 
+            _server = server;
+            _output = output;
+        }
 
         [Fact]
         public void TestGamePage()
         {
             var options = new ChromeOptions();
-            // options.AddArgument("--headless=new");
+            options.AddArgument("--headless=new");
             options.AddArgument("--ignore-certificate-errors");
+            options.AddArgument("--window-size=1920,1080");
             options.AcceptInsecureCertificates = true;
             using var driver = new ChromeDriver(options);
-            driver.Manage().Window.Maximize();
             driver.Navigate().GoToUrl(_server.BaseUrl);
             var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
             var createRoomButton = wait.Until(d => d.FindElement(By.CssSelector(".tile.create-tile")));
             createRoomButton.Click();
-           
+
             var createRoomSubmissionButton = wait.Until(d => d.FindElement(By.CssSelector(".btn.btn-primary")));
             createRoomSubmissionButton.Click();
             wait.Until(d => d.Url.Contains("/room/"));
@@ -126,15 +130,31 @@ namespace Toko.Tests
             string currentUrl = driver.Url;
             string gameUrl = currentUrl.Replace("/room/", "/game/");
             driver.Navigate().GoToUrl(gameUrl);
-            var raceBoard = wait.Until(d => d.FindElement(By.ClassName("race-board-container")));
-            bool fullyVisible = IsElementFullyInViewport(driver, raceBoard);
-            Console.WriteLine(fullyVisible
-                ? "race-board-container is fully visible, no scrolling needed."
-                : "race-board-container is not fully visible, scrolling required.");
-            Assert.True(fullyVisible);
+            var raceBoard = wait.Until(d => d.FindElement(By.ClassName("track-grid")));
+            var statusSection = driver.FindElement(By.ClassName("status-section"));
+
+            _output.WriteLine("Checking visibility of status-section...");
+            bool statusSectionVisible = IsElementFullyInViewport(driver, statusSection, "status-section", _output);
+            Assert.True(statusSectionVisible, "status-section should be fully visible.");
+
+            _output.WriteLine("Checking visibility of track-grid...");
+            bool raceBoardFullyVisible = IsElementFullyInViewport(driver, raceBoard, "track-grid", _output);
+            Assert.True(raceBoardFullyVisible, "track-grid should be fully visible.");
+
+            _output.WriteLine("Checking grid tile and image size...");
+            var gridTile = wait.Until(d => d.FindElement(By.ClassName("grid-tile")));
+            var gridTileSize = gridTile.Size;
+            _output.WriteLine($"Grid tile size: {gridTileSize.Width}x{gridTileSize.Height}");
+
+            var image = gridTile.FindElement(By.TagName("img"));
+            var imageSize = image.Size;
+            _output.WriteLine($"Image render size: {imageSize.Width}x{imageSize.Height}");
+
+            Assert.True(Math.Abs(gridTileSize.Width - imageSize.Width) <= 0.1, $"Grid tile width ({gridTileSize.Width}) and image width ({imageSize.Width}) should be almost equal.");
+            Assert.True(Math.Abs(gridTileSize.Height - imageSize.Height) <= 0.1, $"Grid tile height ({gridTileSize.Height}) and image height ({imageSize.Height}) should be almost equal.");
         }
 
-        static bool IsElementFullyInViewport(IWebDriver driver, IWebElement element)
+        static bool IsElementFullyInViewport(IWebDriver driver, IWebElement element, string elementName, ITestOutputHelper output)
         {
             var js = (IJavaScriptExecutor)driver;
             var raw = js.ExecuteScript(
@@ -152,10 +172,20 @@ namespace Toko.Tests
             double right  = ConvertToDouble(rectDict, "right");
             var viewportHeight = Convert.ToDouble(js.ExecuteScript("return window.innerHeight") ?? throw new InvalidOperationException("Could not get window height"));
             var viewportWidth  = Convert.ToDouble(js.ExecuteScript("return window.innerWidth")  ?? throw new InvalidOperationException("Could not get window width"));
-            return top    >= 0
+
+            output.WriteLine($"Viewport size: Width={viewportWidth}, Height={viewportHeight}");
+            output.WriteLine($"Element '{elementName}' bounding box: Top={top}, Bottom={bottom}, Left={left}, Right={right}");
+
+            bool isFullyVisible = top >= 0
                 && bottom <= viewportHeight
-                && left   >= 0
-                && right  <= viewportWidth;
+                && left >= 0
+                && right <= viewportWidth;
+
+            output.WriteLine(isFullyVisible
+                ? $"Element '{elementName}' is fully visible, no scrolling needed."
+                : $"Element '{elementName}' is not fully visible, scrolling required.");
+            
+            return isFullyVisible;
         }
 
         private static double ConvertToDouble(IDictionary<string, object> dict, string key)
