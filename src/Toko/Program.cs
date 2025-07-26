@@ -19,8 +19,6 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Services.AddControllers();
 builder.Services.AddSingleton<RoomManager>();
-builder.Services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
-builder.Services.AddHostedService<QueuedHostedService>();
 
 builder.Services.AddOutputCache();
 
