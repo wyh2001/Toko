@@ -11,7 +11,7 @@ using Toko.Shared.Models;
 using Xunit.Abstractions;
 //using static Toko.Controllers.RoomController;
 
-namespace Toko.IntegrationTests
+namespace Toko.Tests
 {
     public sealed class TestGameClient(WebApplicationFactory<Program> factory, ITestOutputHelper output)
     {

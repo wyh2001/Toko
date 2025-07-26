@@ -10,7 +10,7 @@ using Xunit.Abstractions;
 using static Toko.Shared.Models.RaceMap;
 using static Toko.Shared.Services.RaceMapFactory;
 
-namespace Toko.IntegrationTests
+namespace Toko.Tests
 {
     public class TurnExecutorTests
     {

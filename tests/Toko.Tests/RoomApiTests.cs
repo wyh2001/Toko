@@ -14,9 +14,9 @@ using Toko.Shared.Models;
 using Toko.Shared.Services;
 using Xunit;
 using Xunit.Abstractions;
-using static Toko.IntegrationTests.TestGameClient;
+using static Toko.Tests.TestGameClient;
 
-namespace Toko.IntegrationTests
+namespace Toko.Tests
 {
     public class RoomApiTests(WebApplicationFactory<Program> factory, ITestOutputHelper output) : IClassFixture<WebApplicationFactory<Program>>
     {
