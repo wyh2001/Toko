@@ -31,10 +31,9 @@
     transform-origin: center center;
     image-rendering: auto;
     z-index: 10;
-    max-width: 90%;
-    max-height: 90%;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
+    object-fit: contain;
 }
 
 /* Pulse animation for active racer */
