@@ -12,13 +12,7 @@
 else
 {
     <div class="track-grid"
-         style="display:grid;
-                    grid-template-columns:repeat(@_gridWidth, @TileSizepx);
-                    grid-auto-rows:@TileSizepx;
-                    image-rendering:pixelated;
-                    background-image:url('@GrassTilePath');
-                    background-repeat:repeat;
-                    background-size:@TileSizepx @TileSizepx;">
+         style="@($"--grid-width: {_gridWidth}; --grid-height: {_gridHeight};")">
         @for (int y = _minY; y <= _maxY; y++)
         {
             @for (int x = _minX; x <= _maxX; x++)
@@ -70,7 +64,7 @@ else
 @code {
     [Parameter] public MapSnapshot? MapSnapshot { get; set; }
     [Parameter] public RoomStatusSnapshot? RoomStatus { get; set; }
-    [Parameter] public int TileSize { get; set; } = 128; // px
+    [Parameter] public int TileSize { get; set; } = 15; // vmin
 
     private const string ImageBasePath = "/kenney_racing/PNG/Tiles/Asphalt Road/";
     private const string GrassTilePath = "/kenney_racing/PNG/Tiles/Grass/land_grass04.png";
@@ -100,7 +94,7 @@ else
     private int _minX, _minY, _maxX, _maxY;
     private int _gridWidth => _maxX - _minX + 1;
     private int _gridHeight => _maxY - _minY + 1;
-    private string TileSizepx => $"{TileSize}px";
+    private string TileSizepx => $"{TileSize}vmin";
 
     protected override void OnParametersSet()
     {

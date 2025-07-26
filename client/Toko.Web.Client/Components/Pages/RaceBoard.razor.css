@@ -1,9 +1,40 @@
-/* Racer car base styles */
+/* Responsive Race Board */
+.track-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--grid-width, 1), minmax(0, 1fr));
+    grid-auto-rows: minmax(0, 1fr);
+    image-rendering: pixelated;
+    max-width: 90%;
+    max-height: 85vh;
+    margin: 0 auto;
+    aspect-ratio: var(--grid-width) / var(--grid-height);
+    overflow: visible;
+}
+
+.grid-tile {
+    position: relative;
+    transition: box-shadow 0.2s ease;
+    box-sizing: border-box;
+}
+
+.grid-tile img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: fill;
+}
+
 .racer-car {
+    position: absolute;
     transition: all 0.3s ease-out;
     will-change: transform, filter;
     transform-origin: center center;
     image-rendering: auto;
+    z-index: 10;
+    max-width: 90%;
+    max-height: 90%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
 }
 
 /* Pulse animation for active racer */
@@ -48,7 +79,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 300px;
+    min-height: 30vh;
     color: #666;
     font-size: 1.2rem;
     background: #f5f5f5;
@@ -59,10 +90,11 @@
 /* Grid tile separation */
 .grid-tile {
     position: relative;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.1),
                 0 1px 3px rgba(0, 0, 0, 0.05);
     transition: box-shadow 0.2s ease;
+    box-sizing: border-box;
 }
 
 .grid-tile:hover {
@@ -73,11 +105,17 @@
 /* Ensure tile images don't interfere with borders */
 .grid-tile img {
     display: block;
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
 }
 
 /* Skip indicator for CurveLargeSeg2 tiles */
 .skip-indicator {
+    position: absolute;
     z-index: 5;
     pointer-events: none;
 }
@@ -103,4 +141,11 @@
     transform: scale(1.1);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4),
                 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .track-grid {
+        max-width: 95%;
+    }
 }
