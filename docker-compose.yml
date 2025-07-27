@@ -1,0 +1,27 @@
+services:
+  toko:
+    image: ${DOCKER_REGISTRY-}toko
+    build:
+      context: .
+      dockerfile: src/Toko/Dockerfile
+    environment:
+      ASPNETCORE_HTTP_PORTS: 8080
+      ASPNETCORE_HTTPS_PORTS: ""
+    networks: [toko-net]
+
+  toko.web:
+    image: ${DOCKER_REGISTRY-}tokoweb
+    build:
+      context: .
+      dockerfile: client/Toko.Web/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      API_BASE_URL: http://toko:8080
+      ASPNETCORE_HTTP_PORTS: 8080
+      ASPNETCORE_HTTPS_PORTS: ""
+    depends_on: [toko]
+    networks: [toko-net]
+
+networks:
+  toko-net:

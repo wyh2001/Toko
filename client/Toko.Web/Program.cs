@@ -1,7 +1,5 @@
 using Toko.Web.Client.Components.Pages;
-using Toko.Web.Client.Services;
 using Toko.Web.Components;
-using Toko.Web.Services;
 using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,7 +33,10 @@ builder.Services.AddReverseProxy()
                 ClusterId = "apiCluster",
                 Destinations = new Dictionary<string, DestinationConfig>
                 {
-                    ["d1"] = new() { Address = "https://localhost:7057/" }
+                    ["d1"] = new()
+                    { Address = Environment.GetEnvironmentVariable("API_BASE_URL")
+                    ?? builder.Configuration["ReverseProxy:ApiAddress"]
+                    ?? throw new InvalidOperationException("API_BASE_URL environment variable or ReverseProxy:ApiAddress configuration is missing.") }
                 }
             }
         });
