@@ -205,28 +205,23 @@ namespace Toko.Services
             return result;
         }
 
-        public async Task<bool> EndRoom(string roomId, GameEndReason reason)
+        public bool EndRoom(string roomId, GameEndReason reason)
         {
             var room = GetRoomInternal(roomId);
             if (room is null) return false;
 
-            if (room.Status == RoomStatus.Waiting)
+            if (reason == GameEndReason.NoActivePlayersLeft)
             {
                 Interlocked.Decrement(ref _waitingRoomsCount);
             }
-            else if (room.Status == RoomStatus.Playing)
+            else if (reason == GameEndReason.FinisherCrossedLine || reason == GameEndReason.TurnLimitReached)
             {
                 Interlocked.Decrement(ref _playingRoomsCount);
                 Interlocked.Add(ref _playingRacersCount, -room.Racers.Count);
-            }
 
-            if (reason == GameEndReason.FinisherCrossedLine)
-            {
                 Interlocked.Increment(ref _normallyCompletedRoomsCount);
-                _log.LogInformation("Room {RoomId} completed normally with player crossing finish line", roomId);
+                _log.LogInformation("Room {RoomId} completed normally", roomId);
             }
-
-            await room.EndGameAsync(reason);
             return true;
         }
 
