@@ -36,7 +36,7 @@
     <div class="game-header">
         <div class="game-title-section">
             <h1 class="game-title">@roomName</h1>
-            <div class="game-subtitle">Racing Session • Round @((gameData?.CurrentRound ?? 0) + 1) / @(gameData?.TotalRounds ?? 0)</div>
+            <div class="game-subtitle">Racing Session • Round @DisplayedRound / @(gameData?.TotalRounds ?? 0)</div>
         </div>
         <div class="game-controls">
             <button class="control-button" @onclick="ShowGameMenu">≡ Menu</button>
@@ -120,7 +120,7 @@
                     <h3 class="panel-title">Game Status</h3>
                     <div class="status-grid">
                         <div class="status-item">
-                            <div class="status-number">@((gameData?.CurrentRound ?? 0) + 1) / @(gameData?.TotalRounds ?? 0)</div>
+                            <div class="status-number">@DisplayedRound / @(gameData?.TotalRounds ?? 0)</div>
                             <div class="status-label">Round</div>
                         </div>
                         <div class="status-item">
@@ -449,7 +449,9 @@
     private bool isConnected = true;
     private bool isReconnecting = false;
     
-private List<CardDto> playerHand = new();
+    private int DisplayedRound => gameData == null ? 0 : (gameEnded ? gameData.TotalRounds : gameData.CurrentRound + 1);
+    
+    private List<CardDto> playerHand = new();
     private string selectedCard = "";
     private List<TurnLog> gameLogs = new();
     private HashSet<Guid> seenLogIds = new(); // Track seen log UUIDs for deduplication
@@ -1339,7 +1341,7 @@ private List<CardDto> playerHand = new();
 
     private void UpdatePlayerTimeBanks()
     {
-        if (gameData?.Racers == null) return;
+        if (gameData?.Racers == null || gameEnded) return;
 
         lock (timerLock)
         {
