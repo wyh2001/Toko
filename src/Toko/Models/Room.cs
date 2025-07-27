@@ -183,7 +183,7 @@ namespace Toko.Models
             return await WithGateAsync(events =>
             {
                 var results = EndGame(reason);
-                events.Add(new RoomEnded(Id, reason, results));
+                events.Add(new GameEnded(Id, reason, results));
                 return results;
             });
         }
@@ -249,6 +249,7 @@ namespace Toko.Models
                         if (Racers.Count == 0)
                         {
                             IsAbandoned = true;
+                            events.Add(new RoomAbandoned(Id));
                             _log.LogInformation("Room {RoomId} marked as abandoned after last player left", Id);
                         }
 
@@ -362,7 +363,7 @@ namespace Toko.Models
                 {
                     events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
                     _gameResults ??= CollectGameResults(); 
-                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
+                    events.Add(new GameEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 events.Add(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
@@ -373,7 +374,7 @@ namespace Toko.Models
                 {
                     events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
                     _gameResults ??= CollectGameResults(); 
-                    events.Add(new RoomEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
+                    events.Add(new GameEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 
@@ -509,7 +510,7 @@ namespace Toko.Models
             {
                 _log.LogInformation("No active players left in room {RoomId}. Ending game.", Id);
                 var results = EndGame(GameEndReason.NoActivePlayersLeft);
-                await _mediator.Publish(new RoomEnded(Id, GameEndReason.NoActivePlayersLeft, results));
+                await _mediator.Publish(new GameEnded(Id, GameEndReason.NoActivePlayersLeft, results));
                 return;
             }
             var eventsToPublish = new List<INotification>();
@@ -746,7 +747,7 @@ namespace Toko.Models
                 var results = EndGame(GameEndReason.TurnLimitReached);
                 try
                 {
-                    await _mediator.Publish(new RoomEnded(Id, GameEndReason.TurnLimitReached, results), ct);
+                    await _mediator.Publish(new GameEnded(Id, GameEndReason.TurnLimitReached, results), ct);
                 }
                 catch (Exception ex)
                 {

@@ -1,16 +1,7 @@
 ﻿using MediatR;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.IdentityModel.Tokens;
 using OneOf;
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Toko.Models;
 using Toko.Shared.Models;
 using Toko.Shared.Services;
@@ -205,23 +196,26 @@ namespace Toko.Services
             return result;
         }
 
-        public bool EndRoom(string roomId, GameEndReason reason)
+        public bool FinalizeEndGame(string roomId, GameEndReason reason)
         {
             var room = GetRoomInternal(roomId);
             if (room is null) return false;
+            Interlocked.Decrement(ref _playingRoomsCount);
+            Interlocked.Add(ref _playingRacersCount, -room.Racers.Count);
 
-            if (reason == GameEndReason.NoActivePlayersLeft)
+            if (reason == GameEndReason.FinisherCrossedLine || reason == GameEndReason.TurnLimitReached)
             {
-                Interlocked.Decrement(ref _waitingRoomsCount);
-            }
-            else if (reason == GameEndReason.FinisherCrossedLine || reason == GameEndReason.TurnLimitReached)
-            {
-                Interlocked.Decrement(ref _playingRoomsCount);
-                Interlocked.Add(ref _playingRacersCount, -room.Racers.Count);
-
                 Interlocked.Increment(ref _normallyCompletedRoomsCount);
                 _log.LogInformation("Room {RoomId} completed normally", roomId);
             }
+            return true;
+        }
+
+        public bool FinalizeAbandonRoom(string roomId)
+        {
+            var room = GetRoomInternal(roomId);
+            if (room is null || room.Status != RoomStatus.Waiting) return false;
+            Interlocked.Decrement(ref _waitingRoomsCount);
             return true;
         }
 
