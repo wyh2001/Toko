@@ -589,6 +589,20 @@ namespace Toko.Models
             //check if draw to skip
             if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardInfo) && cardInfo.cardId == SKIP)
             {
+                // Even if draw to skip, the player still moves forward automatically
+                var racer = Racers.FirstOrDefault(r => r.Id == pid);
+                if (racer != null)
+                {
+                    var autoMoveResult = _turnExecutor.ExecuteAutoMove(racer, this, events);
+                    if (autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
+                    {
+                        events.Add(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid)));
+                        _gameResults ??= CollectGameResults();
+                        events.Add(new GameEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
+                        _gameSM.Fire(GameTrigger.GameOver);
+                    }
+                }
+
                 events.Add(new PlayerParameterSubmissionSkipped(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid)));
                 await MoveNextPlayerAsync(events);
                 return;
