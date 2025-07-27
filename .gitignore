@@ -364,6 +364,3 @@ FodyWeavers.xsd
 
 # VS Code settings
 .vscode/
-
-# Github configs
-.github/
