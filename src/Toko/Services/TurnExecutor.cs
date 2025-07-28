@@ -375,8 +375,8 @@ namespace Toko.Services
                         nextPosition.CellIndex
                     ));
 
-                    AddJunk(racer, 2);
-                    DownshiftGear(racer, 2);
+                    //AddJunk(racer, 2);
+                    DownshiftGear(racer, 1);
                     foreach (var other in collided)
                     {
                         AddJunk(other, 1);
@@ -558,8 +558,7 @@ namespace Toko.Services
                     collided.Select(r => r.PlayerName).ToList()
                 ));
 
-                // Lane change collision penalty: lane changer gets 1 junk card and downshift 1 gear, blocking car gets 1 junk card and downshift 3 gears
-                AddJunk(racer, 1);
+                //AddJunk(racer, 1);
                 DownshiftGear(racer, 1);
                 foreach (var other in collided)
                 {
