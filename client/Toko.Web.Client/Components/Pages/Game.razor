@@ -894,10 +894,11 @@
     {
         if (selectedJunkCards.Contains(cardId))
         {
-            selectedJunkCards.Remove(cardId);
+            selectedJunkCards.Clear();
         }
         else
         {
+            selectedJunkCards.Clear();
             selectedJunkCards.Add(cardId);
         }
     }
