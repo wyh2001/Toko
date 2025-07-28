@@ -930,8 +930,7 @@
         var (buttons, layoutClass) = baseDirection.ToLower() switch
         {
             "up" or "down" => (new List<(string, int)> { ("← Left", -1), ("Right →", 1) }, "lane-buttons-normal"),
-            "left" or "right" => (new List<(string, int)> { ("↑ Up", 1), ("Down ↓", -1) }, 
-            baseDirection.ToLower() == "left" ? "lane-buttons-vertical-left" : "lane-buttons-vertical-right"),
+            "left" or "right" => (new List<(string, int)> { ("↑ Up", 1), ("Down ↓", -1) }, "lane-buttons-vertical"),
             _ => (new List<(string, int)> { ("← Left", -1), ("Right →", 1) }, "lane-buttons-normal")
         };
 

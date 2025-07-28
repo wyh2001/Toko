@@ -1056,18 +1056,11 @@
     gap: 8px;
 }
 
-.lane-buttons-vertical-right {
+.lane-buttons-vertical {
     display: flex;
     flex-direction: column;
     gap: 8px;
     /* Left top, right bottom */
-}
-
-.lane-buttons-vertical-left {
-    display: flex;
-    flex-direction: column-reverse;
-    gap: 8px;
-    /* Left bottom, right top */
 }
 
 .discard-cards {
