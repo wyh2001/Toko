@@ -351,7 +351,41 @@ namespace Toko.Services
                     return TurnExecutionResult.InvalidState;
                 }
 
-                var previousPosition = currentPosition;
+                // Collision check: check if next position is occupied before moving
+                var collided = room.Racers
+                    .Where(r => r.Id != racer.Id
+                             && r.SegmentIndex == nextPosition.SegmentIndex
+                             && r.CellIndex == nextPosition.CellIndex
+                             && r.LaneIndex == nextPosition.LaneIndex)
+                    .ToList();
+
+                if (collided.Count != 0)
+                {
+                    // Generate collision event
+                    events.Add(new PlayerCollision(
+                        room.Id,
+                        room.CurrentRound,
+                        room.CurrentStep,
+                        racer.Id,
+                        racer.PlayerName,
+                        collided.Select(r => r.Id).ToList(),
+                        collided.Select(r => r.PlayerName).ToList(),
+                        nextPosition.SegmentIndex,
+                        nextPosition.LaneIndex,
+                        nextPosition.CellIndex
+                    ));
+
+                    AddJunk(racer, 2);
+                    DownshiftGear(racer, 2);
+                    foreach (var other in collided)
+                    {
+                        AddJunk(other, 1);
+                        DownshiftGear(other, 1);
+                    }
+                    
+                    // Stop further movement for the current racer in this turn
+                    break; 
+                }
 
                 // Update racer position
                 racer.SegmentIndex = nextPosition.SegmentIndex;
@@ -400,48 +434,6 @@ namespace Toko.Services
                             _racerHasLeftStartingSegment[racer.Id] = true;
                         }
                     }
-                }
-
-                // Collision check: same position means collision
-                var collided = room.Racers
-                    .Where(r => r.Id != racer.Id
-                             && r.SegmentIndex == racer.SegmentIndex
-                             && r.CellIndex == racer.CellIndex
-                             && r.LaneIndex == racer.LaneIndex)
-                    .ToList();
-
-                if (collided.Count != 0)
-                {
-                    // Generate collision event
-                    events.Add(new PlayerCollision(
-                        room.Id,
-                        room.CurrentRound,
-                        room.CurrentStep,
-                        racer.Id,
-                        racer.PlayerName,
-                        collided.Select(r => r.Id).ToList(),
-                        collided.Select(r => r.PlayerName).ToList(),
-                        racer.SegmentIndex,
-                        racer.LaneIndex,
-                        racer.CellIndex
-                    ));
-
-                    // Collision penalty: moving racer (rear car) gets 2 junk cards and downshift 2 gears, stationary cars (front cars) get 1 junk card and downshift 1 gear each
-                    AddJunk(racer, 2);
-                    DownshiftGear(racer, 2);
-                    foreach (var other in collided)
-                    {
-                        AddJunk(other, 1);
-                        DownshiftGear(other, 1);
-                    }
-
-                    // The moving racer (rear car) stops at the previous position (cannot advance to occupied position)
-                    racer.SegmentIndex = previousPosition.SegmentIndex;
-                    racer.LaneIndex = previousPosition.LaneIndex;
-                    racer.CellIndex = previousPosition.CellIndex;
-                    
-                    // Stop further movement for the current racer in this turn
-                    i = steps; // This will break the loop
                 }
 
                 // Check if race is finished - when returning to starting point
