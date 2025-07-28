@@ -333,7 +333,7 @@
                                     <button class="action-button primary @(IsParameterSubmissionReady() ? "" : "disabled")"
                                             @onclick="SubmitParameters"
                                             disabled="@(!IsParameterSubmissionReady())">
-                                        Submit Parameters
+                                        @(gameData?.CurrentTurnCardType == "Repair" && junkCards.Count == 0 ? "Skip" : "Submit Parameters")
                                     </button>
                                 </div>
                             }
