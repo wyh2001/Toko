@@ -17,7 +17,7 @@
             <div class="player-name-hint">Name changes take effect in new rooms</div>
             @if (!string.IsNullOrEmpty(errorMessage))
             {
-                <div class="error-message">@errorMessage</div>
+                <div class="validation-error-message">@errorMessage</div>
             }
             <button class="save-btn" @onclick="SavePlayerName">Save</button>
             <button class="cancel-btn" @onclick="CancelEdit">Cancel</button>
@@ -114,7 +114,7 @@
         line-height: 1.2;
     }
 
-    .error-message {
+    .validation-error-message {
         font-size: 0.6rem;
         color: #e74c3c;
         margin: 0.5rem 0;

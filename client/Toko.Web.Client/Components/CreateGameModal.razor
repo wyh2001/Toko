@@ -18,7 +18,7 @@
                                class="form-input" placeholder="Enter your player name" maxlength="20" required />
                         @if (!string.IsNullOrEmpty(playerNameError))
                         {
-                            <div class="error-message">@playerNameError</div>
+                            <div class="validation-error-message">@playerNameError</div>
                         }
                         <small class="form-help">Your name will be saved for future games</small>
                     </div>
@@ -199,7 +199,7 @@
 }
 
 <style>
-    .error-message {
+    .validation-error-message {
         font-size: 0.75rem;
         color: #e74c3c;
         margin: 0.25rem 0;
