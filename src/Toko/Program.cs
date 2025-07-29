@@ -42,21 +42,6 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy
-            .AllowAnyHeader()                        // allow all headers
-            .AllowAnyMethod()                        // allow all methods (GET, POST, etc.)
-            .AllowCredentials();                     // allow credentials (cookies, authorization headers, etc.)
-    });
-});
-
-
-
-
 builder.Services.AddSignalR();
 
 builder.Services.AddProblemDetails();
@@ -144,7 +129,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseOutputCache();
