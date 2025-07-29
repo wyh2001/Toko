@@ -15,7 +15,11 @@
                         <label for="playerName" class="form-label">Your Name</label>
                         <input id="playerName" type="text" @bind="createRoomRequest.PlayerName" 
                                @onblur="SavePlayerName"
-                               class="form-input" placeholder="Enter your player name" maxlength="50" required />
+                               class="form-input" placeholder="Enter your player name" maxlength="20" required />
+                        @if (!string.IsNullOrEmpty(playerNameError))
+                        {
+                            <div class="error-message">@playerNameError</div>
+                        }
                         <small class="form-help">Your name will be saved for future games</small>
                     </div>
                     
@@ -88,6 +92,7 @@
     [Parameter] public Toko.Web.Client.Services.IPlayerNameService? PlayerNameService { get; set; }
     
     private bool IsCreating { get; set; } = false;
+    private string? playerNameError = null;
     private CreateRoomRequest createRoomRequest = new();
 
     public class CreateRoomRequest
@@ -122,7 +127,16 @@
     {
         if (PlayerNameService != null && !string.IsNullOrWhiteSpace(createRoomRequest.PlayerName))
         {
-            await PlayerNameService.SetPlayerNameAsync(createRoomRequest.PlayerName);
+            var (success, error) = await PlayerNameService.SetPlayerNameAsync(createRoomRequest.PlayerName);
+            if (!success)
+            {
+                playerNameError = error;
+                StateHasChanged();
+            }
+            else
+            {
+                playerNameError = null;
+            }
         }
     }
 
@@ -183,3 +197,15 @@
         }
     }
 }
+
+<style>
+    .error-message {
+        font-size: 0.75rem;
+        color: #e74c3c;
+        margin: 0.25rem 0;
+        font-weight: 600;
+        background: #ffeaea;
+        padding: 0.5rem;
+        border: 1px solid #e74c3c;
+    }
+</style>

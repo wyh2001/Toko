@@ -13,8 +13,12 @@
     {
         <div class="player-name-edit">
             <input type="text" @bind="editPlayerName" @onkeypress="HandleKeyPress" 
-                   placeholder="Enter your name" maxlength="50" class="player-name-input" />
+                   placeholder="Enter your name" maxlength="20" class="player-name-input" />
             <div class="player-name-hint">Name changes take effect in new rooms</div>
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-message">@errorMessage</div>
+            }
             <button class="save-btn" @onclick="SavePlayerName">Save</button>
             <button class="cancel-btn" @onclick="CancelEdit">Cancel</button>
         </div>
@@ -25,6 +29,7 @@
     private string currentPlayerName = "";
     private string editPlayerName = "";
     private bool isEditing = false;
+    private string? errorMessage = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -41,6 +46,7 @@
         else
         {
             editPlayerName = currentPlayerName;
+            errorMessage = null;
             isEditing = true;
         }
     }
@@ -49,15 +55,28 @@
     {
         if (!string.IsNullOrWhiteSpace(editPlayerName))
         {
-            await PlayerNameService.SetPlayerNameAsync(editPlayerName.Trim());
-            currentPlayerName = editPlayerName.Trim();
+            var (success, error) = await PlayerNameService.SetPlayerNameAsync(editPlayerName.Trim());
+            if (success)
+            {
+                currentPlayerName = editPlayerName.Trim();
+                isEditing = false;
+                errorMessage = null;
+            }
+            else
+            {
+                errorMessage = error;
+            }
         }
-        isEditing = false;
+        else
+        {
+            errorMessage = "Player name cannot be empty.";
+        }
     }
 
     private void CancelEdit()
     {
         editPlayerName = currentPlayerName;
+        errorMessage = null;
         isEditing = false;
     }
 
@@ -93,6 +112,17 @@
         font-style: italic;
         text-align: center;
         line-height: 1.2;
+    }
+
+    .error-message {
+        font-size: 0.6rem;
+        color: #e74c3c;
+        margin: 0.5rem 0;
+        text-align: center;
+        font-weight: 600;
+        background: #ffeaea;
+        padding: 0.5rem;
+        border: 1px solid #e74c3c;
     }
 
     .player-name-label {

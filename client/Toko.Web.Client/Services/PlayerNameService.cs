@@ -1,11 +1,12 @@
 using Microsoft.JSInterop;
+using Toko.Shared.Validation;
 
 namespace Toko.Web.Client.Services
 {
     public interface IPlayerNameService
     {
         Task<string> GetPlayerNameAsync();
-        Task SetPlayerNameAsync(string playerName);
+        Task<(bool Success, string? ErrorMessage)> SetPlayerNameAsync(string playerName);
         Task<bool> HasCustomPlayerNameAsync();
     }
 
@@ -45,20 +46,28 @@ namespace Toko.Web.Client.Services
             return defaultName;
         }
 
-        public async Task SetPlayerNameAsync(string playerName)
+        public async Task<(bool Success, string? ErrorMessage)> SetPlayerNameAsync(string playerName)
         {
             if (string.IsNullOrWhiteSpace(playerName))
-                return;
+                return (false, "Player name cannot be empty.");
+
+            var validation = PlayerNameValidator.ValidatePlayerName(playerName);
+            if (!validation.IsValid)
+            {
+                return (false, validation.ErrorMessage);
+            }
 
             try
             {
                 await _jsRuntime.InvokeVoidAsync("localStorage.setItem", STORAGE_KEY, playerName.Trim());
                 _cachedPlayerName = playerName.Trim();
                 Console.WriteLine($"Player name saved: {_cachedPlayerName}");
+                return (true, null);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error saving player name to localStorage: {ex.Message}");
+                return (false, "Failed to save player name.");
             }
         }
 
