@@ -7,6 +7,7 @@ using Toko.Filters;
 using Toko.Hubs;
 using Toko.Services;
 using MediatR;
+using Toko.Options;
 using static Toko.Filters.ApiWrapperFilter;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -51,19 +52,22 @@ builder.Services.AddProblemDetails();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IdempotencyFilter>();
 
-string? jwtKey = builder.Configuration["Jwt:Key"];
-if (string.IsNullOrEmpty(jwtKey))
-{
-    throw new InvalidOperationException("JWT Key is not configured in the application settings.");
-}
-var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+builder.Services.AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()!;
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
        .AddJwtBearer(options =>
        {
            options.TokenValidationParameters = new TokenValidationParameters
            {
-               ValidateIssuer = false,
-               ValidateAudience = false,
+               ValidateIssuer = !string.IsNullOrEmpty(jwtOptions.Issuer),
+               ValidateAudience = !string.IsNullOrEmpty(jwtOptions.Audience),
+               ValidIssuer = jwtOptions.Issuer,
+               ValidAudience = jwtOptions.Audience,
                ValidateLifetime = true,
                IssuerSigningKey = signingKey
            };
