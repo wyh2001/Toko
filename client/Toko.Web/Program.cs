@@ -34,9 +34,8 @@ builder.Services.AddReverseProxy()
                 Destinations = new Dictionary<string, DestinationConfig>
                 {
                     ["d1"] = new()
-                    { Address = Environment.GetEnvironmentVariable("API_BASE_URL")
-                    ?? builder.Configuration["ReverseProxy:ApiAddress"]
-                    ?? throw new InvalidOperationException("API_BASE_URL environment variable or ReverseProxy:ApiAddress configuration is missing.") }
+                    { Address = builder.Configuration["ReverseProxy:ApiAddress"]
+                    ?? throw new InvalidOperationException("ReverseProxy:ApiAddress configuration is missing.") }
                 }
             }
         });
