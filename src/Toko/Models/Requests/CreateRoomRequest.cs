@@ -1,12 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Toko.Shared.Models;
+using Toko.Shared.Validation;
 
 namespace Toko.Models.Requests
 {
     public class CreateRoomRequest : IValidatableObject
     {
         [Required]
-        [MinLength(1)]
+        [PlayerName]
         public required string PlayerName { get; set; }
         [MinLength(1, ErrorMessage = "Room name must be at least 1 character long.")]
         public string? RoomName { get; set; }

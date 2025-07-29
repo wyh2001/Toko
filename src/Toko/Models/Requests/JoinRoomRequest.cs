@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.ComponentModel.DataAnnotations;
+using Toko.Shared.Validation;
 
 namespace Toko.Models.Requests
 {
@@ -8,6 +9,7 @@ namespace Toko.Models.Requests
     {
         //public required string RoomId { get; set; }
         [Required]
+        [PlayerName]
         public required string PlayerName { get; set; }
     }
 }
