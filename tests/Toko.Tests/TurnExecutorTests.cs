@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
-using MediatR;
 using Moq;
 using Toko.Models;
+using Toko.Models.Events;
 using Toko.Services;
 using Toko.Shared.Models;
 using Toko.Shared.Services;
@@ -56,12 +56,12 @@ namespace Toko.Tests
                 CellIndex = 0
             };
 
-            var mockMediator = new Mock<IMediator>();
+            var mockEventChannel = new Mock<IEventChannel>();
             var roomLogger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<Room>();
             var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
             var stepsPerRound = new List<int> { 5 };
 
-            Room = new Room(mockMediator.Object, stepsPerRound, roomLogger, loggerFactory)
+            Room = new Room(mockEventChannel.Object, stepsPerRound, roomLogger, loggerFactory)
             {
                 Map = map
             };
@@ -317,12 +317,12 @@ namespace Toko.Tests
         private void AssertRacerPositionAfterInstruction(ConcreteInstruction instruction, int expectedSegmentIndex, int expectedLaneIndex, int expectedCellIndex)
         {
             _stepCounter++;
-            var result = TurnExecutor!.ApplyInstruction(Racer!, instruction, Room!, new List<INotification>());
+            var result = TurnExecutor!.ApplyInstruction(Racer!, instruction, Room!, new List<IEvent>());
 
             Assert.True(result == TurnExecutor.TurnExecutionResult.Continue,
                 $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}");
 
-            var autoMoveResult = TurnExecutor!.ExecuteAutoMove(Racer!, Room!, new List<INotification>());
+            var autoMoveResult = TurnExecutor!.ExecuteAutoMove(Racer!, Room!, new List<IEvent>());
             
             Assert.True(autoMoveResult == TurnExecutor.TurnExecutionResult.Continue || autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished,
                 $"Step {_stepCounter} auto move failed - Expected: Continue or PlayerFinished, Actual: {autoMoveResult}");

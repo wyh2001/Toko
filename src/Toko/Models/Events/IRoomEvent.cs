@@ -1,8 +1,7 @@
-﻿using MediatR;
-
+﻿
 namespace Toko.Models.Events
 {
-    public interface IRoomEvent : INotification
+    public interface IRoomEvent : IEvent
     {
         string RoomId { get; }
     }

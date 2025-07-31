@@ -1,5 +1,4 @@
-﻿using MediatR;
-using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Memory;
 using OneOf;
 using System.Collections.Concurrent;
 using Toko.Models;
@@ -7,10 +6,11 @@ using Toko.Shared.Models;
 using Toko.Shared.Services;
 using static Toko.Models.Room;
 using static Toko.Services.CardHelper;
+using Toko.Models.Events;
 
 namespace Toko.Services
 {
-    public class RoomManager(IMediator mediator, ILogger<RoomManager> log, ILoggerFactory loggerFactory, IMemoryCache cache)
+    public class RoomManager(IEventChannel events, ILogger<RoomManager> log, ILoggerFactory loggerFactory, IMemoryCache cache)
     {
         // 并发安全的房间字典
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
@@ -20,7 +20,7 @@ namespace Toko.Services
         //private readonly ConcurrentDictionary<string, byte> _activeRooms = new();
 
 
-        private readonly IMediator _mediator = mediator;
+        private readonly IEventChannel _events = events;
 
         private readonly IMemoryCache _cache = cache;
         private static readonly TimeSpan ROOM_TTL = TimeSpan.FromMinutes(30);
@@ -65,7 +65,7 @@ namespace Toko.Services
             //var roomId = Guid.NewGuid().ToString();
             // iloggerFactory 
             var roomLogger = _loggerFactory.CreateLogger<Room>();
-            var room = new Room(_mediator, stepsPerRound, roomLogger, _loggerFactory)
+            var room = new Room(_events, stepsPerRound, roomLogger, _loggerFactory)
             {
                 //Id = roomId,
                 Name = roomName ?? $"Room-{Random.Shared.Next(1000, 9999)}",

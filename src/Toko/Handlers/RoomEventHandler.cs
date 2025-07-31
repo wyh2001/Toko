@@ -1,22 +1,20 @@
-﻿using MediatR;
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Toko.Hubs;
 using Toko.Models.Events;
+using Toko.Infrastructure.Eventing;
 
-public class RoomEventHandler<TEvent>(IHubContext<RaceHub> hub) : INotificationHandler<TEvent>
-    where TEvent : IRoomEvent
+namespace Toko.Handlers
 {
-    private readonly IHubContext<RaceHub> _hub = hub;
-
-    public Task Handle(TEvent evt, CancellationToken ct)
+    public class RoomEventHandler(IHubContext<RaceHub> hub) : IChannelEventHandler
     {
-        // 编译期保证有 RoomId
-        var roomId = evt.RoomId;
-        var eventName = typeof(TEvent).Name;
+        private readonly IHubContext<RaceHub> _hub = hub;
 
-        // 直接推给该房间的所有客户端
-        return _hub.Clients
-                   .Group(roomId)
-                   .SendAsync("OnRoomEvent", eventName, evt, ct);
+        public Task HandleAsync(IEvent ev, CancellationToken ct)
+        {
+            var re = (IRoomEvent)ev;
+            var eventName = ev.GetType().Name;
+            return _hub.Clients.Group(re.RoomId)
+                               .SendAsync("OnRoomEvent", eventName, re, ct);
+        }
     }
 }

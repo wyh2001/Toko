@@ -6,9 +6,11 @@ using System.Text.Json;
 using Toko.Filters;
 using Toko.Hubs;
 using Toko.Services;
-using MediatR;
 using Toko.Options;
 using static Toko.Filters.ApiWrapperFilter;
+using Toko.Infrastructure.Eventing;
+using Toko.Handlers;
+using Toko.Models.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,9 +33,14 @@ builder.Services
     });
 
 
-// register MediatR
-builder.Services.AddMediatR(cfg =>
-    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+builder.Services.AddSingleton<IEventChannel, DefaultEventChannel>();
+
+builder.Services.AddHostedService<ChannelDispatchService>();
+builder.Services.AddTransient<GameEndedHandler>();
+builder.Services.AddTransient<RoomAbandonedHandler>();
+builder.Services.AddTransient<RoomEventHandler>();
+builder.Services.AddTransient<LogEventHandler>();
+
 
 //builder.Services.AddScoped<EnsureRoomStatusFilter>();
 

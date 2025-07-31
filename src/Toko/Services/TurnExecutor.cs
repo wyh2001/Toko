@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using MediatR;
 using Toko.Models;
 using Toko.Models.Events;
 using Toko.Shared.Models;
@@ -278,7 +277,7 @@ namespace Toko.Services
             };
         }
 
-        public TurnExecutionResult ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room, List<INotification> events)
+        public TurnExecutionResult ApplyInstruction(Racer racer, ConcreteInstruction ins, Room room, List<IEvent> events)
         {
             // Ensure coordinate system is initialized
             InitializeCoordinateSystem();
@@ -309,7 +308,7 @@ namespace Toko.Services
             }
         }
 
-        private TurnExecutionResult MoveForwardNew(Racer racer, int steps, Room room, List<INotification> events, int depth)
+        private TurnExecutionResult MoveForwardNew(Racer racer, int steps, Room room, List<IEvent> events, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
@@ -486,7 +485,7 @@ namespace Toko.Services
 
             return TurnExecutionResult.Continue;
         }
-        private void ChangeLaneNew(Racer racer, int delta, Room room, List<INotification> events, int depth)
+        private void ChangeLaneNew(Racer racer, int delta, Room room, List<IEvent> events, int depth)
         {
             if (depth >= MAX_INTERACTION_DEPTH)
             {
@@ -633,7 +632,7 @@ namespace Toko.Services
             CardHelper.AdjustGearForJunkCards(racer);
         }
 
-        private static void ShiftGear(Racer racer, int direction, Room room, List<INotification> events)
+        private static void ShiftGear(Racer racer, int direction, Room room, List<IEvent> events)
         {
             // direction: 1 for shift up, -1 for shift down
             int oldGear = racer.Gear;
@@ -689,12 +688,12 @@ namespace Toko.Services
             }
         }
 
-        public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<INotification> events)
+        public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<IEvent> events)
         {
             return ExecuteAutoMove(racer, room, events, racer.Gear);
         }
 
-        public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<INotification> events, int moveDistance)
+        public TurnExecutionResult ExecuteAutoMove(Racer racer, Room room, List<IEvent> events, int moveDistance)
         {
             // Ensure coordinate system is initialized
             InitializeCoordinateSystem();

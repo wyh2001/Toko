@@ -1,5 +1,4 @@
-﻿using MediatR;
-using OneOf;
+﻿using OneOf;
 using Stateless;
 using System;
 using System.Collections.Generic;
@@ -48,7 +47,7 @@ namespace Toko.Models
         private int _idx;
         private int _stepInRound;
 
-        private readonly IMediator _mediator;
+        private readonly IEventChannel _events;
         private readonly SemaphoreSlim _gate = new(1, 1);
         //private Timer _promptTimer;
 
@@ -90,10 +89,10 @@ namespace Toko.Models
         private const int MAX_LOGS = 10000;
         #endregion
 
-        public Room(IMediator mediator, IEnumerable<int> stepsPerRound, ILogger<Room> log, ILoggerFactory loggerFactory)
+        public Room(IEventChannel events, IEnumerable<int> stepsPerRound, ILogger<Room> log, ILoggerFactory loggerFactory)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
-            _mediator = mediator ?? throw new ArgumentNullException(nameof(mediator));
+            _events = events ?? throw new ArgumentNullException(nameof(events));
             _steps = (stepsPerRound != null && stepsPerRound.Any()) ? [.. stepsPerRound] : [5];
             _gameSM = new(RoomStatus.Waiting);
             _phaseSM = new(Phase.CollectingCards);
@@ -498,7 +497,7 @@ namespace Toko.Models
 
             _phaseSM.OnTransitionedAsync(async t =>
             {
-                await _mediator.Publish(new PhaseChanged(Id, t.Destination, CurrentRound, CurrentStep));
+                await _events.PublishAsync(new PhaseChanged(Id, t.Destination, CurrentRound, CurrentStep));
                 if (t.Trigger == PhaseTrigger.DiscardDone)
                     await NextStepAsync();
             });
@@ -510,10 +509,10 @@ namespace Toko.Models
             {
                 _log.LogInformation("No active players left in room {RoomId}. Ending game.", Id);
                 var results = EndGame(GameEndReason.NoActivePlayersLeft);
-                await _mediator.Publish(new GameEnded(Id, GameEndReason.NoActivePlayersLeft, results));
+                await _events.PublishAsync(new GameEnded(Id, GameEndReason.NoActivePlayersLeft, results));
                 return;
             }
-            var eventsToPublish = new List<INotification>();
+            var eventsToPublish = new List<IEvent>();
             foreach (var r in Racers)
             {
                 DrawCards(r, AUTO_DRAW);
@@ -523,7 +522,7 @@ namespace Toko.Models
             _cardNow.Clear();
             _idx = 0;
             _stepInRound = 0;
-            await _mediator.Publish(PromptCard(_order[0]));
+            await _events.PublishAsync(PromptCard(_order[0]));
         }
 
         void StartParamCollection()
@@ -542,7 +541,7 @@ namespace Toko.Models
             // Adjust turn order based on gear shift frequency
             AdjustTurnOrderByGearShifts();
 
-            var eventsToPublish = new List<INotification>();
+            var eventsToPublish = new List<IEvent>();
             foreach (var pid in _discardPending)
             {
                 _thinkStart[pid] = DateTime.UtcNow;
@@ -584,7 +583,7 @@ namespace Toko.Models
             return new PlayerCardSubmissionStarted(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid));
         }
 
-        async Task PromptParamAsync(string pid, List<INotification> events)
+        async Task PromptParamAsync(string pid, List<IEvent> events)
         {
             //check if draw to skip
             if (_cardNow.TryGetValue((pid, CurrentRound, _stepInRound), out var cardInfo) && cardInfo.cardId == SKIP)
@@ -626,7 +625,7 @@ namespace Toko.Models
             _ => false
         };
 
-        void UpdateBank(string pid, List<INotification> events)
+        void UpdateBank(string pid, List<IEvent> events)
         {
             var elapsed = DateTime.UtcNow - _thinkStart[pid];
             _bank[pid] -= elapsed;
@@ -651,7 +650,7 @@ namespace Toko.Models
                 while (await _ticker.WaitForNextTickAsync(ct).ConfigureAwait(false))
                 {
                     await _gate.WaitAsync(ct).ConfigureAwait(false);
-                    var events = new List<INotification>();
+                    var events = new List<IEvent>();
                     try
                     {
                         if (Status != RoomStatus.Playing) continue;
@@ -725,7 +724,7 @@ namespace Toko.Models
 
         bool IsAnyActivePlayer() => _order.Any(pid => !_banned.Contains(pid));
 
-        async Task MoveNextPlayerAsync(List<INotification> events)
+        async Task MoveNextPlayerAsync(List<IEvent> events)
         {
             do { _idx++; } while (_idx < _order.Count && _banned.Contains(_order[_idx]));
 
@@ -761,7 +760,7 @@ namespace Toko.Models
                 var results = EndGame(GameEndReason.TurnLimitReached);
                 try
                 {
-                    await _mediator.Publish(new GameEnded(Id, GameEndReason.TurnLimitReached, results), ct);
+                    await _events.PublishAsync(new GameEnded(Id, GameEndReason.TurnLimitReached, results), ct);
                 }
                 catch (Exception ex)
                 {
@@ -770,7 +769,7 @@ namespace Toko.Models
             }
             else
             {
-                await _mediator.Publish(new RoundAdvanced(Id, CurrentRound), ct);
+                await _events.PublishAsync(new RoundAdvanced(Id, CurrentRound), ct);
             }
         }
 
@@ -944,14 +943,14 @@ namespace Toko.Models
         }
         #endregion
 
-        private Task PublishEventsAsync(IEnumerable<INotification> events, CancellationToken ct = default)
+        private Task PublishEventsAsync(IEnumerable<IEvent> events, CancellationToken ct = default)
         {
             var cancellationToken = ct == default ? _cts.Token : ct;
             var tasks = events.Select(e =>
             {
                 try
                 {
-                    return _mediator.Publish(e, cancellationToken);
+                    return _events.PublishAsync(e, cancellationToken).AsTask();
                 }
                 catch (Exception ex)
                 {
@@ -962,10 +961,10 @@ namespace Toko.Models
             return Task.WhenAll(tasks);
         }
 
-        private async Task<TResult> WithGateAsync<TResult>(Func<List<INotification>, TResult> body)
+        private async Task<TResult> WithGateAsync<TResult>(Func<List<IEvent>, TResult> body)
         {
             await _gate.WaitAsync(_cts.Token);
-            var events = new List<INotification>();
+            var events = new List<IEvent>();
             TResult result;
             try
             {
@@ -979,10 +978,10 @@ namespace Toko.Models
             return result;
         }
 
-        private async Task<TResult> WithGateAsync<TResult>(Func<List<INotification>, Task<TResult>> body)
+        private async Task<TResult> WithGateAsync<TResult>(Func<List<IEvent>, Task<TResult>> body)
         {
             await _gate.WaitAsync(_cts.Token);
-            var events = new List<INotification>();
+            var events = new List<IEvent>();
             TResult result;
             try
             {
