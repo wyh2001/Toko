@@ -326,6 +326,7 @@ namespace Toko.Services
             // Track corner pass-through for gear limit violation detection
             bool passedThroughCorner = false;
             int cornerGearLimit = 6; // Default gear limit
+            int actualStepsMoved = 0;
 
             for (int i = 0; i < steps; i++)
             {
@@ -360,7 +361,24 @@ namespace Toko.Services
 
                 if (collided.Count != 0)
                 {
-                    // Generate collision event
+                    if (actualStepsMoved > 0)
+                    {
+                        events.Add(new PlayerMoved(
+                            room.Id,
+                            room.CurrentRound,
+                            room.CurrentStep,
+                            racer.Id,
+                            racer.PlayerName,
+                            actualStepsMoved,
+                            initialSegment,
+                            initialLane,
+                            initialCell,
+                            racer.SegmentIndex,
+                            racer.LaneIndex,
+                            racer.CellIndex
+                        ));
+                    }
+
                     events.Add(new PlayerCollision(
                         room.Id,
                         room.CurrentRound,
@@ -391,6 +409,7 @@ namespace Toko.Services
                 racer.LaneIndex = nextPosition.LaneIndex;
                 racer.CellIndex = nextPosition.CellIndex;
                 currentPosition = nextPosition;
+                actualStepsMoved++;
 
                 racer.Score++;
 
@@ -442,8 +461,7 @@ namespace Toko.Services
                 }
             }
 
-            // Generate move event if the position actually changed
-            if (initialSegment != racer.SegmentIndex || initialLane != racer.LaneIndex || initialCell != racer.CellIndex)
+            if (actualStepsMoved > 0)
             {
                 events.Add(new PlayerMoved(
                     room.Id,
@@ -451,7 +469,7 @@ namespace Toko.Services
                     room.CurrentStep,
                     racer.Id,
                     racer.PlayerName,
-                    steps,
+                    actualStepsMoved,
                     initialSegment,
                     initialLane,
                     initialCell,
