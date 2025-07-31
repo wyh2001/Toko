@@ -57,7 +57,7 @@ namespace Toko.Controllers
             {
                 HttpOnly = true,
                 SameSite = SameSiteMode.Lax,
-                Secure = Request.IsHttps,
+                Secure = true,
                 Path = "/",
                 Expires = DateTimeOffset.UtcNow.AddDays(30)
             });
