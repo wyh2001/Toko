@@ -6,7 +6,8 @@ services:
       dockerfile: src/Toko/Dockerfile
     environment:
       ASPNETCORE_HTTP_PORTS: 8080
-      ASPNETCORE_HTTPS_PORTS: ""
+      TRUST_FORWARDED_HEADERS: true
+      FORCE_SECURE_COOKIE: false
     networks: [toko-net]
 
   toko.web:
@@ -18,7 +19,7 @@ services:
       - "8080:8080"
     environment:
       ASPNETCORE_HTTP_PORTS: 8080
-      ASPNETCORE_HTTPS_PORTS: ""
+      ReverseProxy__ApiAddress: "http://toko:8080"
     depends_on: [toko]
     networks: [toko-net]
 

@@ -15,6 +15,8 @@ namespace Toko.Controllers
     public class AuthController(IConfiguration cfg) : ControllerBase
     {
         private readonly string _jwtKey = cfg["Jwt:Key"] ?? throw new InvalidOperationException("Missing Jwt:Key");
+        private readonly bool forceSecureCookie =
+            bool.TryParse(Environment.GetEnvironmentVariable("FORCE_SECURE_COOKIE"), out var result) && result;
 
         [HttpGet("anon")]
         public IActionResult IssueAnonymous()
@@ -57,7 +59,7 @@ namespace Toko.Controllers
             {
                 HttpOnly = true,
                 SameSite = SameSiteMode.Lax,
-                Secure = Request.IsHttps,
+                Secure = forceSecureCookie || Request.IsHttps,
                 Path = "/",
                 Expires = DateTimeOffset.UtcNow.AddDays(30)
             });

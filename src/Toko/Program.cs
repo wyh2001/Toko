@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using System.Text;
@@ -13,6 +14,26 @@ using Toko.Handlers;
 using Toko.Models.Events;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var trustForwarded = builder.Configuration.GetValue("TRUST_FORWARDED_HEADERS", true);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedProto |
+        ForwardedHeaders.XForwardedHost;
+
+    if (trustForwarded)
+    {
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    }
+    else
+    {
+        options.ForwardedHeaders = ForwardedHeaders.None;
+    }
+});
 
 // Add services to the container.
 builder.Host.UseSerilog();
@@ -139,7 +160,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseForwardedHeaders();
+//app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseOutputCache();
