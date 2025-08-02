@@ -444,8 +444,9 @@ namespace Toko.Services
                         racer.CellIndex = autoMoveNextPosition.CellIndex;
                         currentPosition = autoMoveNextPosition;
 
-                        racer.Score++;
-
+                        // Normalize the scoring so that 1–2 steps on the outer path equal 1 step on the inner path
+                        // Only works for two lane curves, more adjustments TBD for more complex curves
+                        racer.Score--; 
                         // Track if the racer has left the starting segment after auto-move
                         if (racer.SegmentIndex != 0)
                         {
