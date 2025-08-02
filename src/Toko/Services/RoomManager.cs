@@ -132,6 +132,20 @@ namespace Toko.Services
             return room;
         }
 
+        private Room? GetRoomInternal(string roomId, bool ignoreAbandoned)
+        {
+            if (!_cache.TryGetValue(roomId, out Room? room))
+            {
+                _rooms.TryRemove(roomId, out _);
+                return null;
+            }
+            if (room is not null && room.IsAbandoned && !ignoreAbandoned)
+            {
+                return null;
+            }
+            return room;
+        }
+
         public RoomStatus? GetRoomStatus(string roomId)
         {
             var room = GetRoomInternal(roomId);
@@ -213,7 +227,7 @@ namespace Toko.Services
 
         public bool FinalizeAbandonRoom(string roomId)
         {
-            var room = GetRoomInternal(roomId);
+            var room = GetRoomInternal(roomId, true);
             if (room is null || room.Status != RoomStatus.Waiting) return false;
             Interlocked.Decrement(ref _waitingRoomsCount);
             return true;
