@@ -1,4 +1,4 @@
-﻿using Toko.Models.Events;
+﻿using Toko.Shared.Models.Events;
 using Toko.Services;
 using Toko.Infrastructure.Eventing;
 

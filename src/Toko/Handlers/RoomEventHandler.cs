@@ -2,6 +2,7 @@
 using Toko.Hubs;
 using Toko.Models.Events;
 using Toko.Infrastructure.Eventing;
+using Toko.Shared.Models.Events;
 
 namespace Toko.Handlers
 {

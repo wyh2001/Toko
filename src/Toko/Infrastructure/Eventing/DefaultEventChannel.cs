@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Toko.Models.Events;
+using Toko.Shared.Models.Events;
 
 namespace Toko.Infrastructure.Eventing;
 

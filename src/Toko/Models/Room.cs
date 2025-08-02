@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Toko.Shared.Models;
 using Toko.Shared.Services;
 using System.Collections.Concurrent;
+using Toko.Shared.Models.Events;
 
 namespace Toko.Models
 {

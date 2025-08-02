@@ -1,6 +1,7 @@
 using Toko.Infrastructure.Eventing;
 using Toko.Models.Events;
 using Toko.Handlers;
+using Toko.Shared.Models.Events;
 
 namespace Toko.Infrastructure.Eventing;
 

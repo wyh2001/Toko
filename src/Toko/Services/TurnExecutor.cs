@@ -6,6 +6,7 @@ using System.Linq;
 using Toko.Models;
 using Toko.Models.Events;
 using Toko.Shared.Models;
+using Toko.Shared.Models.Events;
 using static Toko.Shared.Services.RaceMapFactory;
 
 namespace Toko.Services

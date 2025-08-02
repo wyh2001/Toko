@@ -1,5 +1,5 @@
-﻿using Toko.Shared.Models;
-namespace Toko.Models.Events
+using Toko.Shared.Models;
+namespace Toko.Shared.Models.Events
 {
     public interface ILogEvent
     {
@@ -66,14 +66,14 @@ namespace Toko.Models.Events
     }
     public record PlayerCollision(string RoomId, int Round, int Step, string PlayerId, string PlayerName, List<string> CollidedPlayerIds, List<string> CollidedPlayerNames, int SegmentIndex, int LaneIndex, int CellIndex) : ILogEvent, IEvent
     {
-        public string ToLogMessage() => CollidedPlayerIds.Count == 1 
+        public string ToLogMessage() => CollidedPlayerIds.Count == 1
             ? $"{PlayerName} collided with {CollidedPlayerNames[0]}"
             : $"{PlayerName} collided with {string.Join(", ", CollidedPlayerNames)}";
         public (int Round, int Step) GetRoundStep() => (Round, Step);
     }
     public record PlayerChangedLane(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, int FromLane, int ToLane, bool Success) : ILogEvent, IEvent
     {
-        public string ToLogMessage() => Success 
+        public string ToLogMessage() => Success
             ? $"{PlayerName} successfully changed lanes {(Direction > 0 ? "right" : "left")} from lane {FromLane} to lane {ToLane}"
             : $"{PlayerName} failed to change lanes {(Direction > 0 ? "right" : "left")} from lane {FromLane}";
         public (int Round, int Step) GetRoundStep() => (Round, Step);
@@ -92,7 +92,7 @@ namespace Toko.Models.Events
     }
     public record PlayerChangedGear(string RoomId, int Round, int Step, string PlayerId, string PlayerName, int Direction, int FromGear, int ToGear) : ILogEvent, IEvent
     {
-        public string ToLogMessage() => Direction > 0 
+        public string ToLogMessage() => Direction > 0
             ? $"{PlayerName} shifted up from gear {FromGear} to gear {ToGear}"
             : $"{PlayerName} shifted down from gear {FromGear} to gear {ToGear}";
         public (int Round, int Step) GetRoundStep() => (Round, Step);

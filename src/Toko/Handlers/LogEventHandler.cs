@@ -3,6 +3,7 @@ using Toko.Models.Events;
 using Toko.Services;
 using Toko.Shared.Models;
 using Toko.Infrastructure.Eventing;
+using Toko.Shared.Models.Events;
 
 namespace Toko.Handlers;
 public class LogEventHandler(IEventChannel events, RoomManager roomManager) : IChannelEventHandler

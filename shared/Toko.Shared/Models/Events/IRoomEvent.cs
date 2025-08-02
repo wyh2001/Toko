@@ -1,5 +1,4 @@
-﻿
-namespace Toko.Models.Events
+namespace Toko.Shared.Models.Events
 {
     public interface IRoomEvent : IEvent
     {
