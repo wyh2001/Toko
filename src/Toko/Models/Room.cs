@@ -775,7 +775,7 @@ namespace Toko.Models
         async Task NextStepAsync(CancellationToken ct = default)
         {
             _stepInRound = 0;
-            if (++CurrentRound >= _steps.Count)
+            if (CurrentRound + 1 >= _steps.Count)
             {
                 var results = EndGame(GameEndReason.TurnLimitReached);
                 AddEvent(new GameEnded(Id, GameEndReason.TurnLimitReached, results));
@@ -783,6 +783,7 @@ namespace Toko.Models
             }
             else
             {
+                CurrentRound++;
                 AddEvent(new RoundAdvanced(Id, CurrentRound));
                 await FlushGlobalEventsAsync();
             }
