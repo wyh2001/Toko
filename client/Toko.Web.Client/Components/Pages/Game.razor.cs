@@ -14,8 +14,8 @@ public partial class Game : ComponentBase, IAsyncDisposable
     [Inject] protected NavigationManager Navigation { get; set; } = default!;
     [Inject] protected IAuthenticationService AuthService { get; set; } = default!;
     [Inject] protected IPlayerNameService PlayerNameService { get; set; } = default!;
-
-    private HubConnection? hubConnection;
+    [Inject] protected IRaceHubService HubService { get; set; } = default!;
+    [Inject] protected IGameApiService ApiService { get; set; } = default!;
     
     private bool isLoading = true;
     private RoomStatusSnapshot? gameData;
@@ -59,142 +59,101 @@ public partial class Game : ComponentBase, IAsyncDisposable
     protected override async Task OnInitializedAsync()
     {
         await AuthService.EnsureAuthenticatedAsync();
-        await InitializeSignalR();
+        await InitializeServices();
         await LoadGameData();
-        
-        // Load hand data from API
         await LoadHandData();
+    }
+
+    private async Task InitializeServices()
+    {
+        await HubService.ConnectAsync(Navigation.ToAbsoluteUri("/racehub").ToString());
+        await HubService.JoinRoomAsync(RoomId);
+
+        HubService.ConnectionStateChanged += connected =>
+        {
+            isConnected = connected;
+            InvokeAsync(StateHasChanged);
+        };
+
+        HubService.ReconnectingStateChanged += reconnecting =>
+        {
+            isReconnecting = reconnecting;
+            InvokeAsync(StateHasChanged);
+        };
+
+        HubService.GameEventReceived += evt =>
+        {
+            HandleGameEvent(evt.EventName, evt.EventData);
+        };
+    }
+
+    private void HandleGameEvent(string eventName, object eventData)
+    {
+        Console.WriteLine($"Game event received: {eventName}");
         
+        switch (eventName)
+        {
+            case "HostChanged":
+            case "PhaseChanged":
+            case "PlayerCardsDrawn":
+            case "PlayerCardSubmitted":
+            case "PlayerDiscardStarted":
+            case "PlayerDiscardExecuted":
+            case "PlayerStepExecuted":
+            case "PlayerAutoMoved":
+            case "PlayerJoined":
+            case "PlayerLeft":
+            case "PlayerKicked":
+            case "PlayerFinished":
+            case "PlayerTimeoutElapsed":
+            case "RoomStarted":
+            case "RoomSettingsUpdated":
+            case "RoundAdvanced":
+            case "StepAdvanced":
+                InvokeAsync(async () => {
+                    await LoadGameData();
+                    await LoadHandData();
+                    StateHasChanged();
+                });
+                break;
+
+            case "PlayerBankUpdated":
+                InvokeAsync(async () => {
+                    await LoadGameData();
+                    StateHasChanged();
+                });
+                break;
+
+            case "RoomEnded":
+                Console.WriteLine($"Game ended for room: {RoomId}");
+                InvokeAsync(async () => {
+                    gameEnded = true;
+                    showGameEndedOverlay = true;
+                    DisposeTimers();
+                    await LoadGameData();
+                    StateHasChanged();
+                });
+                break;
+        }
     }
 
     private async Task LoadHandData()
     {
         try
         {
-            // Only load hand data if game is playing
             if (gameData?.Status != "Playing") return;
             
-            var response = await Http.GetFromJsonAsync<ApiSuccess<GetHandDto>>($"/api/room/{RoomId}/hand");
+            var cards = await ApiService.GetHandAsync(RoomId);
+            playerHand = cards;
             
-            if (response?.Data != null)
-            {
-                playerHand = response.Data.Cards;
-                
-                // Update junk cards for repair functionality
-                junkCards = playerHand.Where(c => c.Type == "Junk").ToList();
-                
-                // Update discardable cards for discarding phase (exclude Junk cards)
-                discardableCards = playerHand.Where(c => c.Type != "Junk").ToList();
-                
-                await InvokeAsync(StateHasChanged);
-            }
+            junkCards = playerHand.Where(c => c.Type == "Junk").ToList();
+            discardableCards = playerHand.Where(c => c.Type != "Junk").ToList();
+            
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to load hand data: {ex.Message}");
-            // Don't clear the hand on error, just log it
-        }
-    }
-
-    private async Task InitializeSignalR()
-    {
-        try
-        {
-            hubConnection = new HubConnectionBuilder()
-                .WithUrl(Navigation.ToAbsoluteUri("/racehub"))
-                .WithAutomaticReconnect()
-                .Build();
-
-            hubConnection.Closed += async (error) =>
-            {
-                isConnected = false;
-                isReconnecting = false;
-                await InvokeAsync(StateHasChanged);
-                Console.WriteLine($"SignalR connection closed: {error?.Message}");
-            };
-
-            hubConnection.Reconnecting += async (error) =>
-            {
-                isConnected = false;
-                isReconnecting = true;
-                await InvokeAsync(StateHasChanged);
-                Console.WriteLine($"SignalR reconnecting: {error?.Message}");
-            };
-
-            hubConnection.Reconnected += async (connectionId) =>
-            {
-                isConnected = true;
-                isReconnecting = false;
-                await InvokeAsync(StateHasChanged);
-                Console.WriteLine($"SignalR reconnected with new connection ID: {connectionId}");
-            };
-                
-            hubConnection.On<string, object>("OnRoomEvent", (eventName, eventData) =>
-            {
-                Console.WriteLine($"Game event received: {eventName}");
-                
-                switch (eventName)
-                {
-                    // Events that trigger a full state reload
-                    case "HostChanged":
-                    case "PhaseChanged":
-                    case "PlayerCardsDrawn":
-                    case "PlayerCardSubmitted":
-                    case "PlayerDiscardStarted":
-                    case "PlayerDiscardExecuted":
-                    case "PlayerStepExecuted":
-                    case "PlayerAutoMoved":
-                    case "PlayerJoined":
-                    case "PlayerLeft":
-                    case "PlayerKicked":
-                    case "PlayerFinished":
-                    case "PlayerTimeoutElapsed":
-                    case "RoomStarted":
-                    case "RoomSettingsUpdated":
-                    case "RoundAdvanced":
-                    case "StepAdvanced":
-                    // case "LogUpdated":
-                        InvokeAsync(async () => {
-                            await LoadGameData();
-                            await LoadHandData();
-                            StateHasChanged();
-                        });
-                        break;
-
-                    // Events with specific, lighter-weight handling
-                    case "PlayerBankUpdated":
-                        // TODO: Implement specific handler if needed, for now, a full reload is safe
-                        InvokeAsync(async () => {
-                            await LoadGameData();
-                            StateHasChanged();
-                        });
-                        break;
-
-                    case "RoomEnded":
-                        Console.WriteLine($"Game ended for room: {RoomId}");
-                        InvokeAsync(async () => {
-                            gameEnded = true;
-                            showGameEndedOverlay = true;
-                            DisposeTimers(); // Stop any running timers
-                            await LoadGameData(); // Load final game state
-                            StateHasChanged();
-                        });
-                        break;
-                }
-            });
-
-            await hubConnection.StartAsync();
-            isConnected = true;
-            
-            // Join game room
-            if (hubConnection.State == HubConnectionState.Connected)
-            {
-                await hubConnection.InvokeAsync("JoinRoom", RoomId);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"SignalR connection failed: {ex.Message}");
         }
     }
 
@@ -202,35 +161,30 @@ public partial class Game : ComponentBase, IAsyncDisposable
     {
         try
         {
-            var response = await Http.GetFromJsonAsync<ApiSuccess<RoomStatusSnapshot>>($"/api/room/{RoomId}");
+            var snapshot = await ApiService.GetRoomStatusAsync(RoomId);
             
-            if (response?.Data != null)
+            if (snapshot != null)
             {
-                gameData = response.Data;
+                gameData = snapshot;
                 roomName = gameData.Name ?? $"Game {RoomId[..8]}";
                 
-                // Check if game has ended based on status
                 if (gameData.Status == "Ended" || gameData.Status == "Finished")
                 {
                     gameEnded = true;
                     showGameEndedOverlay = true;
-                    DisposeTimers(); // Stop any running timers
+                    DisposeTimers();
                 }
                 
-                // Update phase from API response
                 UpdateGamePhase(gameData.Phase);
                 
-                // Set current turn player (demo logic)
                 if (gameData.Racers.Count > 0)
                 {
                     currentTurnPlayer = gameData.CurrentTurnPlayerId;
                     isMyTurn = currentTurnPlayer == AuthService.PlayerId;
                 }
                 
-                // Update time banks
                 UpdatePlayerTimeBanks();
                 
-                // Update game logs from server with UUID-based deduplication
                 if (gameData.Logs != null)
                 {
                     UpdateGameLogsWithDeduplication(gameData.Logs);
@@ -240,8 +194,6 @@ public partial class Game : ComponentBase, IAsyncDisposable
             }
             else
             {
-                // Only set gameData to null if game hasn't ended
-                // This prevents "Room Not Found" when game ends
                 if (!gameEnded)
                 {
                     gameData = null;
@@ -384,14 +336,13 @@ public partial class Game : ComponentBase, IAsyncDisposable
 
         try
         {
-            var request = new { CardId = selectedCard };
-            await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/submit-step-card", request));
-            
-            // Remove selected card from hand
-            playerHand.RemoveAll(c => c.Id == selectedCard);
-            selectedCard = "";
-            
-            await InvokeAsync(StateHasChanged);
+            var success = await ApiService.PlayCardAsync(RoomId, selectedCard);
+            if (success)
+            {
+                playerHand.RemoveAll(c => c.Id == selectedCard);
+                selectedCard = "";
+                await InvokeAsync(StateHasChanged);
+            }
         }
         catch (Exception ex)
         {
@@ -407,26 +358,16 @@ public partial class Game : ComponentBase, IAsyncDisposable
 
         try
         {
-            // Use the real API to draw cards
-            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/drawSkip", new { }));
-            
-            if (response.IsSuccessStatusCode)
+            var success = await ApiService.DrawCardsAsync(RoomId);
+            if (success)
             {
-                // Reload hand data after drawing cards
                 await LoadHandData();
-                
                 await InvokeAsync(StateHasChanged);
-            }
-            else
-            {
-                Console.WriteLine($"Failed to draw cards: {response.StatusCode}");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to draw cards: {ex.Message}");
-            await LoadGameData();
-            await LoadHandData();
         }
     }
 
@@ -445,18 +386,6 @@ public partial class Game : ComponentBase, IAsyncDisposable
         {
             Console.WriteLine($"Failed to execute move: {ex.Message}");
         }
-    }
-
-    // reload data on 400+ status codes
-    private async Task<HttpResponseMessage> SendAsync(Func<Task<HttpResponseMessage>> action)
-    {
-        var response = await action();
-        if (!response.IsSuccessStatusCode && (int)response.StatusCode >= 400)
-        {
-            await LoadGameData();
-            await LoadHandData();
-        }
-        return response;
     }
 
     // Parameter collection methods
@@ -558,30 +487,11 @@ public partial class Game : ComponentBase, IAsyncDisposable
                 _ => throw new InvalidOperationException($"Unknown card type: {gameData?.CurrentTurnCardType}")
             };
 
-            var request = new { ExecParameter = execParameter };
-            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/submit-exec-param", request));
+            var success = await ApiService.SubmitParametersAsync(RoomId, new { ExecParameter = execParameter });
 
-            if (response.IsSuccessStatusCode)
+            if (success)
             {
-                // Create detailed log message based on card type
-                var logMessage = gameData?.CurrentTurnCardType switch
-                {
-                    "ChangeLane" => $"You submitted ChangeLane parameters: direction {(changeLaneEffect == -1 ? "Left" : "Right")}",
-                    "ShiftGear" => $"You submitted ShiftGear parameters: {(shiftGearEffect == 1 ? "Shift Up" : "Shift Down")}",
-                    "Repair" => $"You submitted Repair parameters: discarded {selectedJunkCards.Count} Junk cards",
-                    _ => $"You submitted parameters for {gameData?.CurrentTurnCardType} card"
-                };
-
-                // Reset parameter state
                 ResetParameterState();
-                
-                await InvokeAsync(StateHasChanged);
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Failed to submit parameters: {response.StatusCode} - {errorContent}");
-                
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -590,7 +500,6 @@ public partial class Game : ComponentBase, IAsyncDisposable
             Console.WriteLine($"Failed to submit parameters: {ex.Message}");
             await LoadGameData();
             await LoadHandData();
-            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -643,39 +552,19 @@ public partial class Game : ComponentBase, IAsyncDisposable
 
         try
         {
-            var request = new { CardIds = selectedDiscardCards.ToList() };
-            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/discard-cards", request));
+            var success = await ApiService.SubmitDiscardCardsAsync(RoomId, selectedDiscardCards.ToList());
 
-            if (response.IsSuccessStatusCode)
+            if (success)
             {
-                // Log the discard action
-                var logMessage = selectedDiscardCards.Count > 0 
-                    ? $"You discarded {selectedDiscardCards.Count} cards"
-                    : "You chose not to discard any cards";
-                
-                // Clear selection
                 selectedDiscardCards.Clear();
-                
-                // Reload hand and game data
                 await LoadHandData();
                 await LoadGameData();
-                
-                await InvokeAsync(StateHasChanged);
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Failed to discard cards: {response.StatusCode} - {errorContent}");
-                
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Failed to discard cards: {ex.Message}");
-            await LoadGameData();
-            await LoadHandData();
-            await InvokeAsync(StateHasChanged);
+            Console.WriteLine($"Failed to submit discard cards: {ex.Message}");
         }
     }
 
@@ -685,34 +574,18 @@ public partial class Game : ComponentBase, IAsyncDisposable
 
         try
         {
-            // Submit empty card list to skip discarding
-            var request = new { CardIds = new List<string>() };
-            var response = await SendAsync(() => Http.PostAsJsonAsync($"/api/room/{RoomId}/discard-cards", request));
+            var success = await ApiService.SkipDiscardAsync(RoomId);
 
-            if (response.IsSuccessStatusCode)
+            if (success)
             {
-                // Clear selection
                 selectedDiscardCards.Clear();
-
-                // Reload game data to reflect the change in discard status
                 await LoadGameData();
-                
-                await InvokeAsync(StateHasChanged);
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"Failed to skip discard: {response.StatusCode} - {errorContent}");
-                
                 await InvokeAsync(StateHasChanged);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to skip discard: {ex.Message}");
-            await LoadGameData();
-            await LoadHandData();
-            await InvokeAsync(StateHasChanged);
         }
     }
 
@@ -720,13 +593,8 @@ public partial class Game : ComponentBase, IAsyncDisposable
     {
         try
         {
-            await Http.PostAsync($"/api/room/{RoomId}/leave", null);
-            
-            if (hubConnection?.State == HubConnectionState.Connected)
-            {
-                await hubConnection.InvokeAsync("LeaveRoom", RoomId);
-            }
-            
+            await ApiService.LeaveGameAsync(RoomId);
+            await HubService.LeaveRoomAsync(RoomId);
             Navigation.NavigateTo("/");
         }
         catch (Exception ex)
@@ -882,11 +750,7 @@ public partial class Game : ComponentBase, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         DisposeTimers();
-        
-        if (hubConnection != null)
-        {
-            await hubConnection.DisposeAsync();
-        }
+        await HubService.DisposeAsync();
     }
 
     private string GetPlayerTimeBankDisplay(string playerId)
