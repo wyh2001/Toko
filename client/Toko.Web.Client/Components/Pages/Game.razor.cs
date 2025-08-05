@@ -10,919 +10,101 @@ public partial class Game : ComponentBase, IAsyncDisposable
 {
     [Parameter] public string RoomId { get; set; } = string.Empty;
 
-    [Inject] protected HttpClient Http { get; set; } = default!;
-    [Inject] protected NavigationManager Navigation { get; set; } = default!;
+    [Inject] protected GameStateService GameStateService { get; set; } = default!;
     [Inject] protected IAuthenticationService AuthService { get; set; } = default!;
-    [Inject] protected IPlayerNameService PlayerNameService { get; set; } = default!;
-    [Inject] protected IRaceHubService HubService { get; set; } = default!;
-    [Inject] protected IGameApiService ApiService { get; set; } = default!;
-    
-    private bool isLoading = true;
-    private RoomStatusSnapshot? gameData;
-    private string roomName = "";
-    private Phase gamePhase = Phase.CollectingCards;
-    private string gamePhaseString = "CollectingCards";
-    private string? currentTurnPlayer;
-    private bool isMyTurn = false;
-    private bool gameEnded = false;
-    private bool showGameEndedOverlay = false;
-    private bool isConnected = true;
-    private bool isReconnecting = false;
-    
-    private int DisplayedRound => gameData == null ? 0 : (gameEnded ? gameData.TotalRounds : gameData.CurrentRound + 1);
-    
-    private List<CardDto> playerHand = new();
-    private string selectedCard = "";
-    private List<TurnLog> gameLogs = new();
-    private HashSet<Guid> seenLogIds = new(); // Track seen log UUIDs for deduplication
-    
-    // Parameter collection state
-    private int changeLaneEffect = 1;
-    private int shiftGearEffect = 1;
-    private List<string> selectedJunkCards = new();
-    private List<CardDto> junkCards = new();
-    
-    // Discarding phase state
-    private List<string> selectedDiscardCards = new();
-    private List<CardDto> discardableCards = new();
 
-    // Time bank state
-    private Dictionary<string, double> playerTimeBanks = new();
-    private Dictionary<string, Timer?> playerTimers = new();
-    private readonly object timerLock = new object();
-    
-    // Discard phase countdown timer
-    private Timer? discardTimer;
-    private int discardCountdown = 0;
-    private readonly object discardTimerLock = new object();
+    // Properties needed by Razor template
+    private string roomName => GameStateService.RoomName;
+    private bool isConnected => GameStateService.IsConnected;
+    private bool isReconnecting => GameStateService.IsReconnecting;
+    private bool isLoading => GameStateService.IsLoading;
+    private RoomStatusSnapshot? gameData => GameStateService.GameData;
+    private int DisplayedRound => GameStateService.DisplayedRound;
+    private bool gameEnded => GameStateService.GameEnded;
+    private bool showGameEndedOverlay => GameStateService.ShowGameEndedOverlay;
+    private List<CardDto> playerHand => GameStateService.PlayerHand.ToList();
+    private List<CardDto> junkCards => GameStateService.JunkCards.ToList();
+    private List<CardDto> discardableCards => GameStateService.DiscardableCards.ToList();
+    private string selectedCard => GameStateService.SelectedCard;
+    private List<string> selectedJunkCards => GameStateService.SelectedJunkCards.ToList();
+    private List<string> selectedDiscardCards => GameStateService.SelectedDiscardCards.ToList();
+    private int changeLaneEffect => GameStateService.ChangeLaneEffect;
+    private int shiftGearEffect => GameStateService.ShiftGearEffect;
+    private bool isMyTurn => GameStateService.IsMyTurn;
+    private Phase gamePhase => GameStateService.GamePhase;
+    private string currentTurnPlayer => GameStateService.CurrentTurnPlayer ?? "";
+    private int discardCountdown => GameStateService.DiscardCountdown;
+    private List<TurnLog> gameLogs => GameStateService.GameLogs.ToList();
+    private string gamePhaseString => GameStateService.GamePhaseString;
 
     protected override async Task OnInitializedAsync()
     {
-        await AuthService.EnsureAuthenticatedAsync();
-        await InitializeServices();
-        await LoadGameData();
-        await LoadHandData();
+        await GameStateService.InitializeAsync(RoomId);
+        GameStateService.OnChange += StateHasChanged;
     }
 
-    private async Task InitializeServices()
-    {
-        await HubService.ConnectAsync(Navigation.ToAbsoluteUri("/racehub").ToString());
-        await HubService.JoinRoomAsync(RoomId);
+    // Simple delegation methods for UI events
+    private void HandleCardClick(CardDto card) => GameStateService.HandleCardClick(card);
+    private async Task PlaySelectedCard() => await GameStateService.PlaySelectedCard();
+    private async Task DrawCards() => await GameStateService.DrawCards();
+    private void SetChangeLaneEffect(int effect) => GameStateService.SetChangeLaneEffect(effect);
+    private void SetShiftGearEffect(int effect) => GameStateService.SetShiftGearEffect(effect);
+    private async Task SubmitParameters() => await GameStateService.SubmitParameters();
+    private async Task SubmitDiscardCards() => await GameStateService.SubmitDiscardCards();
+    private async Task SkipDiscard() => await GameStateService.SkipDiscard();
+    private async Task LeaveGame() => await GameStateService.LeaveGame();
+    private void ShowGameMenu() => GameStateService.ShowGameMenu();
+    private void GoHome() => GameStateService.GoHome();
+    private void ViewRoom() => GameStateService.ViewRoom();
+    private void ReviewGame() => GameStateService.ReviewGame();
 
-        HubService.ConnectionStateChanged += connected =>
-        {
-            isConnected = connected;
-            InvokeAsync(StateHasChanged);
-        };
-
-        HubService.ReconnectingStateChanged += reconnecting =>
-        {
-            isReconnecting = reconnecting;
-            InvokeAsync(StateHasChanged);
-        };
-
-        HubService.GameEventReceived += evt =>
-        {
-            HandleGameEvent(evt.EventName, evt.EventData);
-        };
-    }
-
-    private void HandleGameEvent(string eventName, object eventData)
-    {
-        Console.WriteLine($"Game event received: {eventName}");
-        
-        switch (eventName)
-        {
-            case "HostChanged":
-            case "PhaseChanged":
-            case "PlayerCardsDrawn":
-            case "PlayerCardSubmitted":
-            case "PlayerDiscardStarted":
-            case "PlayerDiscardExecuted":
-            case "PlayerStepExecuted":
-            case "PlayerAutoMoved":
-            case "PlayerJoined":
-            case "PlayerLeft":
-            case "PlayerKicked":
-            case "PlayerFinished":
-            case "PlayerTimeoutElapsed":
-            case "RoomStarted":
-            case "RoomSettingsUpdated":
-            case "RoundAdvanced":
-            case "StepAdvanced":
-                InvokeAsync(async () => {
-                    await LoadGameData();
-                    await LoadHandData();
-                    StateHasChanged();
-                });
-                break;
-
-            case "PlayerBankUpdated":
-                InvokeAsync(async () => {
-                    await LoadGameData();
-                    StateHasChanged();
-                });
-                break;
-
-            case "RoomEnded":
-                Console.WriteLine($"Game ended for room: {RoomId}");
-                InvokeAsync(async () => {
-                    gameEnded = true;
-                    showGameEndedOverlay = true;
-                    DisposeTimers();
-                    await LoadGameData();
-                    StateHasChanged();
-                });
-                break;
-        }
-    }
-
-    private async Task LoadHandData()
-    {
-        try
-        {
-            if (gameData?.Status != "Playing") return;
-            
-            var cards = await ApiService.GetHandAsync(RoomId);
-            playerHand = cards;
-            
-            junkCards = playerHand.Where(c => c.Type == "Junk").ToList();
-            discardableCards = playerHand.Where(c => c.Type != "Junk").ToList();
-            
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to load hand data: {ex.Message}");
-        }
-    }
-
-    private async Task LoadGameData()
-    {
-        try
-        {
-            var snapshot = await ApiService.GetRoomStatusAsync(RoomId);
-            
-            if (snapshot != null)
-            {
-                gameData = snapshot;
-                roomName = gameData.Name ?? $"Game {RoomId[..8]}";
-                
-                if (gameData.Status == "Ended" || gameData.Status == "Finished")
-                {
-                    gameEnded = true;
-                    showGameEndedOverlay = true;
-                    DisposeTimers();
-                }
-                
-                UpdateGamePhase(gameData.Phase);
-                
-                if (gameData.Racers.Count > 0)
-                {
-                    currentTurnPlayer = gameData.CurrentTurnPlayerId;
-                    isMyTurn = currentTurnPlayer == AuthService.PlayerId;
-                }
-                
-                UpdatePlayerTimeBanks();
-                
-                if (gameData.Logs != null)
-                {
-                    UpdateGameLogsWithDeduplication(gameData.Logs);
-                }
-                
-                isLoading = false;
-            }
-            else
-            {
-                if (!gameEnded)
-                {
-                    gameData = null;
-                }
-                isLoading = false;
-            }
-
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to load game data: {ex.Message}");
-            // Only set gameData to null if game hasn't ended
-            if (!gameEnded)
-            {
-                gameData = null;
-            }
-            isLoading = false;
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private void UpdateGamePhase(string phaseString)
-    {
-        var oldPhase = gamePhase;
-        gamePhaseString = phaseString;
-        
-        // Try to parse the phase string to enum, fallback to default if parsing fails
-        if (Enum.TryParse<Toko.Shared.Models.Phase>(phaseString, true, out var parsedPhase))
-        {
-            gamePhase = parsedPhase;
-        }
-        else
-        {
-            // Default fallback - don't throw, just use a safe default
-            gamePhase = Toko.Shared.Models.Phase.CollectingCards;
-            Console.WriteLine($"Unknown phase string: {phaseString}, using default CollectingCards");
-        }
-        
-        // Reset parameter state when entering CollectingParams phase
-        if (oldPhase != gamePhase && gamePhase == Phase.CollectingParams)
-        {
-            ResetParameterState();
-        }
-        
-        // Reset discard selection when entering Discarding phase
-        if (oldPhase != gamePhase && gamePhase == Phase.Discarding)
-        {
-            selectedDiscardCards.Clear();
-            StartDiscardCountdown();
-        }
-    }
-
-    private void ToggleCardSelection(CardDto card)
-    {
-        if (!IsCardPlayable(card)) return;
-
-        // Since only one card can be selected at a time, toggle selection
-        if (selectedCard == card.Id)
-        {
-            selectedCard = "";
-        }
-        else
-        {
-            selectedCard = card.Id;
-        }
-    }
-
-    private bool IsCardPlayable(CardDto card)
-    {
-        return isMyTurn && gamePhase == Phase.CollectingCards && card.Type != "Junk";
-    }
-
-    private void HandleCardClick(CardDto card)
-    {
-        if (gamePhase == Phase.CollectingCards)
-        {
-            ToggleCardSelection(card);
-        }
-        else if (gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
-        {
-            // In repair phase, only allow selecting Junk cards from hand
-            if (card.Type == "Junk")
-            {
-                ToggleJunkCardSelection(card.Id);
-            }
-        }
-        else if (gamePhase == Phase.Discarding && IsPlayerInDiscardPhase())
-        {
-            ToggleDiscardCardSelection(card.Id);
-        }
-    }
-
-    private string GetCardSelectionClass(CardDto card)
-    {
-        var classes = new List<string>();
-        
-        if (gamePhase == Phase.CollectingCards)
-        {
-            if (selectedCard == card.Id)
-                classes.Add("selected");
-            
-            if (IsCardPlayable(card))
-                classes.Add("playable");
-            else
-                classes.Add("disabled");
-        }
-        else if (isMyTurn && gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
-        {
-            // In repair phase, only Junk cards can be selected by the current player
-            if (selectedJunkCards.Contains(card.Id))
-                classes.Add("selected");
-            
-            if (card.Type == "Junk")
-                classes.Add("playable");
-            else
-                classes.Add("disabled");
-        }
-        else if (gamePhase == Phase.Discarding && IsPlayerInDiscardPhase())
-        {
-            if (selectedDiscardCards.Contains(card.Id))
-                classes.Add("selected");
-            
-            if (card.Type == "Junk")
-                classes.Add("disabled");
-            else
-                classes.Add("playable");
-        }
-        else
-        {
-            classes.Add("disabled");
-        }
-        
-        return string.Join(" ", classes);
-    }
-
-    private async Task PlaySelectedCard()
-    {
-        if (string.IsNullOrEmpty(selectedCard) || !isMyTurn) return;
-
-        try
-        {
-            var success = await ApiService.PlayCardAsync(RoomId, selectedCard);
-            if (success)
-            {
-                playerHand.RemoveAll(c => c.Id == selectedCard);
-                selectedCard = "";
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to play card: {ex.Message}");
-            await LoadGameData();
-            await LoadHandData();
-        }
-    }
-
-    private async Task DrawCards()
-    {
-        if (!isMyTurn) return;
-
-        try
-        {
-            var success = await ApiService.DrawCardsAsync(RoomId);
-            if (success)
-            {
-                await LoadHandData();
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to draw cards: {ex.Message}");
-        }
-    }
-
-    private async Task ExecuteMove()
-    {
-        if (!isMyTurn || gamePhase != Phase.CollectingParams) return;
-
-        try
-        {
-            // TODO: Implement real execution logic with API
-            // For now, just add a log entry
-            
-            await InvokeAsync(StateHasChanged);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to execute move: {ex.Message}");
-        }
-    }
-
-    // Parameter collection methods
-    private void SetChangeLaneEffect(int effect)
-    {
-        changeLaneEffect = effect;
-    }
-
-    private void SetShiftGearEffect(int effect)
-    {
-        shiftGearEffect = effect;
-    }
-
-    private void ToggleJunkCardSelection(string cardId)
-    {
-        if (selectedJunkCards.Contains(cardId))
-        {
-            selectedJunkCards.Clear();
-        }
-        else
-        {
-            selectedJunkCards.Clear();
-            selectedJunkCards.Add(cardId);
-        }
-    }
-
-    // Lane change direction helpers
-    private RacerStatus? GetMyPlayer()
-    {
-        if (gameData?.Racers == null || string.IsNullOrEmpty(AuthService.PlayerId)) return null;
-        return gameData.Racers.FirstOrDefault(r => r.Id == AuthService.PlayerId);
-    }
-
-    private string GetMyPlayerDirection()
-    {
-        var player = GetMyPlayer();
-        if (player == null || gameData?.Map?.Segments == null) return "Up";
-        
-        if (player.Segment >= 0 && player.Segment < gameData.Map.Segments.Count)
-        {
-            return gameData.Map.Segments[player.Segment].Direction;
-        }
-        return "Up";
-    }
-
-    private (List<(string Text, int Value)>, string LayoutClass) GetLaneChangeButtonsAndLayout()
-    {
-        var direction = GetMyPlayerDirection();
-        var baseDirection = GetBaseDirection(direction);
-        
-        // Direction mapping for lane change values and layout
-        var (buttons, layoutClass) = baseDirection.ToLower() switch
-        {
-            "up" or "down" => (new List<(string, int)> { ("← Left", -1), ("Right →", 1) }, "lane-buttons-normal"),
-            "left" or "right" => (new List<(string, int)> { ("↑ Up", 1), ("Down ↓", -1) }, "lane-buttons-vertical"),
-            _ => (new List<(string, int)> { ("← Left", -1), ("Right →", 1) }, "lane-buttons-normal")
-        };
-
-        return (buttons, layoutClass);
-    }
-
-    private string GetBaseDirection(string direction)
-    {
-        // Extract base direction from corner directions
-        return direction.ToLower() switch
-        {
-            "leftdown" or "leftup" => "left",
-            "rightdown" or "rightup" => "right",
-            "upright" or "upleft" => "up",
-            "downright" or "downleft" => "down",
-            _ => direction // Basic directions unchanged
-        };
-    }
-
-    private bool IsParameterSubmissionReady()
-    {
-        if (!isMyTurn || gamePhase != Phase.CollectingParams) return false;
-        
-        return gameData?.CurrentTurnCardType switch
-        {
-            "ChangeLane" => changeLaneEffect == -1 || changeLaneEffect == 1,
-            "ShiftGear" => shiftGearEffect == -1 || shiftGearEffect == 1,
-            "Repair" => true, // Always ready for repair (can have empty selection)
-            _ => false
-        };
-    }
-
-    private async Task SubmitParameters()
-    {
-        if (!IsParameterSubmissionReady()) return;
-
-        try
-        {
-            object execParameter = gameData?.CurrentTurnCardType switch
-            {
-                "ChangeLane" => new { Effect = changeLaneEffect, DiscardedCardIds = new List<string>() },
-                "ShiftGear" => new { Effect = shiftGearEffect, DiscardedCardIds = new List<string>() },
-                "Repair" => new { Effect = -1, DiscardedCardIds = selectedJunkCards.ToList() },
-                _ => throw new InvalidOperationException($"Unknown card type: {gameData?.CurrentTurnCardType}")
-            };
-
-            var success = await ApiService.SubmitParametersAsync(RoomId, new { ExecParameter = execParameter });
-
-            if (success)
-            {
-                ResetParameterState();
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to submit parameters: {ex.Message}");
-            await LoadGameData();
-            await LoadHandData();
-        }
-    }
-
-    private void ResetParameterState()
-    {
-        changeLaneEffect = 1;
-        shiftGearEffect = 1;
-        selectedJunkCards.Clear();
-    }
-
-    // Discarding phase methods
-    private bool IsPlayerInDiscardPhase()
-    {
-        var playerId = AuthService.PlayerId ?? "";
-        var isInDiscardPhase = gamePhase == Phase.Discarding && 
-                              gameData?.DiscardPendingPlayerIds?.Contains(playerId) == true;
-        
-        return isInDiscardPhase;
-    }
-
-    private bool HasJunkCardsSelected()
-    {
-        // Check if any selected cards are Junk cards
-        return selectedDiscardCards.Any(cardId => 
-            playerHand.Any(card => card.Id == cardId && card.Type == "Junk"));
-    }
-
-    private void ToggleDiscardCardSelection(string cardId)
-    {
-        // Find the card to check if it's a Junk card
-        var card = playerHand.FirstOrDefault(c => c.Id == cardId);
-        if (card == null || card.Type == "Junk")
-        {
-            return; // Cannot select Junk cards for discarding
-        }
-
-        if (selectedDiscardCards.Contains(cardId))
-        {
-            selectedDiscardCards.Remove(cardId);
-        }
-        else
-        {
-            selectedDiscardCards.Add(cardId);
-        }
-    }
-
-    private async Task SubmitDiscardCards()
-    {
-        if (!IsPlayerInDiscardPhase()) return;
-
-        try
-        {
-            var success = await ApiService.SubmitDiscardCardsAsync(RoomId, selectedDiscardCards.ToList());
-
-            if (success)
-            {
-                selectedDiscardCards.Clear();
-                await LoadHandData();
-                await LoadGameData();
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to submit discard cards: {ex.Message}");
-        }
-    }
-
-    private async Task SkipDiscard()
-    {
-        if (!IsPlayerInDiscardPhase()) return;
-
-        try
-        {
-            var success = await ApiService.SkipDiscardAsync(RoomId);
-
-            if (success)
-            {
-                selectedDiscardCards.Clear();
-                await LoadGameData();
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to skip discard: {ex.Message}");
-        }
-    }
-
-    private async Task LeaveGame()
-    {
-        try
-        {
-            await ApiService.LeaveGameAsync(RoomId);
-            await HubService.LeaveRoomAsync(RoomId);
-            Navigation.NavigateTo("/");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to leave game: {ex.Message}");
-        }
-    }
-
-    private void ShowGameMenu()
-    {
-        // TODO: Implement game menu
-        Console.WriteLine("Game menu clicked");
-    }
-
-    private void GoHome()
-    {
-        Navigation.NavigateTo("/");
-    }
-
-    private void ViewRoom()
-    {
-        Navigation.NavigateTo($"/room/{RoomId}");
-    }
-
-    private void ReviewGame()
-    {
-        // Close the game ended overlay and show the game state
-        showGameEndedOverlay = false;
-        StateHasChanged();
-    }
-
-    // Helper methods
-    private int GetPlayerPosition(string playerId)
-    {
-        // Get actual position from racer data
-        if (gameData?.Racers == null) return 0;
-        
-        var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
-        if (racer == null) return 0;
-        
-        // Calculate position based on Segment, Lane, and Tile
-        // For now, use Segment as the primary position indicator
-        return racer.Segment + 1;
-    }
-
-    private int GetPlayerGear(string playerId)
-    {
-        // Get gear from racer data
-        if (gameData?.Racers == null) return 1;
-        
-        var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
-        if (racer == null) return 1;
-        
-        // Return gear property
-        return racer.Gear;
-    }
-
-    private string GetPlayerName(string? playerId)
-    {
-        if (string.IsNullOrEmpty(playerId) || gameData?.Racers == null) return "Unknown";
-        return gameData.Racers.FirstOrDefault(r => r.Id == playerId)?.Name ?? "Unknown";
-    }
-
-    private string GetPlayerNameSafe(string? playerId)
-    {
-        // Try to get name from current racers first
-        if (!string.IsNullOrEmpty(playerId) && gameData?.Racers != null)
-        {
-            var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
-            if (racer != null)
-            {
-                return racer.Name;
-            }
-        }
-        
-        // If not found in racers, return a safe default
-        return string.IsNullOrEmpty(playerId) ? "Unknown Player" : $"Player {playerId[..8]}";
-    }
-
+    // Helper methods that need to remain for UI calculations
+    private string GetCardSelectionClass(CardDto card) => GameStateService.GetCardSelectionClass(card);
+    private bool IsCardPlayable(CardDto card) => GameStateService.IsCardPlayable(card);
+    private bool IsParameterSubmissionReady() => GameStateService.IsParameterSubmissionReady();
+    private bool IsPlayerInDiscardPhase() => GameStateService.IsPlayerInDiscardPhase();
+    
+    // UI-specific helper methods
+    private string GetPlayerName(string? playerId) => GameStateService.GetPlayerName(playerId);
+    
     private string GetPlayerInitials(string playerName)
     {
         var parts = playerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length >= 2)
-            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
-        return playerName.Length >= 2 ? playerName[..2].ToUpper() : playerName.ToUpper();
+        return parts.Length >= 2 ? $"{parts[0][0]}{parts[1][0]}".ToUpper() : playerName[..Math.Min(2, playerName.Length)].ToUpper();
     }
-
+    
     private string GetPlayerColorClass(string playerId)
     {
-        var index = gameData?.Racers?.FindIndex(r => r.Id == playerId) ?? 0;
+        var index = GameStateService.GameData?.Racers?.FindIndex(r => r.Id == playerId) ?? 0;
         var colors = new[] { "color-red", "color-blue", "color-green", "color-yellow" };
         return colors[index % colors.Length];
     }
-
-    private List<RacerStatus> GetPlayersAtPosition(int position)
+    
+    private string GetCardValue(string cardType) => cardType switch
     {
-        if (gameData?.Racers == null) return new List<RacerStatus>();
-        
-        // Return racers at the specified segment position
-        return gameData.Racers.Where(r => r.Segment == position).ToList();
-    }
-
-    private string GetCardValue(string cardType)
-    {
-        return cardType switch
-        {
-            "ChangeLane" => "L",
-            "ShiftGear" => "G",
-            "Junk" => "J",
-            "Repair" => "R",
-            _ => "?"
-        };
-    }
-
+        "ChangeLane" => "L", "ShiftGear" => "G", "Junk" => "J", "Repair" => "R", _ => "?"
+    };
+    
+    // Lane change direction helpers (needed for UI)
+    private (List<(string Text, int Value)>, string LayoutClass) GetLaneChangeButtonsAndLayout() => 
+        GameStateService.GetLaneChangeButtonsAndLayout();
+    
     // Card overlay helper methods
-    private bool ShouldShowCardDisabledOverlay(CardDto card)
-    {
-        if (gamePhase == Phase.CollectingCards && card.Type == "Junk")
-        {
-            return true; // Junk cards cannot be played in normal card submission
-        }
-        // This special overlay logic should only apply to the player whose turn it is.
-        else if (isMyTurn && gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
-        {
-            return card.Type != "Junk"; // Only Junk cards can be selected in repair phase
-        }
-        else if (gamePhase == Phase.Discarding && IsPlayerInDiscardPhase() && card.Type == "Junk")
-        {
-            return true; // Junk cards cannot be discarded
-        }
-        
-        return false;
-    }
-
-    private string GetCardDisabledMessage(CardDto card)
-    {
-        if (gamePhase == Phase.CollectingCards && card.Type == "Junk")
-        {
-            return "Cannot play";
-        }
-        else if (gamePhase == Phase.CollectingParams && gameData?.CurrentTurnCardType == "Repair")
-        {
-            return card.Type != "Junk" ? "Cannot select" : "";
-        }
-        else if (gamePhase == Phase.Discarding && IsPlayerInDiscardPhase() && card.Type == "Junk")
-        {
-            return "Cannot discard";
-        }
-        
-        return "Disabled";
-    }
+    private bool ShouldShowCardDisabledOverlay(CardDto card) => GameStateService.ShouldShowCardDisabledOverlay(card);
+    private string GetCardDisabledMessage(CardDto card) => GameStateService.GetCardDisabledMessage(card);
 
     public async ValueTask DisposeAsync()
     {
-        DisposeTimers();
-        await HubService.DisposeAsync();
-    }
-
-    private string GetPlayerTimeBankDisplay(string playerId)
-    {
-        if (playerTimeBanks.TryGetValue(playerId, out var timeBank))
+        if (GameStateService != null)
         {
-            // Handle negative time display correctly
-            var isNegative = timeBank < 0;
-            var absoluteTime = Math.Abs(timeBank);
-            var minutes = (int)(absoluteTime / 60);
-            var seconds = (int)(absoluteTime % 60);
-            
-            return isNegative 
-                ? $"-{minutes:D2}:{seconds:D2}" 
-                : $"{minutes:D2}:{seconds:D2}";
-        }
-        
-        // Fallback to server data
-        if (gameData?.Racers != null)
-        {
-            var racer = gameData.Racers.FirstOrDefault(r => r.Id == playerId);
-            if (racer != null)
-            {
-                var minutes = (int)(racer.Bank / 60);
-                var seconds = (int)(racer.Bank % 60);
-                return $"{minutes:D2}:{seconds:D2}";
-            }
-        }
-        
-        return "05:00";
-    }
-
-    private void UpdatePlayerTimeBanks()
-    {
-        if (gameData?.Racers == null || gameEnded) return;
-
-        lock (timerLock)
-        {
-            foreach (var racer in gameData.Racers)
-            {
-                // Stop existing timer if any
-                if (playerTimers.TryGetValue(racer.Id, out var existingTimer))
-                {
-                    existingTimer?.Dispose();
-                    playerTimers[racer.Id] = null;
-                }
-
-                // Sync with server bank data as the source of truth
-                var remainingTime = racer.Bank;
-
-                // If it's the current player's turn and we have a start time, calculate the actual remaining time
-                if (racer.Id == currentTurnPlayer && gameData.TurnStartTimeUtc.HasValue)
-                {
-                    var elapsed = DateTime.UtcNow - gameData.TurnStartTimeUtc.Value;
-                    remainingTime = racer.Bank - elapsed.TotalSeconds;
-                }
-                
-                playerTimeBanks[racer.Id] = remainingTime;
-
-                // Start a new timer for the active turn player to provide a smooth countdown UI on all clients
-                if (racer.Id == currentTurnPlayer)
-                {
-                    var timer = new Timer(async _ => await CountDownPlayerTime(racer.Id), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-                    playerTimers[racer.Id] = timer;
-                }
-            }
+            GameStateService.OnChange -= StateHasChanged;
+            await GameStateService.DisposeAsync();
         }
     }
 
-    private async Task CountDownPlayerTime(string playerId)
-    {
-        // Only count down if it's still the current player's turn
-        if (playerId != currentTurnPlayer)
-        {
-            lock (timerLock)
-            {
-                if (playerTimers.TryGetValue(playerId, out var timer))
-                {
-                    timer?.Dispose();
-                    playerTimers[playerId] = null;
-                }
-            }
-            return;
-        }
-
-        lock (timerLock)
-        {
-            if (playerTimeBanks.TryGetValue(playerId, out var currentTime))
-            {
-                playerTimeBanks[playerId] = currentTime - 1;
-            }
-            
-            // The timer is not stopped when it reaches zero, allowing it to go into negative values.
-            // It will be naturally stopped and disposed when the turn changes.
-        }
-
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private void DisposeTimers()
-    {
-        lock (timerLock)
-        {
-            foreach (var timer in playerTimers.Values)
-            {
-                timer?.Dispose();
-            }
-            playerTimers.Clear();
-        }
-        
-        // Also dispose discard timer
-        StopDiscardCountdown();
-    }
-
-    private void UpdateGameLogsWithDeduplication(List<TurnLog> newLogs)
-    {
-        bool hasNewLogs = false;
-        
-        // Add new logs that haven't been seen before
-        foreach (var log in newLogs)
-        {
-            if (seenLogIds.Add(log.Id)) // Add returns true if item was not already in set
-            {
-                gameLogs.Add(log);
-                hasNewLogs = true;
-            }
-        }
-        
-        // Only sort if we added new logs
-        if (hasNewLogs)
-        {
-            gameLogs.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-        }
-    }
-
-    private void StartDiscardCountdown()
-    {
-        lock (discardTimerLock)
-        {
-            // Stop existing timer if any
-            discardTimer?.Dispose();
-            
-            // Start 15-second countdown
-            discardCountdown = 15;
-            
-            discardTimer = new Timer(async _ => await CountDownDiscardTime(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-        }
-    }
-
-    private async Task CountDownDiscardTime()
-    {
-        lock (discardTimerLock)
-        {
-            discardCountdown--;
-            
-            if (discardCountdown <= 0)
-            {
-                discardTimer?.Dispose();
-                discardTimer = null;
-            }
-        }
-
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private void StopDiscardCountdown()
-    {
-        lock (discardTimerLock)
-        {
-            discardTimer?.Dispose();
-            discardTimer = null;
-            discardCountdown = 0;
-        }
-    }
+    private string GetPlayerTimeBankDisplay(string playerId) => GameStateService.GetPlayerTimeBankDisplay(playerId);
+    private string GetPlayerNameSafe(string? playerId) => GameStateService.GetPlayerNameSafe(playerId);
+    private int GetPlayerPosition(string playerId) => GameStateService.GetPlayerPosition(playerId);
+    private int GetPlayerGear(string playerId) => GameStateService.GetPlayerGear(playerId);
+    private bool HasJunkCardsSelected() => GameStateService.HasJunkCardsSelected();
 }
