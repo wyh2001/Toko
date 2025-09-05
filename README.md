@@ -75,15 +75,15 @@ Guidance:
 
 ## Core Concepts
 
-<details>
-<summary>1. Game Logic as a State Machine</summary>
+<details open>
+<summary><strong>1. Game Logic as a State Machine</strong></summary>
 
 The game runtime is governed by two concrete finite state machines defined in `Room`:
 
 1. A top-level game FSM (`RoomStatus` + `GameTrigger`)
 2. A phase (round step) FSM (`Phase` + `PhaseTrigger`) that is activated only while playing
 
-Game-level lifecycle:
+Game-level lifecycle:  
 
 ```mermaid
 stateDiagram-v2
@@ -108,7 +108,7 @@ stateDiagram-v2
 </details>
 
 <details>
-<summary>2. Cheat Prevention with Anonymous JWTs</summary>
+<summary><strong>2. Cheat Prevention with Anonymous JWTs</strong></summary>
 
 To secure game actions without requiring users to register or log in, the system uses persistent JWTs.
 
@@ -119,7 +119,7 @@ To secure game actions without requiring users to register or log in, the system
 </details>
 
 <details>
-<summary>3. Predictable, Type-Safe Error Handling</summary>
+<summary><strong>3. Predictable, Type-Safe Error Handling</strong></summary>
 
 Inspired by patterns from other modern languages, the API avoids throwing exceptions for predictable domain errors. Instead, it returns strongly-typed result objects.
 
