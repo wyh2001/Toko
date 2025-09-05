@@ -138,7 +138,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                    var token = context.Request.Cookies["token"];
 
                    // if not found then from query string
-                   // (SignalR WebSocket, token in ?access_token=
+                   // (for fallback purpose only)
                    if (string.IsNullOrEmpty(token) &&
                        context.Request.Path.StartsWithSegments("/racehub") &&     // Hub path
                        context.Request.Query.TryGetValue("access_token", out var qs))
