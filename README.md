@@ -1,8 +1,18 @@
 # Toko
 
-Full-stack racing board game web app: .NET 9 API + Blazor WebAssembly.
+Full-stack racing board game web app: **.NET 9 API + Blazor WebAssembly**.  
 
-> **Just-for-fun project**  
+<hr />
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/696b516c-eb83-4553-ba86-8cb590ac77d3">
+    <img src="https://github.com/user-attachments/assets/696b516c-eb83-4553-ba86-8cb590ac77d3" alt="Screenshot of the home page" width="49%">
+  </a>
+  <a href="https://github.com/user-attachments/assets/25d9ad77-2f6c-487c-a074-43b98a877bec">
+    <img src="https://github.com/user-attachments/assets/25d9ad77-2f6c-487c-a074-43b98a877bec" alt="Screenshot of game page" width="49%">
+  </a>
+</p>
+
+> **Just-for-fun**  
 > Built in my spare time for learning and experimentation. Feel free to clone, tinker, and break things—just don’t ship it to production.
 
 ## Quick Start
@@ -122,7 +132,7 @@ This forces the client to handle known failure scenarios explicitly, leading to 
 ## Next Steps
 
 * Persistence storage for saving rooms, replay, auditing.
-* No big new features in the future — this repo stays a fun side project.
+* No big new features in the future.
 * Plan is to extract a standalone, pluggable .NET board game engine for different variants.
 
 ## License
