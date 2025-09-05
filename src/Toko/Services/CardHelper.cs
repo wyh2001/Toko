@@ -6,11 +6,11 @@ namespace Toko.Services
     public class CardHelper
     {
         /// <summary>
-        /// 初始化一副标准牌堆：根据需要填充不同类型卡
+        /// Initialize a standard deck: populate with required card types
         /// </summary>
         public static void InitializeDeck(Racer racer)
         {
-            // 清空旧牌
+            // Clear old cards
             racer.Deck.Clear();
             racer.Hand.Clear();
             racer.DiscardPile.Clear();
@@ -26,7 +26,7 @@ namespace Toko.Services
             Add(CardType.Repair, 2);
             Add(CardType.ShiftGear, 4); // Combined gear shift card
 
-            // 最后随机洗牌
+            // Finally shuffle randomly
             // Fisher–Yates shuffle
             //var rnd = new Random();
             var all = racer.Deck.ToList();
@@ -37,14 +37,14 @@ namespace Toko.Services
         }
 
         /// <summary>
-        /// Internal: 实际从 Deck 抽卡，不作空槽检查，返回抽到的卡
+        /// Internal: Actually draw from deck without free-slot check, return drawn cards
         /// </summary>
         public static List<Card> DrawCardsInternal(Racer racer, int count)
         {
             var drawn = new List<Card>();
             for (int i = 0; i < count; i++)
             {
-                // 如果牌堆空了，就洗弃牌堆回去
+                // If deck is empty, recycle discard pile back into deck
                 if (!racer.Deck.Any())
                 {
                     foreach (var c in racer.DiscardPile) racer.Deck.Enqueue(c);
@@ -56,10 +56,10 @@ namespace Toko.Services
                 racer.Hand.Add(card);
                 drawn.Add(card);
             }
-            
+
             // Adjust gear after drawing cards in case junk cards were drawn
             AdjustGearForJunkCards(racer);
-            
+
             return drawn;
         }
 
@@ -70,7 +70,7 @@ namespace Toko.Services
         {
             int junkCardCount = racer.Hand.Count(card => card.Type == Shared.Models.CardType.Junk);
             int maxAllowedGear = 6 - junkCardCount; // Each junk card reduces max gear by 1
-            
+
             if (racer.Gear > maxAllowedGear)
             {
                 racer.Gear = maxAllowedGear;
@@ -79,7 +79,7 @@ namespace Toko.Services
 
         public static class ShuffleUtils
         {
-            //private static readonly Random _random = new Random(); // 避免每次创建新 Random 实例
+            //private static readonly Random _random = new Random(); // Avoid creating new Random instance each time
 
             public static void Shuffle<T>(IList<T> list)
             {

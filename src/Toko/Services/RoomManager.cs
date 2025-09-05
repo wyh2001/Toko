@@ -12,7 +12,7 @@ namespace Toko.Services
 {
     public class RoomManager(IEventChannel events, ILogger<RoomManager> log, ILoggerFactory loggerFactory, IMemoryCache cache)
     {
-        // 并发安全的房间字典
+        // Thread-safe dictionary of rooms
         private readonly ConcurrentDictionary<string, Room> _rooms = new();
         private readonly ILogger<RoomManager> _log = log;
         private readonly ILoggerFactory _loggerFactory = loggerFactory;
@@ -50,7 +50,7 @@ namespace Toko.Services
         public long GetNormallyCompletedRoomsCount() => Interlocked.Read(ref _normallyCompletedRoomsCount);
 
         /// <summary>
-        /// 创建房间，并为房主生成一辆赛车
+        /// Create a room and generate a racer for the host
         /// </summary>
         public (string roomId, Racer hostRacer) CreateRoom(
             string playerId,
@@ -75,15 +75,15 @@ namespace Toko.Services
             };
             var roomId = room.Id;
 
-            // 为房主生成 Racer，并抽初始手牌
+            // Create a Racer for the host and draw initial hand
             var host = new Racer
             {
                 Id = playerId,
                 PlayerName = playerName,
                 IsHost = true,
             };
-            InitializeDeck(host);           // 洗牌、填充初始牌堆
-            DrawCardsInternal(host, INITIALDRAW);     // 假设开局抽 3 张卡
+            InitializeDeck(host);           // Shuffle and populate initial deck
+            DrawCardsInternal(host, INITIALDRAW);     // Assume drawing 3 cards at game start
 
             room.Racers.Add(host);
             _rooms.TryAdd(roomId, room);
@@ -180,15 +180,15 @@ namespace Toko.Services
         }
 
         /// <summary>
-        /// 获取所有房间（用于大厅列表）
+        /// Get all rooms (for lobby list)
         /// </summary>
         public List<Room> GetAllRooms() =>
             _rooms.Values.Where(room => !room.IsAbandoned).ToList();
 
-        // … 其他如 SetMap/GetMap/ExecuteTurn 等方法按需保留 …
+        // Other methods like SetMap/GetMap/ExecuteTurn preserved as needed
 
         /// <summary>
-        /// 标记房间为已开始
+        /// Mark room as started
         /// </summary>
         public record StartRoomSuccess(string RoomId);
         public enum StartRoomError { RoomNotFound, AlreadyStarted, AlreadyFinished, NoPlayers, NotHost, NotAllReady, NotInTheRoom }

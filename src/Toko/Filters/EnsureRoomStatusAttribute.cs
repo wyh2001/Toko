@@ -11,7 +11,7 @@ namespace Toko.Filters
         public EnsureRoomStatusAttribute(RoomStatus requiredStatus)
             : base(typeof(EnsureRoomStatusFilter))
         {
-            // 将所需状态传给过滤器
+            // Pass the required status to the filter
             Arguments = new object[] { requiredStatus };
         }
     }
