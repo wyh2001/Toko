@@ -20,13 +20,13 @@ jobs:
         with:
           dotnet-version: 9.0.x
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore ./Toko.sln
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build ./Toko.sln --no-restore
       - name: Add JWT
         run: echo "Jwt__Key=$(openssl rand -base64 48)" >> $GITHUB_ENV
       - name: Test
-        run: dotnet test --no-build --verbosity normal
+        run: dotnet test ./Toko.sln --no-build --no-restore --verbosity normal
 
   build_and_publish_docker_image:
     name: Publish to Docker Hub
