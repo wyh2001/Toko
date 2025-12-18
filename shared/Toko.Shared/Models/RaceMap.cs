@@ -37,9 +37,10 @@ namespace Toko.Shared.Models
     }
     // road: normal, grass: slow, boost: fast, obstacle: stop, cornerLeft: turn left, cornerRight: turn right
     public enum CellType { Road, Grass, Boost, Obstacle, CornerLeft, CornerRight }
-    public enum MapRenderingType {
+    public enum MapRenderingType
+    {
         BothEdges,
-        SingleEdge, 
+        SingleEdge,
         Plain,
         CornerEdge,
         RightSingleEdgeLowerLeftCornerEdge,

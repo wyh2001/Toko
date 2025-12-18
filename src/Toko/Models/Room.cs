@@ -58,7 +58,7 @@ namespace Toko.Models
         private readonly Dictionary<(string, int, int), (string cardId, CardType cardType)> _cardNow = []; // (pid, round, step) -> (cardId, cardType)
         private readonly HashSet<string> _discardPending = [];
         private List<PlayerResult>? _gameResults = null; // Cached game results
-        
+
         // Track gear shift counts for turn order adjustment
         private readonly Dictionary<string, int> _currentTurnGearShifts = [];
 
@@ -85,9 +85,9 @@ namespace Toko.Models
         private readonly TurnExecutor _turnExecutor;
         private readonly ConcurrentStack<TurnLog> _logs = new();
         private volatile int _logCount = 0;
-        
+
         private readonly ConcurrentQueue<IEvent> _globalEvents = new();
-        
+
         // Maximum number of logs to prevent memory issues
         private const int MAX_LOGS = 10000;
         #endregion
@@ -134,7 +134,7 @@ namespace Toko.Models
                 return new StartRoomSuccess(Id);
             });
         }
-        
+
         private List<PlayerResult> CollectGameResults()
         {
 
@@ -198,9 +198,9 @@ namespace Toko.Models
                 if (Racers.Any(r => r.Id == playerId)) return JoinRoomError.AlreadyJoined;
                 if (Racers.Count >= MaxPlayers) return JoinRoomError.RoomFull;
                 var racer = new Racer { Id = playerId, PlayerName = playerName };
-                
+
                 AssignStartingPosition(racer);
-                
+
                 InitializeDeck(racer); DrawCardsInternal(racer, INITIALDRAW);
                 Racers.Add(racer);
                 AddEvent(new PlayerJoined(Id, racer.Id, racer.PlayerName));
@@ -350,33 +350,33 @@ namespace Toko.Models
                 UpdateBank(pid, events);
 
                 var ins = new ConcreteInstruction { Type = cardType, ExecParameter = p };
-                
+
                 var tempEvents = new List<IEvent>();
                 var executionResult = _turnExecutor.ApplyInstruction(racer, ins, this, tempEvents);
                 foreach (var evt in tempEvents) AddEvent(evt);
-                
+
                 if (executionResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
                     AddEvent(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
-                    _gameResults ??= CollectGameResults(); 
+                    _gameResults ??= CollectGameResults();
                     AddEvent(new GameEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
                 AddEvent(new PlayerStepExecuted(Id, CurrentRound, CurrentStep));
-                
+
                 // Execute automatic movement based on gear after card execution
                 var tempEvents2 = new List<IEvent>();
                 var autoMoveResult = _turnExecutor.ExecuteAutoMove(racer, this, tempEvents2);
                 foreach (var evt in tempEvents2) AddEvent(evt);
-                
+
                 if (autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                 {
                     AddEvent(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, racer.PlayerName));
-                    _gameResults ??= CollectGameResults(); 
+                    _gameResults ??= CollectGameResults();
                     AddEvent(new GameEnded(Id, GameEndReason.FinisherCrossedLine, _gameResults));
                     _gameSM.Fire(GameTrigger.GameOver);
                 }
-                
+
                 await MoveNextPlayerAsync(events);
                 return new SubmitExecutionParamSuccess(this.Id, pid, ins);
             });
@@ -418,12 +418,12 @@ namespace Toko.Models
 
                 var shouldFirePhase = _discardPending.Count == 0;
                 var result = new DiscardCardsSuccess(this.Id, pid, cardIds);
-                
+
                 if (shouldFirePhase)
                 {
                     await Task.Run(async () => await FirePhaseAsync(PhaseTrigger.DiscardDone));
                 }
-                
+
                 return result;
             });
         }
@@ -554,7 +554,7 @@ namespace Toko.Models
             }
             return Task.CompletedTask;
         }
-        
+
         private void AdjustTurnOrderByGearShifts()
         {
             // Create list of players with their gear shift counts
@@ -599,7 +599,7 @@ namespace Toko.Models
                     var tempEvents = new List<IEvent>();
                     var autoMoveResult = _turnExecutor.ExecuteAutoMove(racer, this, tempEvents);
                     foreach (var evt in tempEvents) AddEvent(evt);
-                    
+
                     if (autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished)
                     {
                         AddEvent(new PlayerFinished(Id, CurrentRound, CurrentStep, pid, GetPlayerName(pid)));
@@ -657,7 +657,7 @@ namespace Toko.Models
                 while (await _ticker.WaitForNextTickAsync(ct).ConfigureAwait(false))
                 {
                     PhaseTrigger? pendingTrigger = null;
-                    
+
                     await _gate.WaitAsync(ct).ConfigureAwait(false);
                     try
                     {
@@ -700,11 +700,11 @@ namespace Toko.Models
                             _nextPrompt[pidTurn] = DateTime.MaxValue;
                         }
                     }
-                    finally 
-                    { 
+                    finally
+                    {
                         _gate.Release();
                     }
-                    
+
                     if (pendingTrigger.HasValue)
                         await FirePhaseAsync(pendingTrigger.Value);
                     else
@@ -740,7 +740,7 @@ namespace Toko.Models
             do { _idx++; } while (_idx < _order.Count && _banned.Contains(_order[_idx]));
 
             PhaseTrigger? pendingTrigger = null;
-            
+
             if (_idx == _order.Count)
             {
                 _idx = 0;
@@ -853,12 +853,12 @@ namespace Toko.Models
         #region Snapshot for API
         // Returns a snapshot of the current room status for API
 
-        
+
         public void AddLog(TurnLog log)
         {
             AddLogInternal(log);
         }
-        
+
         private void AddLogInternal(TurnLog log)
         {
             var currentCount = Interlocked.Increment(ref _logCount);
@@ -872,14 +872,14 @@ namespace Toko.Models
                 _log.LogWarning("Log limit exceeded for room {RoomId}. Current log count: {Count}", Id, currentCount);
             }
         }
-        
+
         public IReadOnlyList<TurnLog> GetRecentLogs(int last = 10)
         {
             var recentLogs = _logs.Take(last).ToArray();
             Array.Reverse(recentLogs);
             return recentLogs;
         }
-        
+
         public async Task<RoomStatusSnapshot> GetStatusSnapshotAsync()
         {
             return await WithGateAsync(events =>
@@ -925,7 +925,7 @@ namespace Toko.Models
                 )).ToList();
 
                 _thinkStart.TryGetValue(currentTurnPlayerId ?? "", out var turnStartTime);
-                
+
                 var latestTurnLogs = GetRecentLogs(10).ToList();
 
                 // Build turn order with gear shift counts
@@ -1028,7 +1028,7 @@ namespace Toko.Models
             {
                 eventsToPublish.Add(evt);
             }
-            
+
             if (eventsToPublish.Count != 0)
                 await PublishEventsAsync(eventsToPublish);
         }
@@ -1037,18 +1037,18 @@ namespace Toko.Models
         {
             var startSegment = Map.Segments[0];
             var laneCount = startSegment.LaneCount;
-            
+
             var racerCount = Racers.Count;
-            
+
             var targetLaneIndex = racerCount % laneCount;
             var targetCellIndex = racerCount / laneCount;
-            
+
             // Ensure we don't exceed segment boundaries
             if (targetCellIndex >= startSegment.CellCount)
             {
                 targetCellIndex = startSegment.CellCount - 1;
             }
-            
+
             racer.SegmentIndex = 0;
             racer.LaneIndex = targetLaneIndex;
             racer.CellIndex = targetCellIndex;

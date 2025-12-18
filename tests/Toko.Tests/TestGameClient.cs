@@ -33,7 +33,7 @@ namespace Toko.Tests
         //public record JoinRommDto(string RoomId, string PlayerId, string PlayerName);
         //public record AuthDto(string PlayerName, string PlayerId);
         //public record WaitingCountDto(long Count);
-        
+
         // Game DTOs
         public record RoomStatusSnapshot(
             string RoomId,
@@ -52,15 +52,15 @@ namespace Toko.Tests
         );
 
         public record RacerStatus(
-            string Id, 
-            string Name, 
+            string Id,
+            string Name,
             int Segment,
-            int Lane, 
-            int Tile, 
-            double Bank, 
-            bool IsHost, 
-            bool IsReady, 
-            int HandCount, 
+            int Lane,
+            int Tile,
+            double Bank,
+            bool IsHost,
+            bool IsReady,
+            int HandCount,
             bool IsBanned
         );
 
@@ -230,12 +230,12 @@ namespace Toko.Tests
             var resp = await Client.GetAsync($"/api/room/{roomId}/status");
             resp.EnsureSuccessStatusCode();
             var raw = await resp.Content.ReadAsStringAsync();
-            
+
             // Parse the response that's wrapped in ApiSuccess
             var wrapper = await resp.Content.ReadFromJsonAsync<ApiSuccess<RoomStatusSnapshot>>(Json);
             Assert.NotNull(wrapper);
             Assert.NotNull(wrapper.Data);
-            
+
             // If game is finished, show enhanced status
             if (wrapper.Data.Status == "Finished")
             {
@@ -247,7 +247,7 @@ namespace Toko.Tests
             {
                 _output.WriteLine($"Room status [{PlayerName}]: {wrapper.Data.Status} - Phase: {wrapper.Data.Phase} - R{wrapper.Data.CurrentRound}S{wrapper.Data.CurrentStep}");
             }
-            
+
             return wrapper.Data;
         }
 
@@ -304,11 +304,11 @@ namespace Toko.Tests
         {
             var requestBody = new { ExecParameter = execParameter };
             _output.WriteLine($"[{PlayerName}] Submitting exec param: {JsonSerializer.Serialize(requestBody, Json)}");
-            
+
             var resp = await Client.PostAsJsonAsync($"/api/room/{roomId}/submit-exec-param", requestBody);
-            
+
             var raw = await resp.Content.ReadAsStringAsync();
-            
+
             if (!resp.IsSuccessStatusCode)
             {
                 _output.WriteLine($"[{PlayerName}] Submit exec param FAILED - Status: {resp.StatusCode}, Response: {raw}");
@@ -316,7 +316,7 @@ namespace Toko.Tests
                 _output.WriteLine($"[{PlayerName}] Request body: {JsonSerializer.Serialize(requestBody, Json)}");
                 throw new HttpRequestException($"Submit exec param failed with status {resp.StatusCode}: {raw}");
             }
-            
+
             _output.WriteLine($"[{PlayerName}] Submit exec param SUCCESS: {raw}");
         }
 
@@ -324,26 +324,26 @@ namespace Toko.Tests
         public async Task SubmitExecParamForCardAsync(string roomId, string cardType)
         {
             object execParam;
-            
+
             switch (cardType.ToLower())
             {
                 case "move":
                     // Move cards: Effect must be 1 or 2
                     execParam = new { Effect = new Random().Next(1, 3), DiscardedCardIds = new List<string>() }; // 1 or 2
                     break;
-                    
+
                 case "changelane":
                     // ChangeLane cards: Effect must be 1 or -1  
                     execParam = new { Effect = new Random().NextDouble() < 0.5 ? 1 : -1, DiscardedCardIds = new List<string>() };
                     break;
-                    
+
                 case "repair":
                     // Repair cards: Must have at least one card to discard
                     var hand = await GetHandAsync(roomId);
                     var cardsToDiscard = hand.Cards.Take(1).Select(c => c.Id).ToList(); // Discard 1 card
                     execParam = new { Effect = -1, DiscardedCardIds = cardsToDiscard };
                     break;
-                    
+
                 default:
                     // Fallback to a safe default
                     execParam = new { Effect = 1, DiscardedCardIds = new List<string>() };

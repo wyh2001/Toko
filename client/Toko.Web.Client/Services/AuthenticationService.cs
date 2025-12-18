@@ -43,7 +43,7 @@ namespace Toko.Web.Client.Services
             try
             {
                 var response = await _httpClient.GetAsync("/api/auth/anon");
-                
+
                 if (response.IsSuccessStatusCode)
                 {
                     // Both new and existing authentication return JSON with playerId
@@ -54,14 +54,14 @@ namespace Toko.Web.Client.Services
                         {
                             _playerId = wrapper.Data.PlayerId;
                             _isAuthenticated = true;
-                            
+
                             // Only set player name if it's provided (new users) and no custom name exists
-                            if (!string.IsNullOrEmpty(wrapper.Data.PlayerName) && 
+                            if (!string.IsNullOrEmpty(wrapper.Data.PlayerName) &&
                                 !await _playerNameService.HasCustomPlayerNameAsync())
                             {
                                 await _playerNameService.SetPlayerNameAsync(wrapper.Data.PlayerName);
                             }
-                            
+
                             Console.WriteLine($"Successfully authenticated with playerId: {_playerId}");
                             return true;
                         }

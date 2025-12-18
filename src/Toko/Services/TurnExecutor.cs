@@ -400,9 +400,9 @@ namespace Toko.Services
                         AddJunk(other, 1);
                         DownshiftGear(other, 1);
                     }
-                    
+
                     // Stop further movement for the current racer in this turn
-                    break; 
+                    break;
                 }
 
                 // Update racer position
@@ -447,7 +447,7 @@ namespace Toko.Services
 
                         // Normalize the scoring so that 1–2 steps on the outer path equal 1 step on the inner path
                         // Only works for two lane curves, more adjustments TBD for more complex curves
-                        racer.Score--; 
+                        racer.Score--;
                         // Track if the racer has left the starting segment after auto-move
                         if (racer.SegmentIndex != 0)
                         {
@@ -489,7 +489,7 @@ namespace Toko.Services
                 {
                     AddJunk(racer, 1);
                     _log.LogDebug($"Racer {racer.Id} received junk card for passing through corner at gear {racer.Gear} (limit: {cornerGearLimit})");
-                    
+
                     // Generate corner gear limit violation event
                     events.Add(new PlayerCornerGearLimitViolation(
                         room.Id,
@@ -621,12 +621,12 @@ namespace Toko.Services
         private static void DownshiftGear(Racer racer, int levels)
         {
             int newGear = racer.Gear - levels;
-            
+
             if (newGear < 1)
             {
                 newGear = 1;
             }
-            
+
             racer.Gear = newGear;
         }
 
@@ -647,7 +647,7 @@ namespace Toko.Services
             }
             // Discard the junk card the user chose, remove directly without adding to discard pile
             InternalRemove(racer, discardedCardId);
-            
+
             // Adjust gear after removing junk cards (may allow higher gears)
             CardHelper.AdjustGearForJunkCards(racer);
         }
@@ -657,11 +657,11 @@ namespace Toko.Services
             // direction: 1 for shift up, -1 for shift down
             int oldGear = racer.Gear;
             int newGear = racer.Gear + direction;
-            
+
             // Count junk cards in hand to determine max gear limit
             int junkCardCount = racer.Hand.Count(card => card.Type == CardType.Junk);
             int maxAllowedGear = 6 - junkCardCount; // Each junk card reduces max gear by 1
-            
+
             // Check if player tries to shift up beyond the maximum allowed gear
             bool hitGearLimit = false;
             if (direction > 0 && racer.Gear >= maxAllowedGear)
@@ -669,7 +669,7 @@ namespace Toko.Services
                 hitGearLimit = true;
                 AddJunk(racer, 1);
             }
-            
+
             // Clamp gear between 1 and max allowed gear
             if (newGear < 1)
             {
@@ -679,7 +679,7 @@ namespace Toko.Services
             {
                 newGear = maxAllowedGear;
             }
-            
+
             racer.Gear = newGear;
 
             // Generate gear change event
@@ -693,7 +693,7 @@ namespace Toko.Services
                 oldGear,
                 newGear
             ));
-            
+
             // Generate gear limit violation event if player hit the limit
             if (hitGearLimit)
             {

@@ -18,7 +18,7 @@ public interface IRaceHubService : IAsyncDisposable
 public sealed class RaceHubService : IRaceHubService
 {
     private HubConnection? _hubConnection;
-    
+
     public event Action<GameEvent>? GameEventReceived;
     public event Action<bool>? ConnectionStateChanged;
     public event Action<bool>? ReconnectingStateChanged;
@@ -90,7 +90,7 @@ public sealed class RaceHubService : IRaceHubService
         {
             await _hubConnection.DisposeAsync();
         }
-        
+
         GameEventReceived = null;
         ConnectionStateChanged = null;
         ReconnectingStateChanged = null;

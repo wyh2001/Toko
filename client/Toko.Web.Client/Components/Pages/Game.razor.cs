@@ -63,32 +63,36 @@ public partial class Game : ComponentBase, IAsyncDisposable
     private bool IsCardPlayable(CardDto card) => GameStateService.IsCardPlayable(card);
     private bool IsParameterSubmissionReady() => GameStateService.IsParameterSubmissionReady();
     private bool IsPlayerInDiscardPhase() => GameStateService.IsPlayerInDiscardPhase();
-    
+
     // UI-specific helper methods
     private string GetPlayerName(string? playerId) => GameStateService.GetPlayerName(playerId);
-    
+
     private string GetPlayerInitials(string playerName)
     {
         var parts = playerName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return parts.Length >= 2 ? $"{parts[0][0]}{parts[1][0]}".ToUpper() : playerName[..Math.Min(2, playerName.Length)].ToUpper();
     }
-    
+
     private string GetPlayerColorClass(string playerId)
     {
         var index = GameStateService.GameData?.Racers?.FindIndex(r => r.Id == playerId) ?? 0;
         var colors = new[] { "color-red", "color-blue", "color-green", "color-yellow" };
         return colors[index % colors.Length];
     }
-    
+
     private string GetCardValue(string cardType) => cardType switch
     {
-        "ChangeLane" => "L", "ShiftGear" => "G", "Junk" => "J", "Repair" => "R", _ => "?"
+        "ChangeLane" => "L",
+        "ShiftGear" => "G",
+        "Junk" => "J",
+        "Repair" => "R",
+        _ => "?"
     };
-    
+
     // Lane change direction helpers (needed for UI)
-    private (List<(string Text, int Value)>, string LayoutClass) GetLaneChangeButtonsAndLayout() => 
+    private (List<(string Text, int Value)>, string LayoutClass) GetLaneChangeButtonsAndLayout() =>
         GameStateService.GetLaneChangeButtonsAndLayout();
-    
+
     // Card overlay helper methods
     private bool ShouldShowCardDisabledOverlay(CardDto card) => GameStateService.ShouldShowCardDisabledOverlay(card);
     private string GetCardDisabledMessage(CardDto card) => GameStateService.GetCardDisabledMessage(card);

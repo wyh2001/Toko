@@ -213,7 +213,7 @@ namespace Toko.Shared.Services
             bool isBasic = IsBasic(dir);
             bool isSingleLane = laneCount == 1;
             bool isSideLane = lane == 0 || lane == laneCount - 1;
-            
+
             if (isBasic)
             {
                 if (isSingleLane)
@@ -230,17 +230,17 @@ namespace Toko.Shared.Services
                 {
                     return dir switch
                     {
-                        SegmentDirection.Left => lane == laneCount - 1 
-                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate90, false) 
+                        SegmentDirection.Left => lane == laneCount - 1
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate90, false)
                             : (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate270, false),
-                        SegmentDirection.Right => lane == laneCount - 1 
-                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate90, false) 
+                        SegmentDirection.Right => lane == laneCount - 1
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate90, false)
                             : (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate270, false),
-                        SegmentDirection.Up => lane == laneCount - 1 
-                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180, false) 
+                        SegmentDirection.Up => lane == laneCount - 1
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180, false)
                             : (MapRenderingType.SingleEdge, MapRenderingRotation.Original, false),
-                        SegmentDirection.Down => lane == laneCount - 1 
-                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180, false) 
+                        SegmentDirection.Down => lane == laneCount - 1
+                            ? (MapRenderingType.SingleEdge, MapRenderingRotation.Rotate180, false)
                             : (MapRenderingType.SingleEdge, MapRenderingRotation.Original, false),
                         _ => throw new ArgumentException($"Unexpected basic direction: {dir}")
                     };
@@ -260,7 +260,7 @@ namespace Toko.Shared.Services
             bool isBasic = IsBasic(dir);
             bool isSingleLane = laneCount == 1;
             bool isSideLane = laneIndex == 0 || laneIndex == laneCount - 1;
-            
+
             if (isBasic)
             {
                 if (lastSeg.LaneCount == 1 && (laneCount * lastSeg.LaneCount) > 2)

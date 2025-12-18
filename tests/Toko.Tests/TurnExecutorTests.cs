@@ -16,7 +16,7 @@ namespace Toko.Tests
     public class TurnExecutorTests
     {
         private readonly ITestOutputHelper _output;
-        
+
         public TurnExecutor? TurnExecutor { get; set; }
         public Racer? Racer { get; set; }
         public Room? Room { get; set; }
@@ -169,7 +169,7 @@ namespace Toko.Tests
             if (Room != null)
                 await Room.DisposeAsync();
         }
-        
+
         [Fact]
         public async Task MoveForward_Should_Update_Racer_Position_Correctly3()
         {
@@ -241,7 +241,7 @@ namespace Toko.Tests
             var map = GenerateFinalMapWithIntermediate(segments);
             SetupTestEnvironment(map);
             Racer!.LaneIndex = 1;
-            
+
             var instruction = CreateSkipInstruction();
             // Test movement through the complex track
             var expectedPositions = new[]
@@ -258,7 +258,7 @@ namespace Toko.Tests
                 (7, 0, 0), (7, 1, 1),
                 (8, 1, 0), (8, 1, 1), (8, 1, 2),
                 // Continue through remaining segments
-                (9, 1, 0), 
+                (9, 1, 0),
                 (10, 0, 0),
                 (11, 0, 0),
                 (12, 0, 0), (12, 0, 1), (12, 0, 2), (12, 0, 3), (12, 0, 4), (12, 0, 5),
@@ -290,7 +290,7 @@ namespace Toko.Tests
             var map = GenerateFinalMapWithIntermediate(segments);
             SetupTestEnvironment(map);
             Racer!.LaneIndex = 1;
-            
+
             var instruction = CreateSkipInstruction();
             // Test movement through the complex track
             var expectedPositions = new[]
@@ -324,14 +324,14 @@ namespace Toko.Tests
                 $"Step {_stepCounter} execution failed - Expected: Continue, Actual: {result}");
 
             var autoMoveResult = TurnExecutor!.ExecuteAutoMove(Racer!, Room!, new List<IEvent>());
-            
+
             Assert.True(autoMoveResult == TurnExecutor.TurnExecutionResult.Continue || autoMoveResult == TurnExecutor.TurnExecutionResult.PlayerFinished,
                 $"Step {_stepCounter} auto move failed - Expected: Continue or PlayerFinished, Actual: {autoMoveResult}");
 
             // Get actual coordinates
             var actualSegment = Room!.Map.Segments[Racer!.SegmentIndex];
             var actualCoord = actualSegment.LaneCells[Racer!.LaneIndex][Racer!.CellIndex].Position;
-            
+
             // Get expected coordinates
             var expectedSegment = Room!.Map.Segments[expectedSegmentIndex];
             var expectedCoord = expectedSegment.LaneCells[expectedLaneIndex][expectedCellIndex].Position;

@@ -203,7 +203,7 @@ namespace Toko.Controllers
         [HttpPost("{roomId}/start")]
         [EnsureRoomStatus(RoomStatus.Waiting)]
         [Idempotent]
-        public async Task<IActionResult> Start(string roomId) 
+        public async Task<IActionResult> Start(string roomId)
         {
             var playerId = GetPlayerId();
             var result = await _roomManager.StartRoom(roomId, playerId);

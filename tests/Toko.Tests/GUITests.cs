@@ -103,8 +103,8 @@ namespace Toko.Tests
     {
         private readonly TokoServerFixture _server;
         private readonly ITestOutputHelper _output;
-        public GUITests(TokoServerFixture server, ITestOutputHelper output) 
-        { 
+        public GUITests(TokoServerFixture server, ITestOutputHelper output)
+        {
             _server = server;
             _output = output;
         }
@@ -166,12 +166,12 @@ namespace Toko.Tests
             {
                 throw new InvalidOperationException("Could not get element position info from JS.");
             }
-            double top    = ConvertToDouble(rectDict, "top");
+            double top = ConvertToDouble(rectDict, "top");
             double bottom = ConvertToDouble(rectDict, "bottom");
-            double left   = ConvertToDouble(rectDict, "left");
-            double right  = ConvertToDouble(rectDict, "right");
+            double left = ConvertToDouble(rectDict, "left");
+            double right = ConvertToDouble(rectDict, "right");
             var viewportHeight = Convert.ToDouble(js.ExecuteScript("return window.innerHeight") ?? throw new InvalidOperationException("Could not get window height"));
-            var viewportWidth  = Convert.ToDouble(js.ExecuteScript("return window.innerWidth")  ?? throw new InvalidOperationException("Could not get window width"));
+            var viewportWidth = Convert.ToDouble(js.ExecuteScript("return window.innerWidth") ?? throw new InvalidOperationException("Could not get window width"));
 
             output.WriteLine($"Viewport size: Width={viewportWidth}, Height={viewportHeight}");
             output.WriteLine($"Element '{elementName}' bounding box: Top={top}, Bottom={bottom}, Left={left}, Right={right}");
@@ -184,7 +184,7 @@ namespace Toko.Tests
             output.WriteLine(isFullyVisible
                 ? $"Element '{elementName}' is fully visible, no scrolling needed."
                 : $"Element '{elementName}' is not fully visible, scrolling required.");
-            
+
             return isFullyVisible;
         }
 

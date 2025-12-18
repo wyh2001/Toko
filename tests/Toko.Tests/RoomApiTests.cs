@@ -545,7 +545,7 @@ namespace Toko.Tests
             await player2.AuthenticateAsync();
             var roomId = await player1.CreateRoomAsync();
             await player2.JoinRoomAsync(roomId); // Asserted inside
-            
+
             // Player 2 is not ready, so starting the game should fail
             var resp = await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
@@ -565,7 +565,7 @@ namespace Toko.Tests
             await player2.AuthenticateAsync();
             var roomId = await player1.CreateRoomAsync();
             await player2.JoinRoomAsync(roomId); // Asserted inside
-            
+
             // Player 2 tries to start the game, but is not the host
             var resp = await player2.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             _output.WriteLine("RAW RESPONSE: " + await resp.Content.ReadAsStringAsync());
@@ -585,7 +585,7 @@ namespace Toko.Tests
             await player1.AuthenticateAsync();
             await player2.AuthenticateAsync();
             var roomId = await player1.CreateRoomAsync();
-            
+
             // Player 2 tries to start the game without joining the room
             var resp = await player2.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
@@ -605,15 +605,15 @@ namespace Toko.Tests
             await player2.AuthenticateAsync();
             var roomId = await player1.CreateRoomAsync();
             await player2.JoinRoomAsync(roomId); // Asserted inside
-            
+
             // Mark both players as ready
             await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/ready", new { isReady = true });
             await player2.Client.PostAsJsonAsync($"/api/room/{roomId}/ready", new { isReady = true });
-            
+
             // Start the game
             var startResp = await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             startResp.EnsureSuccessStatusCode();
-            
+
             // Try to start the game again
             var resp = await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
@@ -633,18 +633,18 @@ namespace Toko.Tests
             await player2.AuthenticateAsync();
             var roomId = await player1.CreateRoomAsync();
             await player2.JoinRoomAsync(roomId); // Asserted inside
-            
+
             // Mark both players as ready
             await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/ready", new { isReady = true });
             await player2.Client.PostAsJsonAsync($"/api/room/{roomId}/ready", new { isReady = true });
-            
+
             // Start the game
             var startResp = await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             startResp.EnsureSuccessStatusCode();
-            
+
             // Simulate game finished (this part is not implemented in the provided code)
             // For example, you might update the room status to "finished" in your database
-            
+
             // Try to start the game again
             var resp = await player1.Client.PostAsJsonAsync($"/api/room/{roomId}/start", new { });
             Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
@@ -782,7 +782,7 @@ namespace Toko.Tests
 
             // Start the game
             await player1.StartGameAsync(roomId);
-            
+
             // Wait for game state to update
             await Task.Delay(100);
 
@@ -806,14 +806,14 @@ namespace Toko.Tests
             var resp = await player1.Client.GetAsync($"/api/room/{roomId}/status");
             resp.EnsureSuccessStatusCode();
             var fullStatus = await resp.Content.ReadFromJsonAsync<ApiSuccess<Toko.Shared.Models.RoomStatusSnapshot>>(_json);
-            
+
             Assert.NotNull(fullStatus);
             Assert.NotNull(fullStatus.Data);
-            
+
             // Verify there is only one log entry
             Assert.NotNull(fullStatus.Data.Logs);
             var singleLog = Assert.Single(fullStatus.Data.Logs);
-            
+
             // Verify the log is about the first player's card submission
             Assert.Equal(player1.PlayerId, singleLog.PlayerId);
             Assert.Contains("submitted", singleLog.Message, StringComparison.OrdinalIgnoreCase);
@@ -914,7 +914,7 @@ namespace Toko.Tests
 
                 // Get current room status
                 var status = await player1.GetRoomStatusAsync(roomId);
-                
+
                 if (iteration == 1)
                 {
                     // Extract finish line from map data on first iteration
@@ -952,7 +952,7 @@ namespace Toko.Tests
                             {
                                 _output.WriteLine($"     - {racer.Name} (ID: {racer.Id}): Lane {racer.Lane}, Tile {racer.Tile}, Hand {racer.HandCount}, Banned: {racer.IsBanned}");
                             }
-                            
+
                             Assert.Fail($"Game appears to be stuck in state {currentStateKey} for {stuckCounter} iterations");
                         }
                     }
@@ -969,7 +969,7 @@ namespace Toko.Tests
                     _output.WriteLine($"\n📊 === ROUND {status.CurrentRound + 1} STEP {status.CurrentStep + 1} ===");
                     _output.WriteLine($"Phase: {status.Phase} | Turn: {status.CurrentTurnPlayerId}");
                     _output.WriteLine($"Current Status: Round={status.CurrentRound}, Step={status.CurrentStep}, Phase={status.Phase}");
-                    
+
                     // Check if we completed a round (moved to next round)
                     if (status.CurrentRound > lastRound)
                     {
@@ -977,13 +977,13 @@ namespace Toko.Tests
                         {
                             roundsCompleted++;
                             _output.WriteLine($"🎉 Round {lastRound + 1} completed! ({roundsCompleted}/{expectedTotalRounds} rounds done)");
-                            
+
                             // Assert that we're making progress through rounds
                             Assert.True(roundsCompleted <= expectedTotalRounds,
                                        $"Completed more rounds ({roundsCompleted}) than expected ({expectedTotalRounds})");
                         }
                     }
-                    
+
                     lastRound = status.CurrentRound;
                     lastStep = status.CurrentStep;
                 }
@@ -992,18 +992,18 @@ namespace Toko.Tests
                 if (status.Status == "Finished")
                 {
                     _output.WriteLine("\n🏁 === GAME FINISHED ===");
-                    
+
                     // Calculate absolute positions for finish line check
                     var mapJson = (JsonElement)status.Map;
-                    var someoneReachedFinishLine = status.Racers.Any(r => 
+                    var someoneReachedFinishLine = status.Racers.Any(r =>
                         CalculateAbsolutePosition(r.Segment, r.Tile, mapJson) >= finishLine);
-                    
+
                     // Assert game completion reason
                     Assert.True(status.CurrentRound >= expectedTotalRounds || someoneReachedFinishLine,
                                $"Game should finish after {expectedTotalRounds} rounds or when someone crosses finish line. " +
                                $"Current round: {status.CurrentRound}, " +
                                $"Max absolute position: {status.Racers.Max(r => CalculateAbsolutePosition(r.Segment, r.Tile, mapJson))}");
-                    
+
                     // Display final results with absolute positions
                     _output.WriteLine("\n🏆 FINAL STANDINGS:");
                     var sortedRacers = status.Racers
@@ -1015,7 +1015,7 @@ namespace Toko.Tests
                         .OrderByDescending(x => x.AbsolutePosition)
                         .ThenBy(x => x.Racer.Lane)
                         .ToList();
-                    
+
                     for (int i = 0; i < sortedRacers.Count; i++)
                     {
                         var entry = sortedRacers[i];
@@ -1023,31 +1023,31 @@ namespace Toko.Tests
                         _output.WriteLine($"   {i + 1}. {racer.Name} - Segment {racer.Segment}, Lane {racer.Lane}, " +
                                         $"RelativeTile {racer.Tile}, AbsolutePosition {entry.AbsolutePosition}, Bank: {racer.Bank:F2}");
                     }
-                    
+
                     // Assert that we have a valid winner and game progress
                     var winner = sortedRacers.First();
                     Assert.True(winner.AbsolutePosition > 0, "Winner should have advanced from starting position");
                     Assert.True(roundsCompleted > 0 || status.CurrentRound > 0, "Game should have made progress through rounds");
                     _output.WriteLine($"🥇 Winner: {winner.Racer.Name} at absolute position {winner.AbsolutePosition}");
-                    
+
                     // Final progress report
                     _output.WriteLine($"\n📈 GAME STATISTICS:");
                     _output.WriteLine($"   Total iterations: {iteration}");
                     _output.WriteLine($"   Rounds completed: {roundsCompleted}");
                     _output.WriteLine($"   Final round/step: R{status.CurrentRound + 1}S{status.CurrentStep + 1}");
-                    
+
                     return; // Successful completion
                 }
 
                 // Assert game is still in valid state
                 Assert.Equal("Playing", status.Status);
-                Assert.True(status.CurrentRound >= 0 && status.CurrentRound < expectedTotalRounds + 1, 
+                Assert.True(status.CurrentRound >= 0 && status.CurrentRound < expectedTotalRounds + 1,
                            $"Round should be between 0 and {expectedTotalRounds}, actual: {status.CurrentRound}");
-                
+
                 var maxStepForRound = status.CurrentRound < stepsPerRound.Length ? stepsPerRound[status.CurrentRound] : stepsPerRound.Last();
                 _output.WriteLine($"🔍 Validating step: CurrentRound={status.CurrentRound}, CurrentStep={status.CurrentStep}, MaxStepForRound={maxStepForRound}");
-                Assert.True(status.CurrentStep >= 0 && status.CurrentStep <= maxStepForRound, 
-                           $"Step should be valid for current round. Round: {status.CurrentRound}, Step: {status.CurrentStep}, MaxStep: {maxStepForRound} (steps 0-{maxStepForRound-1} are valid, {maxStepForRound} indicates round transition)");
+                Assert.True(status.CurrentStep >= 0 && status.CurrentStep <= maxStepForRound,
+                           $"Step should be valid for current round. Round: {status.CurrentRound}, Step: {status.CurrentStep}, MaxStep: {maxStepForRound} (steps 0-{maxStepForRound - 1} are valid, {maxStepForRound} indicates round transition)");
 
                 // Find whose turn it is
                 var currentPlayer = players.FirstOrDefault(p => p.PlayerId == status.CurrentTurnPlayerId);
@@ -1079,7 +1079,7 @@ namespace Toko.Tests
                         {
                             _output.WriteLine($"   🗑️  Discarding phase: {status.DiscardPendingPlayerIds.Count} players need to discard");
                             _output.WriteLine($"   📋 Pending players: [{string.Join(", ", status.DiscardPendingPlayerIds)}]");
-                            
+
                             // Find the first pending player instead of relying on CurrentTurnPlayerId
                             var pendingPlayer = players.FirstOrDefault(p => status.DiscardPendingPlayerIds.Contains(p.PlayerId));
                             if (pendingPlayer != null)
@@ -1163,7 +1163,7 @@ namespace Toko.Tests
 
             // Get current room status to find out what card type we need to submit parameters for
             var status = await player.GetRoomStatusAsync(roomId);
-            
+
             if (string.IsNullOrEmpty(status.CurrentTurnCardType))
             {
                 _output.WriteLine($"   ❌ No card type information available for {player.PlayerName}");
@@ -1183,14 +1183,14 @@ namespace Toko.Tests
                     paramToSubmit = new { Effect = moveEffect, DiscardedCardIds = new List<string>() };
                     paramDesc = $"Move effect={moveEffect}";
                     break;
-                    
+
                 case "ChangeLane":
                     // ChangeLane cards accept Effect: 1 or -1
                     var laneEffect = random.Next(0, 2) == 0 ? -1 : 1; // -1 or 1
                     paramToSubmit = new { Effect = laneEffect, DiscardedCardIds = new List<string>() };
                     paramDesc = $"ChangeLane effect={laneEffect}";
                     break;
-                    
+
                 case "Repair":
                     // Repair cards can only discard Junk cards, or auto-skip if no Junk cards available
                     var hand = await player.GetHandAsync(roomId);
@@ -1323,7 +1323,7 @@ namespace Toko.Tests
         {
             // Load test data from JSON
             var testCases = LoadMapTestCases();
-            
+
             foreach (var testCase in testCases)
             {
                 var player = new TestGameClient(factory, _output);
@@ -1379,7 +1379,7 @@ namespace Toko.Tests
                         {
                             errors.Add($"Cell type mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedCellType}, Got {cell.Type}");
                         }
-                        
+
                         // Verify grid properties
                         if (expectedCell.ExpectedGrid != null)
                         {
@@ -1393,14 +1393,14 @@ namespace Toko.Tests
                                 {
                                     errors.Add($"Grid RenderingType mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedGrid.RenderingType}, Got {cell.Grid.RenderingType}");
                                 }
-                                
+
                                 // For Plain tiles, any rotation is acceptable
                                 if (expectedCell.ExpectedGrid.RenderingType != MapRenderingType.Plain &&
                                     expectedCell.ExpectedGrid.Rotation != cell.Grid.Rotation)
                                 {
                                     errors.Add($"Grid Rotation mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedGrid.Rotation}, Got {cell.Grid.Rotation}");
                                 }
-                                
+
                                 if (expectedCell.ExpectedGrid.IsFlipped != cell.Grid.IsFlipped)
                                 {
                                     errors.Add($"Grid IsFlipped mismatch at ({expectedCell.X}, {expectedCell.Y}): Expected {expectedCell.ExpectedGrid.IsFlipped}, Got {cell.Grid.IsFlipped}");
@@ -1429,10 +1429,10 @@ namespace Toko.Tests
                     {
                         _output.WriteLine($"   {i + 1}. {errors[i]}");
                     }
-                    
+
                     // Print track structure for debugging
                     PrintTrackStructure(mapJson, _output);
-                    
+
                     Assert.Fail($"Map '{testCase.MapName}' verification failed with {errors.Count} errors:\n{string.Join("\n", errors)}");
                 }
 
@@ -1573,17 +1573,17 @@ namespace Toko.Tests
             try
             {
                 output.WriteLine("\n🗺️ === RACE TRACK STRUCTURE ===");
-                
+
                 if (mapJson.TryGetProperty("totalCells", out var totalCellsElement))
                 {
                     output.WriteLine($"   Total Cells: {totalCellsElement.GetInt32()}");
                 }
-                
+
                 if (mapJson.TryGetProperty("segments", out var segmentsElement))
                 {
                     var segments = segmentsElement.EnumerateArray().ToList();
                     output.WriteLine($"   Total Segments: {segments.Count}");
-                    
+
                     for (int i = 0; i < segments.Count; i++)
                     {
                         var segment = segments[i];
@@ -1592,9 +1592,9 @@ namespace Toko.Tests
                         var cellCount = segment.TryGetProperty("cellCount", out var cellCountElement) ? cellCountElement.GetInt32() : 0;
                         var direction = segment.TryGetProperty("direction", out var directionElement) ? directionElement.GetString() : "Unknown";
                         var isIntermediate = segment.TryGetProperty("isIntermediate", out var isIntermediateElement) ? isIntermediateElement.GetBoolean() : false;
-                        
+
                         output.WriteLine($"   Segment {i}: {type} | Lanes: {laneCount} | Cells: {cellCount} | Direction: {direction} | Intermediate: {isIntermediate}");
-                        
+
                         // Print lane cell counts if available
                         if (segment.TryGetProperty("laneCellCounts", out var laneCellCountsElement))
                         {
@@ -1603,7 +1603,7 @@ namespace Toko.Tests
                         }
                     }
                 }
-                
+
                 output.WriteLine("================================\n");
             }
             catch (Exception ex)
