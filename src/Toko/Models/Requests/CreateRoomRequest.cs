@@ -42,7 +42,7 @@ namespace Toko.Models.Requests
             if (CustomMap?.Segments != null)
             {
                 var segments = CustomMap.Segments;
-                
+
                 // Check if segments list is empty
                 if (segments.Count == 0)
                 {
@@ -51,13 +51,72 @@ namespace Toko.Models.Requests
                         new[] { nameof(CustomMap) });
                     yield break; // No need to check further if there are no segments
                 }
-                
+
+                // Limit segment count to prevent DoS
+                const int MaxSegments = 50;
+                if (segments.Count > MaxSegments)
+                {
+                    yield return new ValidationResult(
+                        $"Too many segments. Maximum allowed is {MaxSegments}.",
+                        new[] { nameof(CustomMap) });
+                    yield break;
+                }
+
+                const int MaxLaneCount = 10;
+                const int MaxCellCount = 20;
+                const int MaxTotalCells = 500;
+                int totalCells = 0;
+
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    var seg = segments[i];
+
+                    // Validate enum values
+                    if (!Enum.TryParse<SegmentDirection>(seg.Direction, out _))
+                    {
+                        yield return new ValidationResult(
+                            $"Invalid direction '{seg.Direction}' at segment {i}.",
+                            new[] { nameof(CustomMap) });
+                    }
+
+                    if (!Enum.TryParse<CellType>(seg.Type, out _))
+                    {
+                        yield return new ValidationResult(
+                            $"Invalid type '{seg.Type}' at segment {i}.",
+                            new[] { nameof(CustomMap) });
+                    }
+
+                    if (seg.LaneCount < 1 || seg.LaneCount > MaxLaneCount)
+                    {
+                        yield return new ValidationResult(
+                            $"LaneCount must be between 1 and {MaxLaneCount}. Got {seg.LaneCount} at segment {i}.",
+                            new[] { nameof(CustomMap) });
+                    }
+
+                    if (seg.CellCount < 1 || seg.CellCount > MaxCellCount)
+                    {
+                        yield return new ValidationResult(
+                            $"CellCount must be between 1 and {MaxCellCount}. Got {seg.CellCount} at segment {i}.",
+                            new[] { nameof(CustomMap) });
+                    }
+
+                    totalCells += seg.LaneCount * seg.CellCount;
+                }
+
+                // Limit total map size to prevent memory exhaustion
+                if (totalCells > MaxTotalCells)
+                {
+                    yield return new ValidationResult(
+                        $"Map too large. Total cells ({totalCells}) exceeds maximum ({MaxTotalCells}).",
+                        new[] { nameof(CustomMap) });
+                }
+
                 // Check for adjacent segments
                 for (int i = 0; i < segments.Count; i++)
                 {
                     var currentSegment = segments[i];
                     var nextSegment = segments[(i + 1) % segments.Count]; // wrap around to first segment
-                    
+
                     // Check if adjacent segments have opposite directions
                     if (AreDirectionsOpposite(currentSegment.Direction, nextSegment.Direction))
                     {
@@ -65,7 +124,7 @@ namespace Toko.Models.Requests
                             $"Adjacent segments cannot have opposite directions. Found '{currentSegment.Direction}' followed by '{nextSegment.Direction}' at positions {i} and {(i + 1) % segments.Count}.",
                             new[] { nameof(CustomMap) });
                     }
-                    
+
                     // Check if adjacent segments are completely identical (same direction and lane count)
                     if (currentSegment.Direction == nextSegment.Direction && currentSegment.LaneCount == nextSegment.LaneCount)
                     {

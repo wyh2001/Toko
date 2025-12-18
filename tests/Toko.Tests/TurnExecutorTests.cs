@@ -4,6 +4,7 @@ using Toko.Models;
 using Toko.Models.Events;
 using Toko.Services;
 using Toko.Shared.Models;
+using Toko.Shared.Models.Events;
 using Toko.Shared.Services;
 using Xunit;
 using Xunit.Abstractions;

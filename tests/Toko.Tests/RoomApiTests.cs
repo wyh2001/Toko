@@ -102,6 +102,220 @@ namespace Toko.Tests
         }
 
         [Fact]
+        public async Task CreateRoomWithTooManySegments_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var segments = Enumerable.Range(0, 51).Select(i => new
+            {
+                type = "Road",
+                laneCount = 2,
+                cellCount = 3,
+                direction = i % 2 == 0 ? "Up" : "Right",
+                isIntermediate = false
+            }).ToList();
+
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new { segments }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("Too many segments", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithInvalidLaneCount_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "Road", laneCount = 0, cellCount = 3, direction = "Up", isIntermediate = false }
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("LaneCount", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithLaneCountTooLarge_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "Road", laneCount = 11, cellCount = 3, direction = "Up", isIntermediate = false }
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("LaneCount", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithInvalidCellCount_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "Road", laneCount = 2, cellCount = 0, direction = "Up", isIntermediate = false }
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("CellCount", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithCellCountTooLarge_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "Road", laneCount = 2, cellCount = 21, direction = "Up", isIntermediate = false }
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("CellCount", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithMapTooLarge_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            // 10 lanes * 10 cells * 6 segments = 600 > 500
+            var segments = Enumerable.Range(0, 6).Select(i => new
+            {
+                type = "Road",
+                laneCount = 10,
+                cellCount = 10,
+                direction = i % 2 == 0 ? "Up" : "Right",
+                isIntermediate = false
+            }).ToList();
+
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new { segments }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("Map too large", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithInvalidDirection_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "Road", laneCount = 2, cellCount = 3, direction = "InvalidDirection", isIntermediate = false }
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("Invalid direction", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithInvalidCellType_ShouldReturnBadRequest()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "InvalidType", laneCount = 2, cellCount = 3, direction = "Up", isIntermediate = false }
+                    }
+                }
+            });
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            var error = await resp.Content.ReadFromJsonAsync<ProblemDetails>(_json);
+            Assert.NotNull(error?.Detail);
+            Assert.Contains("Invalid type", error.Detail.ToString());
+        }
+
+        [Fact]
+        public async Task CreateRoomWithValidCustomMap_ShouldSucceed()
+        {
+            await AuthenticateAsync(_client);
+            var resp = await _client.PostAsJsonAsync("/api/room/create", new
+            {
+                playerName = "TestPlayer",
+                stepsPerRound = new[] { 1 },
+                customMap = new
+                {
+                    segments = new[]
+                    {
+                        new { type = "Road", laneCount = 2, cellCount = 5, direction = "Up", isIntermediate = false },
+                        new { type = "Road", laneCount = 2, cellCount = 3, direction = "Right", isIntermediate = false },
+                        new { type = "Road", laneCount = 2, cellCount = 5, direction = "Down", isIntermediate = false },
+                        new { type = "Road", laneCount = 2, cellCount = 3, direction = "Left", isIntermediate = false }
+                    }
+                }
+            });
+
+            resp.EnsureSuccessStatusCode();
+        }
+
+        [Fact]
         public async Task GetRoom_ShouldReturnRoomDetails()
         {
             var (playerId, playerName) = await AuthenticateAsync(_client);
