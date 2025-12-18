@@ -1,0 +1,73 @@
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="OnClose">
+        <div class="modal-content modal-md" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">About</h2>
+                <button class="modal-close" @onclick="OnClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Toko Toko</h3>
+                    <p class="modal-section-text">
+                        A strategic programming board game where players race around a track using cards.
+                        Plan your moves carefully, manage your gear, and avoid collisions to stay ahead of the competition.
+                    </p>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Technology</h3>
+                    <div class="modal-grid-2">
+                        <div class="modal-grid-item">
+                            <div class="modal-grid-label">Backend</div>
+                            <div class="modal-grid-value">.NET 9 / ASP.NET Core</div>
+                        </div>
+                        <div class="modal-grid-item">
+                            <div class="modal-grid-label">Frontend</div>
+                            <div class="modal-grid-value">Blazor WebAssembly</div>
+                        </div>
+                        <div class="modal-grid-item">
+                            <div class="modal-grid-label">Real-time</div>
+                            <div class="modal-grid-value">SignalR</div>
+                        </div>
+                        <div class="modal-grid-item">
+                            <div class="modal-grid-label">Auth</div>
+                            <div class="modal-grid-value">JWT Bearer</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Credits</h3>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Game Assets</span>
+                        <span class="modal-info-value">Kenney "Racing Pack" (CC0 1.0)</span>
+                    </div>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">License</h3>
+                    <p class="modal-section-text">
+                        This project is open source under the MIT License.
+                        Built for learning and experimentation.
+                    </p>
+                </section>
+
+                <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #f0f0f0;">
+                    <a href="https://github.com/wyh2001/Toko" target="_blank" rel="noopener noreferrer" class="modal-link">
+                        View on GitHub
+                    </a>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="modal-btn modal-btn-primary" @onclick="OnClose">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}

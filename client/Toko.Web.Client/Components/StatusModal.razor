@@ -1,0 +1,83 @@
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="OnClose">
+        <div class="modal-content modal-md" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">System Status</h2>
+                <button class="modal-close" @onclick="OnClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Services</h3>
+                    <div class="modal-status-item">
+                        <div class="modal-status-indicator @(IsApiOnline ? "modal-status-online" : "modal-status-offline")"></div>
+                        <div class="modal-status-info">
+                            <div class="modal-status-name">API Server</div>
+                            <div class="modal-status-desc">@(IsApiOnline ? "Operational" : "Unavailable")</div>
+                        </div>
+                    </div>
+                    <div class="modal-status-item">
+                        <div class="modal-status-indicator @(IsSignalROnline ? "modal-status-online" : "modal-status-offline")"></div>
+                        <div class="modal-status-info">
+                            <div class="modal-status-name">SignalR Hub</div>
+                            <div class="modal-status-desc">@(IsSignalROnline ? "Connected" : "Disconnected")</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Live Statistics</h3>
+                    <div class="modal-grid-2">
+                        <div class="modal-grid-item modal-grid-item-dark">
+                            <div class="modal-grid-value modal-grid-value-lg">@(IsApiOnline ? PlayersOnline?.ToString() ?? "0" : "--")</div>
+                            <div class="modal-grid-label">Players Racing</div>
+                        </div>
+                        <div class="modal-grid-item modal-grid-item-dark">
+                            <div class="modal-grid-value modal-grid-value-lg">@(IsApiOnline ? GamesInProgress?.ToString() ?? "0" : "--")</div>
+                            <div class="modal-grid-label">Games In Progress</div>
+                        </div>
+                        <div class="modal-grid-item modal-grid-item-dark">
+                            <div class="modal-grid-value modal-grid-value-lg">@(IsApiOnline ? GamesToday?.ToString() ?? "0" : "--")</div>
+                            <div class="modal-grid-label">Games Today</div>
+                        </div>
+                        <div class="modal-grid-item modal-grid-item-dark">
+                            <div class="modal-grid-value modal-grid-value-lg">@(IsApiOnline ? OpenRooms?.ToString() ?? "0" : "--")</div>
+                            <div class="modal-grid-label">Open Rooms</div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Server Info</h3>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Platform</span>
+                        <span class="modal-info-value">.NET 9 / ASP.NET Core</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Frontend</span>
+                        <span class="modal-info-value">Blazor WebAssembly</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Health Check</span>
+                        <span class="modal-info-value">3s timeout</span>
+                    </div>
+                </section>
+
+                <div class="modal-actions">
+                    <button class="modal-btn modal-btn-primary" @onclick="OnClose">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public long? PlayersOnline { get; set; }
+    [Parameter] public long? GamesInProgress { get; set; }
+    [Parameter] public long? GamesToday { get; set; }
+    [Parameter] public long? OpenRooms { get; set; }
+    [Parameter] public bool IsApiOnline { get; set; }
+    [Parameter] public bool IsSignalROnline { get; set; }
+}

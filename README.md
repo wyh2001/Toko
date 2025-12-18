@@ -1,6 +1,6 @@
 # Toko
 
-Full-stack racing board game web app: **.NET 9 API + Blazor WebAssembly**.  
+Racing board game web app built with **.NET 9 API + Blazor WebAssembly**.  
 
 <hr />
 <p align="center">

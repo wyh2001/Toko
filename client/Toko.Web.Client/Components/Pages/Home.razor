@@ -2,6 +2,7 @@
 @using Toko.Shared.Models
 @using System.Linq
 @using Toko.Web.Client.Components
+@using Microsoft.AspNetCore.SignalR.Client
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject Toko.Web.Client.Services.IAuthenticationService AuthService
@@ -41,13 +42,13 @@
         </div>
 
         <!-- How to Play -->
-        <div class="tile text-tile guide-tile" onclick="showGuide()">
+        <div class="tile text-tile guide-tile" @onclick="ShowHowToPlay">
             <div class="text-title">How to Play</div>
             <div class="text-subtitle">Strategic Racing Mechanics and Rules</div>
         </div>
 
         <!-- About -->
-        <div class="tile text-tile about-tile" onclick="showAbout()">
+        <div class="tile text-tile about-tile" @onclick="ShowAbout">
             <div class="text-title">About</div>
             <div class="text-subtitle">Game Information</div>
         </div>
@@ -60,9 +61,9 @@
         </div>
 
         <!-- System Status -->
-        <div class="tile text-tile status-tile" onclick="showStatus()">
+        <div class="tile text-tile status-tile" @onclick="ShowStatus">
             <div class="text-title">System Status</div>
-            <div class="text-subtitle">All Racing Servers Operational</div>
+            <div class="text-subtitle">@(isApiOnline && isSignalROnline ? "All Services Operational" : "Some Services Unavailable")</div>
         </div>
     </div>
 
@@ -87,10 +88,21 @@
     </div>
 </div>
 
-<CreateGameModal IsVisible="showCreateGameModal" 
-                 OnClose="CloseCreateGameModal" 
+<CreateGameModal IsVisible="showCreateGameModal"
+                 OnClose="CloseCreateGameModal"
                  OnGameCreated="HandleGameCreated"
                  PlayerNameService="PlayerNameService" />
+
+<HowToPlayModal IsVisible="showHowToPlayModal" OnClose="CloseHowToPlayModal" />
+<AboutModal IsVisible="showAboutModal" OnClose="CloseAboutModal" />
+<StatusModal IsVisible="showStatusModal"
+             OnClose="CloseStatusModal"
+             PlayersOnline="playingRacersCount"
+             GamesInProgress="playingCount"
+             GamesToday="finishedCount"
+             OpenRooms="waitingCount"
+             IsApiOnline="isApiOnline"
+             IsSignalROnline="isSignalROnline" />
 
 @code{
     private Timer? pollingTimer;
@@ -101,6 +113,11 @@
     private List<RoomListItemDto>? rooms;
     
     private bool showCreateGameModal = false;
+    private bool showHowToPlayModal = false;
+    private bool showAboutModal = false;
+    private bool showStatusModal = false;
+    private bool isApiOnline = false;
+    private bool isSignalROnline = false;
 
     protected override void OnInitialized()
     {
@@ -131,6 +148,89 @@
         showCreateGameModal = false;
     }
 
+    private void ShowHowToPlay()
+    {
+        showHowToPlayModal = true;
+    }
+
+    private void CloseHowToPlayModal()
+    {
+        showHowToPlayModal = false;
+    }
+
+    private void ShowAbout()
+    {
+        showAboutModal = true;
+    }
+
+    private void CloseAboutModal()
+    {
+        showAboutModal = false;
+    }
+
+    private async Task ShowStatus()
+    {
+        showStatusModal = true;
+        await CheckApiHealth();
+    }
+
+    private async Task CheckApiHealth()
+    {
+        // Check API
+        var apiTask = CheckApi();
+        // Check SignalR
+        var signalRTask = CheckSignalR();
+
+        await Task.WhenAll(apiTask, signalRTask);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CheckApi()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        try
+        {
+            var response = await Http.GetAsync("api/room/room-counts", cts.Token);
+            isApiOnline = response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            isApiOnline = false;
+        }
+    }
+
+    private async Task CheckSignalR()
+    {
+        HubConnection? hubConnection = null;
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        try
+        {
+            var hubUrl = Navigation.ToAbsoluteUri("/raceHub").ToString();
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(hubUrl)
+                .Build();
+
+            await hubConnection.StartAsync(cts.Token);
+            isSignalROnline = hubConnection.State == HubConnectionState.Connected;
+        }
+        catch
+        {
+            isSignalROnline = false;
+        }
+        finally
+        {
+            if (hubConnection != null)
+            {
+                await hubConnection.DisposeAsync();
+            }
+        }
+    }
+
+    private void CloseStatusModal()
+    {
+        showStatusModal = false;
+    }
+
     private void HandleGameCreated(CreateRoomDto gameData)
     {
         Console.WriteLine($"Game created: {gameData.RoomId}");
@@ -143,7 +243,7 @@
         try
         {
             var client = Http;
-            
+
             // Fetch room counts
             var countsResponse = await client.GetFromJsonAsync<ApiSuccess<RoomCountsDto>>("api/room/room-counts");
             if (countsResponse is not null && countsResponse.Data is not null)
@@ -161,12 +261,16 @@
                 waitingCount = rooms.Count(r => !r.IsPrivate && r.Status == "Waiting");
             }
 
+            isApiOnline = true;
+
             // Notify the UI to update
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to fetch data: {ex.Message}");
+            isApiOnline = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 

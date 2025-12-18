@@ -1,0 +1,78 @@
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="OnClose">
+        <div class="modal-content modal-lg" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">How to Play</h2>
+                <button class="modal-close" @onclick="OnClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Overview</h3>
+                    <p class="modal-section-text">
+                        Toko Toko is a strategic programming board game where players race around a track using cards.
+                        Plan your moves carefully - collisions add Junk to your deck, slowing you down.
+                        The player who travels the furthest wins.
+                    </p>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Card Types</h3>
+                    <div class="modal-card-item">
+                        <div class="modal-card-name">Shift Gear</div>
+                        <div class="modal-card-desc">Increase or decrease your gear (1-6). Higher gear = more movement.</div>
+                    </div>
+                    <div class="modal-card-item">
+                        <div class="modal-card-name">Change Lane</div>
+                        <div class="modal-card-desc">Move left or right one lane. Cannot be used in corners.</div>
+                    </div>
+                    <div class="modal-card-item">
+                        <div class="modal-card-name">Repair</div>
+                        <div class="modal-card-desc">Discard up to 2 Junk cards from your hand.</div>
+                    </div>
+                    <div class="modal-card-item modal-card-item-danger">
+                        <div class="modal-card-name">Junk</div>
+                        <div class="modal-card-desc">Bad cards that clog your hand. Each Junk reduces your max gear by 1.</div>
+                    </div>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Movement</h3>
+                    <ul class="modal-list">
+                        <li>Each turn, you play a card and then automatically move forward</li>
+                        <li>Movement distance equals your current gear (1-6 cells)</li>
+                        <li>Max gear = 6 minus the number of Junk cards in your hand</li>
+                        <li>At 6 Junk cards, you cannot move at all</li>
+                    </ul>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Collisions</h3>
+                    <ul class="modal-list">
+                        <li>Hitting another racer: both players downshift, blocked racer gains 1 Junk</li>
+                        <li>Hitting a wall: movement stops, gain 1 Junk</li>
+                        <li>Changing lanes in a corner: invalid move, gain 1 Junk</li>
+                        <li>Going too fast in corners: gear over 4 in corners adds 1 Junk</li>
+                    </ul>
+                </section>
+
+                <section class="modal-section">
+                    <h3 class="modal-section-header">Winning</h3>
+                    <p class="modal-section-text">
+                        Race around the track to score points. Each cell you move forward adds to your score.
+                        The game ends when a player completes a full lap. Highest score wins.
+                    </p>
+                </section>
+
+                <div class="modal-actions">
+                    <button class="modal-btn modal-btn-primary" @onclick="OnClose">Got It</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+}
