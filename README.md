@@ -29,16 +29,14 @@ cd Toko
 
 Set the required secret key for signing JWTs. The key must be at least 32 bytes long.
 
-For your **current terminal session**, run:
-
 ```bash
-export Jwt__Key=$(openssl rand -base64 48)
+echo "Jwt__Key=$(openssl rand -base64 48)" > .env
 ```
 
 **2. Run with Docker Compose**
 
 ```pwsh
-docker compose up --build
+docker compose up -d --build
 ```
 
 The application will be available at `http://localhost:8080`.
@@ -62,6 +60,11 @@ Guidance:
 * Adjust `ReverseProxy__ApiAddress` if service name/port differ in custom compose or Kubernetes.
 
 </details>
+
+## Demo Video
+
+https://github.com/user-attachments/assets/38b5225c-8884-4c47-8cf7-4a5a8681d0bd
+
 
 ## Technology Stack
 
