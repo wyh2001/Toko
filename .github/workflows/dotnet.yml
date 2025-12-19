@@ -38,7 +38,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-      - name: Build Container image
-        run: docker build -t ${{ secrets.DOCKER_REPO }}:latest .
-      - name: Publish Docker image
-        run: docker push ${{ secrets.DOCKER_REPO }}:latest
+      - name: Build Container images
+        run: docker compose build
+      - name: Tag and push images
+        run: |
+          docker tag toko ${{ secrets.DOCKER_USERNAME }}/toko:latest
+          docker tag tokoweb ${{ secrets.DOCKER_USERNAME }}/tokoweb:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/toko:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/tokoweb:latest
