@@ -56,6 +56,8 @@ namespace Toko.Tests
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
+            // Set the reverse proxy API address to point to the test API server
+            webPsi.EnvironmentVariables["ReverseProxy__ApiAddress"] = ApiUrl;
             _webProcess = Process.Start(webPsi)!;
 
             // Wait for Web

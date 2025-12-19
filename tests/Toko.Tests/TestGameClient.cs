@@ -22,53 +22,6 @@ namespace Toko.Tests
         public string PlayerName { get; set; } = "";
         private readonly ITestOutputHelper _output = output;
 
-        //private record ApiSuccess<T>(string Message, T Data);
-        //private record ApiError(object Error);
-        private record CreateRoomDto(string RoomId, string PlayerId, string PlayerName);
-        private record JoinRommDto(string RoomId, string PlayerId, string PlayerName);
-        private record AuthDto(string PlayerName, string PlayerId);
-
-        // Response DTOs
-        //public record CreateRoomDto(string RoomId, string PlayerId, string PlayerName);
-        //public record JoinRommDto(string RoomId, string PlayerId, string PlayerName);
-        //public record AuthDto(string PlayerName, string PlayerId);
-        //public record WaitingCountDto(long Count);
-
-        // Game DTOs
-        public record RoomStatusSnapshot(
-            string RoomId,
-            string Name,
-            int MaxPlayers,
-            bool IsPrivate,
-            string Status,
-            string Phase,
-            int CurrentRound,
-            int CurrentStep,
-            string? CurrentTurnPlayerId,
-            string? CurrentTurnCardType, // Add card type for parameter submission
-            List<string> DiscardPendingPlayerIds,
-            List<RacerStatus> Racers,
-            object Map
-        );
-
-        public record RacerStatus(
-            string Id,
-            string Name,
-            int Segment,
-            int Lane,
-            int Tile,
-            double Bank,
-            bool IsHost,
-            bool IsReady,
-            int HandCount,
-            bool IsBanned
-        );
-
-        public record CardDto
-        {
-            public string Id { get; init; } = "";
-            public string Type { get; init; } = "";
-        }
 
         public record HandResponse
         {
@@ -333,7 +286,12 @@ namespace Toko.Tests
                     break;
 
                 case "changelane":
-                    // ChangeLane cards: Effect must be 1 or -1  
+                    // ChangeLane cards: Effect must be 1 or -1
+                    execParam = new { Effect = new Random().NextDouble() < 0.5 ? 1 : -1, DiscardedCardIds = new List<string>() };
+                    break;
+
+                case "shiftgear":
+                    // ShiftGear cards: Effect must be 1 (shift up) or -1 (shift down)
                     execParam = new { Effect = new Random().NextDouble() < 0.5 ? 1 : -1, DiscardedCardIds = new List<string>() };
                     break;
 

@@ -918,15 +918,8 @@ namespace Toko.Tests
                 if (iteration == 1)
                 {
                     // Extract finish line from map data on first iteration
-                    if (status.Map is JsonElement mapJson && mapJson.TryGetProperty("totalCells", out var totalCellsElement))
-                    {
-                        finishLine = totalCellsElement.GetInt32() - 1;
-                        _output.WriteLine($"🗺️ Finish line is at tile {finishLine}");
-                    }
-                    else
-                    {
-                        _output.WriteLine($"⚠️ Could not determine finish line from map data, using default {finishLine}");
-                    }
+                    finishLine = status.Map.TotalCells - 1;
+                    _output.WriteLine($"🗺️ Finish line is at tile {finishLine}");
                 }
 
                 // Check if we're stuck in the same state
@@ -994,15 +987,14 @@ namespace Toko.Tests
                     _output.WriteLine("\n🏁 === GAME FINISHED ===");
 
                     // Calculate absolute positions for finish line check
-                    var mapJson = (JsonElement)status.Map;
                     var someoneReachedFinishLine = status.Racers.Any(r =>
-                        CalculateAbsolutePosition(r.Segment, r.Tile, mapJson) >= finishLine);
+                        CalculateAbsolutePosition(r.Segment, r.Tile, status.Map) >= finishLine);
 
-                    // Assert game completion reason
-                    Assert.True(status.CurrentRound >= expectedTotalRounds || someoneReachedFinishLine,
+                    // Assert game completion reason (CurrentRound is 0-indexed, so after 3 rounds it's 2)
+                    Assert.True(status.CurrentRound >= expectedTotalRounds - 1 || someoneReachedFinishLine,
                                $"Game should finish after {expectedTotalRounds} rounds or when someone crosses finish line. " +
-                               $"Current round: {status.CurrentRound}, " +
-                               $"Max absolute position: {status.Racers.Max(r => CalculateAbsolutePosition(r.Segment, r.Tile, mapJson))}");
+                               $"Current round: {status.CurrentRound} (0-indexed), " +
+                               $"Max absolute position: {status.Racers.Max(r => CalculateAbsolutePosition(r.Segment, r.Tile, status.Map))}");
 
                     // Display final results with absolute positions
                     _output.WriteLine("\n🏆 FINAL STANDINGS:");
@@ -1010,7 +1002,7 @@ namespace Toko.Tests
                         .Select(r => new
                         {
                             Racer = r,
-                            AbsolutePosition = CalculateAbsolutePosition(r.Segment, r.Tile, mapJson)
+                            AbsolutePosition = CalculateAbsolutePosition(r.Segment, r.Tile, status.Map)
                         })
                         .OrderByDescending(x => x.AbsolutePosition)
                         .ThenBy(x => x.Racer.Lane)
@@ -1191,6 +1183,13 @@ namespace Toko.Tests
                     paramDesc = $"ChangeLane effect={laneEffect}";
                     break;
 
+                case "ShiftGear":
+                    // ShiftGear cards accept Effect: 1 (shift up) or -1 (shift down)
+                    var gearEffect = random.Next(0, 2) == 0 ? -1 : 1; // -1 or 1
+                    paramToSubmit = new { Effect = gearEffect, DiscardedCardIds = new List<string>() };
+                    paramDesc = $"ShiftGear effect={gearEffect}";
+                    break;
+
                 case "Repair":
                     // Repair cards can only discard Junk cards, or auto-skip if no Junk cards available
                     var hand = await player.GetHandAsync(roomId);
@@ -1280,42 +1279,19 @@ namespace Toko.Tests
         }
 
         // Helper method to calculate absolute cell position from segment and cell indices
-        private static int CalculateAbsolutePosition(int segmentIndex, int cellIndex, JsonElement mapJson)
+        private static int CalculateAbsolutePosition(int segmentIndex, int cellIndex, MapSnapshot map)
         {
-            try
+            // Sum the lengths of all previous segments
+            int absolutePosition = 0;
+            for (int i = 0; i < segmentIndex && i < map.Segments.Count; i++)
             {
-                // Get the segments array from map data
-                if (!mapJson.TryGetProperty("segments", out var segmentsElement))
-                    return cellIndex; // Fallback to relative position
-
-                var segments = segmentsElement.EnumerateArray().ToList();
-
-                // Sum the lengths of all previous segments
-                int absolutePosition = 0;
-                for (int i = 0; i < segmentIndex && i < segments.Count; i++)
-                {
-                    var segment = segments[i];
-                    if (segment.TryGetProperty("laneCellCounts", out var laneCellCountsElement))
-                    {
-                        // Get the first lane's cell count (all lanes in a segment should have the same count)
-                        var firstLaneCount = laneCellCountsElement.EnumerateArray().FirstOrDefault();
-                        if (firstLaneCount.ValueKind == JsonValueKind.Number)
-                        {
-                            absolutePosition += firstLaneCount.GetInt32();
-                        }
-                    }
-                }
-
-                // Add the current cell index within the current segment
-                absolutePosition += cellIndex;
-
-                return absolutePosition;
+                absolutePosition += map.Segments[i].CellCount;
             }
-            catch (Exception)
-            {
-                // If parsing fails, fallback to relative position
-                return cellIndex;
-            }
+
+            // Add the current cell index within the current segment
+            absolutePosition += cellIndex;
+
+            return absolutePosition;
         }
 
         [Fact]
@@ -1337,18 +1313,7 @@ namespace Toko.Tests
 
                 // Get room status and recreate map
                 var status = await player.GetRoomStatusAsync(roomId);
-                var mapJson = (JsonElement)status.Map;
-                var segmentsJson = mapJson.GetProperty("segments").EnumerateArray();
-
-                var actualSegments = segmentsJson.Select(segJson => new MapSegmentSnapshot(
-                    segJson.GetProperty("type").GetString()!,
-                    segJson.GetProperty("laneCount").GetInt32(),
-                    segJson.GetProperty("cellCount").GetInt32(),
-                    segJson.GetProperty("direction").GetString()!,
-                    segJson.GetProperty("isIntermediate").GetBoolean()
-                )).ToList();
-
-                var map = RaceMapFactory.CreateMap(actualSegments);
+                var map = RaceMapFactory.CreateMap(status.Map.Segments);
 
                 // Create position lookup dictionary (like frontend)
                 var cellLookup = new Dictionary<(int x, int y), Cell>();
@@ -1431,7 +1396,7 @@ namespace Toko.Tests
                     }
 
                     // Print track structure for debugging
-                    PrintTrackStructure(mapJson, _output);
+                    PrintTrackStructure(status.Map, _output);
 
                     Assert.Fail($"Map '{testCase.MapName}' verification failed with {errors.Count} errors:\n{string.Join("\n", errors)}");
                 }
@@ -1568,48 +1533,19 @@ namespace Toko.Tests
         }
 
         // Helper method to print race track structure for debugging
-        private void PrintTrackStructure(JsonElement mapJson, ITestOutputHelper output)
+        private void PrintTrackStructure(MapSnapshot map, ITestOutputHelper output)
         {
-            try
+            output.WriteLine("\n🗺️ === RACE TRACK STRUCTURE ===");
+            output.WriteLine($"   Total Cells: {map.TotalCells}");
+            output.WriteLine($"   Total Segments: {map.Segments.Count}");
+
+            for (int i = 0; i < map.Segments.Count; i++)
             {
-                output.WriteLine("\n🗺️ === RACE TRACK STRUCTURE ===");
-
-                if (mapJson.TryGetProperty("totalCells", out var totalCellsElement))
-                {
-                    output.WriteLine($"   Total Cells: {totalCellsElement.GetInt32()}");
-                }
-
-                if (mapJson.TryGetProperty("segments", out var segmentsElement))
-                {
-                    var segments = segmentsElement.EnumerateArray().ToList();
-                    output.WriteLine($"   Total Segments: {segments.Count}");
-
-                    for (int i = 0; i < segments.Count; i++)
-                    {
-                        var segment = segments[i];
-                        var type = segment.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : "Unknown";
-                        var laneCount = segment.TryGetProperty("laneCount", out var laneCountElement) ? laneCountElement.GetInt32() : 0;
-                        var cellCount = segment.TryGetProperty("cellCount", out var cellCountElement) ? cellCountElement.GetInt32() : 0;
-                        var direction = segment.TryGetProperty("direction", out var directionElement) ? directionElement.GetString() : "Unknown";
-                        var isIntermediate = segment.TryGetProperty("isIntermediate", out var isIntermediateElement) ? isIntermediateElement.GetBoolean() : false;
-
-                        output.WriteLine($"   Segment {i}: {type} | Lanes: {laneCount} | Cells: {cellCount} | Direction: {direction} | Intermediate: {isIntermediate}");
-
-                        // Print lane cell counts if available
-                        if (segment.TryGetProperty("laneCellCounts", out var laneCellCountsElement))
-                        {
-                            var laneCellCounts = laneCellCountsElement.EnumerateArray().Select(x => x.GetInt32()).ToList();
-                            output.WriteLine($"     Lane Cell Counts: [{string.Join(", ", laneCellCounts)}]");
-                        }
-                    }
-                }
-
-                output.WriteLine("================================\n");
+                var segment = map.Segments[i];
+                output.WriteLine($"   Segment {i}: {segment.Type} | Lanes: {segment.LaneCount} | Cells: {segment.CellCount} | Direction: {segment.Direction} | Intermediate: {segment.IsIntermediate}");
             }
-            catch (Exception ex)
-            {
-                output.WriteLine($"⚠️ Failed to print track structure: {ex.Message}");
-            }
+
+            output.WriteLine("================================\n");
         }
     }
 }
