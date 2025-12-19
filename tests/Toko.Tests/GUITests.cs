@@ -16,8 +16,8 @@ namespace Toko.Tests
     {
         private Process? _webProcess;
         private Process? _apiProcess;
-        public string BaseUrl => "https://localhost:7253";
-        public string ApiUrl => "https://localhost:7057";
+        public string BaseUrl => "http://localhost:5253";
+        public string ApiUrl => "http://localhost:5057";
 
         public async Task InitializeAsync()
         {
